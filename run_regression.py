@@ -23,7 +23,7 @@ def step_decay(epoch, lr):
             return lr * 0.1
     return lr
      
-label = "var_theta_phi"
+label = "train_test_shuffle_false_dropout"
 path = "./"+label
 
 if not os.path.exists(path):
@@ -38,14 +38,14 @@ print(list(h5_file.keys()))
 images = h5_file['calo_images']
 truth = h5_file['truth']
 
-N_Events = 1_000_000
+N_Events = 100_000
 #N_Events = 100_000
 # N_Events = 1_000
 X = images[0:N_Events]
 Y = truth[0:N_Events,0,0] #rm last 0 for E+phi
 
 (X_train, X_val, X_test,
-Y_train, Y_val, Y_test) = data_split(X, Y, val=0.2, test=0.3,shuffle=True)
+Y_train, Y_val, Y_test) = data_split(X, Y, val=0.2, test=0.3,shuffle=False)
 
 
 fig = plt.figure(figsize=(16,9))
@@ -78,12 +78,11 @@ plt.clf()
 
 callbacks = tf.keras.callbacks.LearningRateScheduler(step_decay,verbose=0)
 
-learning_rate = 1e-4
+learning_rate = 1e-6
 Phi_sizes, F_sizes = (100, 100, 128), (100, 100, 100)
 output_act, output_dim = 'linear', 1
 loss = 'mse' #mean-squared error
 pfn = PFN(input_dim=X.shape[-1], Phi_sizes=Phi_sizes, F_sizes=F_sizes, 
-          output_act=output_act, output_dim=output_dim, loss=loss, 
           optimizer=tf.keras.optimizers.Adam(learning_rate=learning_rate))
 
 the_fit = pfn.fit(X_train, Y_train,
