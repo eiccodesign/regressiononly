@@ -38,10 +38,14 @@ class train_target_generator:
         with h5py.File(self.file, 'r') as hf:
             for train, target in zip(hf[self.train_dataset],hf[self.target_dataset]):
 
-                train = (train - train_means[:,None]) / train_stdevs[:,None]
-                target = (target[mcE_index] - target_means[mcE_index,None]) / target_stdevs[mcE_index,None]
+                train = np.asarray((train - train_means[:,None]) / train_stdevs[:,None])
+                train = train.T # [feature, particle] -> [particle, feature] 
+                train = train[np.newaxis, :]
 
-                yield train, [target[0]]
+                target = (target[mcE_index] - target_means[mcE_index,None]) / target_stdevs[mcE_index,None]
+                target = [target[0]] #particle gun keep first element (sorted for true parent). External brackets for TF iterable
+
+                yield train, target
 
                 # A tf.data dataset. Should return a tuple of either (inputs, targets)
 
