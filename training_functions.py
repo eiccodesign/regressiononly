@@ -39,6 +39,7 @@ class train_target_generator:
             for train, target in zip(hf[self.train_dataset],hf[self.target_dataset]):
 
                 train = np.asarray((train - train_means[:,None]) / train_stdevs[:,None])
+                train = np.nan_to_num(train,nan=0)
                 train = train.T # [feature, particle] -> [particle, feature] 
                 train = train[np.newaxis, :]
 
