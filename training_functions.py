@@ -40,8 +40,10 @@ class train_target_generator:
 
                 train = (train - train_means[:,None]) / train_stdevs[:,None]
                 target = (target[mcE_index] - target_means[mcE_index,None]) / target_stdevs[mcE_index,None]
+                # print(target[0])
+                # print(type(target))
 
-                yield (train, target)
+                yield (train, target[0])
 
                 # A tf.data dataset. Should return a tuple of either (inputs, targets)
 
