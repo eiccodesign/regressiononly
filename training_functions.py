@@ -59,7 +59,7 @@ def scalar_from_generator(tf_dataset, nvars, nbatch_stop):
 
 def lr_decay(epoch, lr):
     min_rate = 1.01e-7
-    N_epochs = 40
+    N_epochs = 10
     N_start = N_epochs - 1
 
     if epoch > N_start and lr >= min_rate:
