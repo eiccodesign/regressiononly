@@ -12,16 +12,16 @@ print(gpus)
 h5_filename = "split_test.hdf5"
 h5_file = h5.File(h5_filename,'r')
 
-label = "model_output_Oct3"  #Replace with your own variation!      
+label = "model_output_Oct8"  #Replace with your own variation!      
 path = "./"+label
 
 input_dim = h5_file['train_hcal'].shape[-2] #should be 4: Cell E,X,Y,Z, the number of features per particle
 learning_rate = 1e-4
-dropout_rate = 0.1
+dropout_rate = 0.05
 batch_size = 1000
-N_Epochs = 400
-patience = 20
-N_Latent = 128
+N_Epochs = 100
+patience = 10
+N_Latent = 64
 shuffle_split = True #Turn FALSE for images!
 train_shuffle = True #Turn TRUE for images!
 Y_scalar = True
@@ -54,9 +54,14 @@ val_generator = tf.data.Dataset.from_generator(
     output_shapes=(tf.TensorShape([None,None,None]),[None]),
     output_types=(tf.float64, tf.float64))
 
+test_generator = tf.data.Dataset.from_generator(
+    train_target_generator(h5_filename,'test_hcal','test_mc'),
+    output_shapes=(tf.TensorShape([None,None,None]),[None]),
+    output_types=(tf.float64, tf.float64))
+
 training_generator.batch(batch_size)
 val_generator.batch(batch_size)
-
+test_generator.batch(batch_size)
 
 the_fit = pfn.fit(
     training_generator,
@@ -70,13 +75,11 @@ the_fit = pfn.fit(
 
 pfn.layers
 pfn.save("%s/energy_regression.h5"%(path))
-mypreds = pfn.predict(X_test,batch_size=400)
+
+mypreds = pfn.predict(test_generator, batch_size=1000)
 
 if (Y_scalar):
     mypreds = mypreds*target_stdevs[0] + target_means[0]
-    Y_test  =  Y_test*target_stdevs[0] + target_means[0]
-    #0 index = E, 1 index = Theta
     
+    #0 index = E, 1 index = Theta
 np.save("%s/predictions.npy"%(path),mypreds)
-np.save("%s/y_test.npy"%(path),Y_test)
-np.save("%s/x_test.npy"%(path),X_test)
