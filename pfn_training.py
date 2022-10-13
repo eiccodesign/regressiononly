@@ -12,7 +12,7 @@ print(gpus)
 h5_filename = "split_test.hdf5"
 h5_file = h5.File(h5_filename,'r')
 
-label = "model_output_Oct8"  #Replace with your own variation!      
+label = "model_output_Oct12"  #Replace with your own variation!      
 path = "./"+label
 
 input_dim = h5_file['train_hcal'].shape[-2] #should be 4: Cell E,X,Y,Z, the number of features per particle
@@ -20,7 +20,7 @@ learning_rate = 1e-4
 dropout_rate = 0.05
 batch_size = 1000
 N_Epochs = 100
-patience = 10
+patience = 5
 N_Latent = 64
 shuffle_split = True #Turn FALSE for images!
 train_shuffle = True #Turn TRUE for images!
