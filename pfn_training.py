@@ -42,6 +42,7 @@ pfn = PFN(input_dim=input_dim,
 
 lr_scheduler = tf.keras.callbacks.LearningRateScheduler(lr_decay,verbose=0)
 early_stopping = tf.keras.callbacks.EarlyStopping(patience=patience)
+history_logger=tf.keras.callbacks.CSVLogger(path+"/log.csv", separator=",", append=True)
 
 
 training_generator = tf.data.Dataset.from_generator(
@@ -67,7 +68,7 @@ the_fit = pfn.fit(
     training_generator,
     epochs=N_Epochs,
     batch_size=batch_size,
-    callbacks=[lr_scheduler, early_stopping],
+    callbacks=[lr_scheduler, early_stopping,history_logger],
     validation_data=val_generator,
     verbose=1
 )
