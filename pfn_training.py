@@ -15,7 +15,7 @@ print(gpus)
 h5_filename = "2M_hcal_update.hdf5"
 h5_file = h5.File(h5_filename,'r')
 
-label = "2M_hcal_50GeV-_patience10"  #Replace with your own variation!      
+label = "2M_hcal_50GeV-_patience10_10k_batch"  #Replace with your own variation!      
 path = "./"+label
 shutil.rmtree(path, ignore_errors=True)
 os.makedirs(path)
@@ -23,9 +23,9 @@ os.makedirs(path)
 input_dim = h5_file['train_hcal'].shape[-2] #should be 4: Cell E,X,Y,Z, the number of features per particle
 learning_rate = 1e-4
 dropout_rate = 0.05
-batch_size = 1000
+batch_size = 10_000
 N_Epochs = 50
-patience = 10
+patience = 5
 N_Latent = 128
 shuffle_split = True #Turn FALSE for images!
 train_shuffle = True #Turn TRUE for images!
@@ -52,27 +52,33 @@ history_logger=tf.keras.callbacks.CSVLogger(path+"/log.csv", separator=",", appe
 model_checkpoint = tf.keras.callbacks.ModelCheckpoint( filepath=path, save_best_only=True)
 
 
-training_generator = tf.data.Dataset.from_generator(
-    train_target_generator(h5_filename,'train_hcal','train_mc'),
+train_generator = tf.data.Dataset.from_generator(
+    training_generator(h5_filename,'train_hcal','train_mc'),
     output_shapes=(tf.TensorShape([None,None,None]),[None]),
     output_types=(tf.float64, tf.float64))
+
 
 val_generator = tf.data.Dataset.from_generator(
-    train_target_generator(h5_filename,'val_hcal','val_mc'),
+    training_generator(h5_filename,'train_hcal','train_mc'),
     output_shapes=(tf.TensorShape([None,None,None]),[None]),
     output_types=(tf.float64, tf.float64))
 
+# val_generator = tf.data.Dataset.from_generator(
+#     training_generator(h5_filename,'val_hcal','val_mc'),
+#     output_shapes=(tf.TensorShape([None,None,None]),[None]),
+#     output_types=(tf.float64, tf.float64))
+
 test_generator = tf.data.Dataset.from_generator(
-    test_generator(h5_filename,'test_hcal'),
+    test_generator(h5_filename,'test_hcal','test_mc'),
     output_shapes=(tf.TensorShape([None,None,None])),
     output_types=(tf.float64))
 
-training_generator.batch(batch_size)
-val_generator.batch(batch_size)
-test_generator.batch(batch_size)
+# training_generator.batch(batch_size)
+# val_generator.batch(batch_size)
+# test_generator.batch(batch_size)
 
 the_fit = pfn.fit(
-    training_generator,
+    train_generator,
     epochs=N_Epochs,
     batch_size=batch_size,
     callbacks=[lr_scheduler, early_stopping,history_logger,model_checkpoint],
@@ -82,7 +88,7 @@ the_fit = pfn.fit(
 
 
 pfn.layers
-mypreds = pfn.predict(test_generator, batch_size=1000)
 pfn.save("%s/energy_regression.h5"%(path))
+mypreds = pfn.predict(test_generator, batch_size=1000)
 np.save("%s/predictions.npy"%(path),mypreds)
 #FIXME: un-norm the predictions

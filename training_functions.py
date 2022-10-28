@@ -25,8 +25,7 @@ class generator:
             for data in hf[self.dataset]:
                 yield data
 
-
-class train_target_generator:
+class train_target_generator: #DEPRICATED
     def __init__(self, file, train_dataset, target_dataset):
         self.file = file
         self.train_dataset = train_dataset
@@ -43,7 +42,7 @@ class train_target_generator:
                 train = np.nan_to_num(train)
                 train = train[np.newaxis, :] #PFN expects data as [event# ,particle# ,feature_value_i]
 
-                if (target[mcE_index][0] > 50): continue
+                # if (target[mcE_index][0] > 50): continue
                 # target[mcE_index] = np.log10(target[mcE_index])
                 target = (target[mcE_index] - target_means[mcE_index,None]) / target_stdevs[mcE_index,None] #can transpose and remove "None"
                 target = [target[0]] #particle gun keep first element (sorted for true parent). External brackets for TF iterable
@@ -51,23 +50,113 @@ class train_target_generator:
                 yield train, target
                 # tf.data dataset for training should return a tuple of (inputs, targets)
 
-class test_generator:
-    def __init__(self, file, dataset):
+class test_generator:                                                                                                                                                                    
+    def __init__(self, file, train_dataset, target_dataset,batch_size=1000):                                                                                                                 
         self.file = file
-        self.dataset = dataset
+        self.train_dataset = train_dataset
+        self.target_dataset = target_dataset
+        self.batch_size = batch_size
+        self.index = 0
 
-    def __call__(self):
+    def __call__(self):                                                                                                                                                                      
         with h5py.File(self.file, 'r') as hf:
-            for data in hf[self.dataset]:
-                data = np.array(data)
-                data = data.T 
-                print(data[:,0])
-                data[:,0] = np.log10(data[:,0])
-                print(data[:,0])
-                data = (data - train_means) / train_stdevs
-                data = np.nan_to_num(data)
-                data = data[np.newaxis, :] #Needed for PFN (takes 3-D data)
-                yield data
+            
+            train_dataset = hf[self.train_dataset] #string to H5 dataset
+            target_dataset = hf[self.target_dataset]
+
+            while (self.index < train_dataset.shape[0]):
+
+                start = self.index
+                end = start + self.batch_size
+                if end > train_dataset.shape[0]: break
+                
+                train = np.array(train_dataset[start:end])
+                train = preprocess_train_data(train)
+                                                                                                                           
+                target = np.array(target_dataset[start:end])
+                target = preprocess_target_data(target)
+
+                self.index += self.batch_size
+                yield train 
+
+def preprocess_train_data(data): #Add cell index argument?                                                                                                              
+    train_E_index = 0 #careful, should correspond to HDF5 FILE!!!
+    data = np.transpose(data, (0,2,1)) #PFN wants [events,particles, features]
+    #data[:,E_Index] = np.log10(data[:,train_E_index])                                                                                                                                              
+    data = (data - train_means) / train_stdevs                                                                                                                                           
+    data = np.nan_to_num(data)                                                                                                                                                               
+    return data 
+
+def preprocess_target_data(target): #Add cell index argument?                                                                                                              
+    mcE_index = 8
+    target = (target[:,mcE_index,:] - target_means[None,mcE_index,None]) / target_stdevs[None,mcE_index,None]
+    print(target_stdevs[mcE_index])
+    target = target[:,0] #keep first parent gen particle 
+    #target = np.log10(target)
+    target = np.nan_to_num(target)
+
+class training_generator:                                                                                                                                                                    
+    def __init__(self, file, train_dataset, target_dataset,batch_size=1000):                                                                                                                 
+        self.file = file                                                                                                                                                                     
+        self.train_dataset = train_dataset                                                                                                                                                   
+        self.target_dataset = target_dataset                                                                                                                                                 
+        self.batch_size = batch_size                                                                                                                                                         
+        self.index = 0                                                                                                                                                                       
+                                                                                                                                                                                             
+    def __call__(self):                                                                                                                                                                      
+        with h5py.File(self.file, 'r') as hf:
+            
+            train_dataset = hf[self.train_dataset] #string to H5 dataset
+            target_dataset = hf[self.target_dataset]
+
+            while (self.index < train_dataset.shape[0]):                                                                                                                                                 
+                                                                                                                                                                                             
+                start = self.index                                                                                                                                                           
+                end = start + self.batch_size                                                                                                                                                     
+                if end > train_dataset.shape[0]: break
+                                                                                                                                                                                             
+                train = np.array(train_dataset[start:end])                                                                                                                                                                                                                                                                                         
+                train = preprocess_train_data(train)
+                                                                                                                                              
+                                                                                                                           
+                target = np.array(target_dataset[start:end])
+                target = preprocess_target_data(target)
+                                                                                                                                                                                             
+                self.index += self.batch_size                                                                                                                                                     
+                yield train, target
+
+def preprocess_train_data(data): #Add cell index argument?                                                                                                              
+    train_E_index = 0 #careful, should correspond to HDF5 FILE!!!
+    data = np.transpose(data, (0,2,1)) #PFN wants [events,particles, features]
+    #data[:,E_Index] = np.log10(data[:,train_E_index])                                                                                                                                              
+    data = (data - train_means) / train_stdevs                                                                                                                                           
+    data = np.nan_to_num(data)                                                                                                                                                               
+    return data 
+
+def preprocess_target_data(target): #Add cell index argument?                                                                                                              
+    mcE_index = 8
+    target = (target[:,mcE_index,:] - target_means[None,mcE_index,None]) / target_stdevs[None,mcE_index,None]
+    print(target_stdevs[mcE_index])
+    target = target[:,0] #keep first parent gen particle 
+    #target = np.log10(target)
+    target = np.nan_to_num(target)
+    return target #should return just the genE of first particles
+# class test_generator:
+#     def __init__(self, file, dataset):
+#         self.file = file
+#         self.dataset = dataset
+
+#     def __call__(self):
+#         with h5py.File(self.file, 'r') as hf:
+#             for data in hf[self.dataset]:
+#                 if (data[mcE_index][0] > 50): continue
+#                 data = np.array(data)
+#                 data = data.T 
+#                 # data[:,0] = np.log10(data[:,0])
+#                 data = (data - train_means) / train_stdevs
+#                 data = np.nan_to_num(data)
+#                 data = data[np.newaxis, :] #Needed for PFN (takes 3-D data)
+#                 yield data
 
 
 def scalar_from_generator(tf_dataset, nbatch_stop,E_Index):
@@ -82,16 +171,6 @@ def scalar_from_generator(tf_dataset, nbatch_stop,E_Index):
         # print("%i / %i \r"%(ibatch,nbatch_stop))
         # print("mean = ",scaler.mean_,"+/-",np.sqrt(scaler.var_))
     return scaler
-
-
-def process_cell_data(data,means,stdevs): #Add cell index argument?
-    data = np.array(data)
-    data = data.T 
-    data[:,0] = np.log10(data[:,0])
-    data = (data - means) / stdevs
-    data = np.nan_to_num(data)
-    data = data[np.newaxis, :] #Needed for PFN (takes 3-D data)
-    return data
 
 def lr_decay(epoch, lr):
     min_rate = 1.01e-7
