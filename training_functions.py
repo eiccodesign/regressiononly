@@ -11,7 +11,6 @@ train_means = np.asarray([5.03507405e+00,  3.18427509e-01, -2.18519480e+00,  4.3
 train_stdevs = np.asarray([12.82926836, 1149.09226927, 1164.31439935,  292.47299661])
 
 target_means =  np.asarray([2.11000000e+02, 2.16756598e+07, 1.00000000e+00, -3.86635313e-02, -2.54282110e-02, 4.73076933e+01, 1.39570177e-01, 1.49288059e+01, 5.00046094e+01, 1.75126818e+01])
-
 target_stdevs = np.asarray([0.00000000e+00, 2.50778893e+07, 0.00000000e+00, 1.31630895e+01, 1.31124268e+01, 2.73733162e+01, 0.00000000e+00, 1.10605406e+01, 2.88454524e+01, 7.22166879e+00])
 
 mcE_index = 8; #see to_hdf5
@@ -26,7 +25,6 @@ class generator:
             for data in hf[self.dataset]:
                 yield data
 
-                # A tf.data dataset. Should return a tuple of either (inputs, targets)
 
 class train_target_generator:
     def __init__(self, file, train_dataset, target_dataset):
@@ -38,24 +36,62 @@ class train_target_generator:
         with h5py.File(self.file, 'r') as hf:
             for train, target in zip(hf[self.train_dataset],hf[self.target_dataset]):
 
-                train = np.asarray((train - train_means[:,None]) / train_stdevs[:,None])
-                train = np.nan_to_num(train,nan=0)
-                train = train.T # [feature, particle] -> [particle, feature] 
-                train = train[np.newaxis, :]
+                train = np.array(train)
+                train = train.T
+                # train[:,0] = np.log10(train[:,0]) #Cell E values
+                train = (train - train_means) / train_stdevs
+                train = np.nan_to_num(train)
+                train = train[np.newaxis, :] #PFN expects data as [event# ,particle# ,feature_value_i]
 
-                target = (target[mcE_index] - target_means[mcE_index,None]) / target_stdevs[mcE_index,None]
+                if (target[mcE_index][0] > 50): continue
+                # target[mcE_index] = np.log10(target[mcE_index])
+                target = (target[mcE_index] - target_means[mcE_index,None]) / target_stdevs[mcE_index,None] #can transpose and remove "None"
                 target = [target[0]] #particle gun keep first element (sorted for true parent). External brackets for TF iterable
 
                 yield train, target
+                # tf.data dataset for training should return a tuple of (inputs, targets)
 
-                # A tf.data dataset. Should return a tuple of either (inputs, targets)
+class test_generator:
+    def __init__(self, file, dataset):
+        self.file = file
+        self.dataset = dataset
 
-def scalar_from_generator(tf_dataset, nvars, nbatch_stop):
+    def __call__(self):
+        with h5py.File(self.file, 'r') as hf:
+            for data in hf[self.dataset]:
+                data = np.array(data)
+                data = data.T 
+                print(data[:,0])
+                data[:,0] = np.log10(data[:,0])
+                print(data[:,0])
+                data = (data - train_means) / train_stdevs
+                data = np.nan_to_num(data)
+                data = data[np.newaxis, :] #Needed for PFN (takes 3-D data)
+                yield data
+
+
+def scalar_from_generator(tf_dataset, nbatch_stop,E_Index):
     scaler = StandardScaler()
-    for data,ibatch in zip(tf_dataset.batch(1000),range(0, nbatch_stop)):
-        scaler.partial_fit(data.numpy().transpose(0,2,1).reshape(-1,nvars))
-        print("mean = ",scaler.mean_,"+/-",np.sqrt(scaler.var_))
+    for data,ibatch in zip(tf_dataset,range(0, nbatch_stop)):
 
+        data = np.array(data)
+        data = data.T #cell hit, cell value [EXYZ]. generator class does not return transpose
+        data[:,E_Index] = np.log10(data[:,E_Index]) #Log10 on Energy only 
+        data = np.nan_to_num(data)
+        scaler.partial_fit(data)
+        # print("%i / %i \r"%(ibatch,nbatch_stop))
+        # print("mean = ",scaler.mean_,"+/-",np.sqrt(scaler.var_))
+    return scaler
+
+
+def process_cell_data(data,means,stdevs): #Add cell index argument?
+    data = np.array(data)
+    data = data.T 
+    data[:,0] = np.log10(data[:,0])
+    data = (data - means) / stdevs
+    data = np.nan_to_num(data)
+    data = data[np.newaxis, :] #Needed for PFN (takes 3-D data)
+    return data
 
 def lr_decay(epoch, lr):
     min_rate = 1.01e-7
@@ -67,7 +103,3 @@ def lr_decay(epoch, lr):
             return lr * 0.1
     return lr
 
-# def partial_scalar_fit():
-# for data in tf_dataset.batch(1000):   
-#     scaler.partial_fit(data.numpy().transpose(0,2,1).reshape(-1,4))
-# print("mean = ",scaler.mean_,"+/-",np.sqrt(scaler.var_))
