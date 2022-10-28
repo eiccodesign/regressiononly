@@ -90,7 +90,6 @@ def preprocess_train_data(data): #Add cell index argument?
 def preprocess_target_data(target): #Add cell index argument?                                                                                                              
     mcE_index = 8
     target = (target[:,mcE_index,:] - target_means[None,mcE_index,None]) / target_stdevs[None,mcE_index,None]
-    print(target_stdevs[mcE_index])
     target = target[:,0] #keep first parent gen particle 
     #target = np.log10(target)
     target = np.nan_to_num(target)
@@ -115,7 +114,7 @@ class training_generator:
                 end = start + self.batch_size                                                                                                                                                     
                 if end > train_dataset.shape[0]: break
                                                                                                                                                                                              
-                train = np.array(train_dataset[start:end])                                                                                                                                                                                                                                                                                         
+                train = np.array(train_dataset[start:end])                                                                          
                 train = preprocess_train_data(train)
                                                                                                                                               
                                                                                                                            
@@ -136,7 +135,6 @@ def preprocess_train_data(data): #Add cell index argument?
 def preprocess_target_data(target): #Add cell index argument?                                                                                                              
     mcE_index = 8
     target = (target[:,mcE_index,:] - target_means[None,mcE_index,None]) / target_stdevs[None,mcE_index,None]
-    print(target_stdevs[mcE_index])
     target = target[:,0] #keep first parent gen particle 
     #target = np.log10(target)
     target = np.nan_to_num(target)
