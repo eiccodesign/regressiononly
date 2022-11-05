@@ -12,7 +12,8 @@ gpus = tf.config.experimental.list_physical_devices('GPU')
 print(gpus)
 
 # h5_filename = "split_test.hdf5"
-h5_filename = "2M_hcal_update.hdf5"
+# h5_filename = "2M_hcal_update.hdf5"
+h5_filename = "2M_hcal_uncompressed_mcPis50GeV+.hdf5"
 h5_file = h5.File(h5_filename,'r')
 
 label = "2M_hcal_50GeV-_patience10_10k_batch"  #Replace with your own variation!      
@@ -21,9 +22,9 @@ shutil.rmtree(path, ignore_errors=True)
 os.makedirs(path)
 
 input_dim = h5_file['train_hcal'].shape[-2] #should be 4: Cell E,X,Y,Z, the number of features per particle
-learning_rate = 1e-4
+learning_rate = 1e-3
 dropout_rate = 0.05
-batch_size = 10_000
+batch_size = 1_000
 N_Epochs = 50
 patience = 5
 N_Latent = 128
@@ -53,23 +54,18 @@ model_checkpoint = tf.keras.callbacks.ModelCheckpoint( filepath=path, save_best_
 
 
 train_generator = tf.data.Dataset.from_generator(
-    training_generator(h5_filename,'train_hcal','train_mc'),
+    training_generator(h5_filename,'train_hcal','train_mc',batch_size),
     output_shapes=(tf.TensorShape([None,None,None]),[None]),
     output_types=(tf.float64, tf.float64))
 
 
 val_generator = tf.data.Dataset.from_generator(
-    training_generator(h5_filename,'train_hcal','train_mc'),
+    training_generator(h5_filename,'val_hcal','val_mc',batch_size),
     output_shapes=(tf.TensorShape([None,None,None]),[None]),
     output_types=(tf.float64, tf.float64))
 
-# val_generator = tf.data.Dataset.from_generator(
-#     training_generator(h5_filename,'val_hcal','val_mc'),
-#     output_shapes=(tf.TensorShape([None,None,None]),[None]),
-#     output_types=(tf.float64, tf.float64))
-
 test_generator = tf.data.Dataset.from_generator(
-    test_generator(h5_filename,'test_hcal','test_mc'),
+    test_generator(h5_filename,'test_hcal','test_mc',batch_size),
     output_shapes=(tf.TensorShape([None,None,None])),
     output_types=(tf.float64))
 
