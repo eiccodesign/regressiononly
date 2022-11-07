@@ -120,15 +120,20 @@ class training_generator:
        
                 train = np.array(train_dataset[start:end])    
                 train = preprocess_train_data(train)
+                if np.all(train[0]==0):
+                    continue
                          
                 target = np.array(target_dataset[start:end])
                 target = preprocess_target_data(target)
 
-                # if (np.any(target==np.nan() or target==0.0):
-                #     print("Target NAN or 0 Encountered")
-                #     continue
-       
-                # self.index += self.batch_size                       
+                #check for E = NaN
+                if np.any(np.isnan(target)):
+                    continue
+
+                #check for E = 0.0
+                if not np.all(target):
+                    continue
+
                 yield train, target
 
 def preprocess_train_data(data): #Add cell index argument?            
@@ -146,6 +151,7 @@ def preprocess_target_data(target): #Add cell index argument?
     #target = np.log10(target)
     target = np.nan_to_num(target)
     return target #should return just the genE of first particles
+
 # class test_generator:
 #     def __init__(self, file, dataset):
 #         self.file = file
