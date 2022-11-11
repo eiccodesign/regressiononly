@@ -21,6 +21,8 @@ path = "./"+label
 shutil.rmtree(path, ignore_errors=True)
 os.makedirs(path)
 
+
+do_normalization = True
 input_dim = h5_file['train_hcal'].shape[-2] #should be 4: Cell E,X,Y,Z, the number of features per particle
 learning_rate = 1e-3
 dropout_rate = 0.05
@@ -36,6 +38,7 @@ loss = 'mse' #'mae' #'swish'
 Phi_sizes, F_sizes = (100, 100, N_Latent), (100, 100, 100)
 output_act, output_dim = 'linear', 1 #Train to predict error
 
+
 pfn = PFN(input_dim=input_dim, 
           Phi_sizes=Phi_sizes, 
           F_sizes=F_sizes, 
@@ -46,6 +49,7 @@ pfn = PFN(input_dim=input_dim,
           F_dropouts=dropout_rate,
           optimizer=tf.keras.optimizers.Adam(learning_rate=learning_rate))
 
+
 # Tensorflow CallBacks
 lr_scheduler = tf.keras.callbacks.LearningRateScheduler(lr_decay,verbose=0)
 early_stopping = tf.keras.callbacks.EarlyStopping(patience=patience)
@@ -54,24 +58,23 @@ model_checkpoint = tf.keras.callbacks.ModelCheckpoint( filepath=path, save_best_
 
 
 train_generator = tf.data.Dataset.from_generator(
-    training_generator(h5_filename,'train_hcal','train_mc',batch_size),
+    training_generator(h5_filename,'train_hcal','train_mc',batch_size,do_normalization),
     output_shapes=(tf.TensorShape([None,None,None]),[None]),
     output_types=(tf.float64, tf.float64))
 
-
 val_generator = tf.data.Dataset.from_generator(
-    training_generator(h5_filename,'val_hcal','val_mc',batch_size),
+    training_generator(h5_filename,'val_hcal','val_mc',batch_size,do_normalization),
     output_shapes=(tf.TensorShape([None,None,None]),[None]),
     output_types=(tf.float64, tf.float64))
 
 test_generator = tf.data.Dataset.from_generator(
-    test_generator(h5_filename,'test_hcal','test_mc',batch_size),
+    test_generator(h5_filename,'test_hcal',batch_size,do_normalization),
     output_shapes=(tf.TensorShape([None,None,None])),
     output_types=(tf.float64))
 
-# training_generator.batch(batch_size)
-# val_generator.batch(batch_size)
-# test_generator.batch(batch_size)
+
+N_QA_Batches = 100
+pre_training_QA(h5_filename,path,N_QA_Batches,batch_size,do_normalization)
 
 the_fit = pfn.fit(
     train_generator,
@@ -82,9 +85,13 @@ the_fit = pfn.fit(
     verbose=1
 )
 
-
 pfn.layers
 pfn.save("%s/energy_regression.h5"%(path))
 mypreds = pfn.predict(test_generator, batch_size=1000)
 np.save("%s/predictions.npy"%(path),mypreds)
 #FIXME: un-norm the predictions
+
+
+
+
+
