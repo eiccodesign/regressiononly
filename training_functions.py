@@ -8,10 +8,11 @@ import matplotlib.pyplot as plt
 #Simple function for defining the data generator (interface to data as if it were an infinite stream)
 #Mean and standard deviations are obtained from training dataset for performing a standard scalar transformation
 
-input_means = np.load("input_means.npy") #includes log10E
-input_stdevs = np.load("input_stdevs.npy") #includes log10E
-target_means = np.load("target_means.npy")
-target_stdevs = np.load("target_stdevs.npy")
+#Defaults, if one doesn't want to recalculate
+input_means = np.load("./input_means.npy")
+input_stdevs = np.load("./input_stdevs.npy")
+target_means = np.load("./target_means.npy")
+target_stdevs = np.load("./target_stdevs.npy")
 
 E_Index = 0
 mcE_Index = 8 #see to_hdf5
@@ -28,12 +29,19 @@ class generator:
                 yield data
 
 class test_generator:          
-    def __init__(self, file, input_dataset, batch_size=1000,do_norm=True):
+    def __init__(self, file, input_dataset, batch_size=1000,do_norm=True,path="./",get_scalar=True,n_scalar_batches=100):
         self.file = file
         self.input_dataset = input_dataset
         self.batch_size = batch_size
+        self.path = path
         self.do_norm = do_norm
+        self.input_means = input_means
+        self.input_stdevs = input_stdevs
 
+        if do_norm and get_scalar:
+            self.input_means, self.input_stdevs = \
+            get_input_scalar(file,input_dataset,path,n_scalar_batches,batch_size)
+    
     def __call__(self):            
         with h5py.File(self.file, 'r') as hf:
             
@@ -46,18 +54,31 @@ class test_generator:
                     break
                 
                 input = np.array(input_dataset[start:end])
-                input = preprocess_input_data(input,self.do_norm)
+                input = preprocess_input_data(input,self.input_means,self.input_stdevs,self.do_norm)
 
                 yield input 
 
 
 class training_generator:
-    def __init__(self, file, input_dataset, target_dataset,batch_size=1000,do_norm=True):
+    def __init__(self, file, input_dataset, target_dataset,batch_size=1000,do_norm=True,path="./",get_scalar=True,n_scalar_batches=100):
         self.file = file
         self.input_dataset = input_dataset
         self.target_dataset = target_dataset
         self.batch_size = batch_size
         self.do_norm = do_norm
+        self.path = path
+
+        self.input_means = input_means
+        self.input_stdevs = input_stdevs
+        self.target_means = target_means
+        self.target_stdevs = target_stdevs
+
+        if do_norm and get_scalar:
+            self.input_means, self.input_stdevs = \
+            get_input_scalar(file,input_dataset,path,n_scalar_batches,batch_size)
+            self.target_means, self.target_stdevs = \
+            get_target_scalar(file,target_dataset,path,n_scalar_batches,batch_size)
+
 
     def __call__(self):
 
@@ -71,10 +92,10 @@ class training_generator:
                     break
        
                 input = np.array(input_dataset[start:end])    
-                input = preprocess_input_data(input,self.do_norm)
+                input = preprocess_input_data(input,self.input_means, self.input_stdevs,self.do_norm)
 
                 target = np.array(target_dataset[start:end])
-                target = preprocess_target_data(target,self.do_norm)
+                target = preprocess_target_data(target,self.target_means, self.target_stdevs,self.do_norm)
 
                 #check for 0's in input (will just regress median)
                 if np.all(input[0]==0):
@@ -83,13 +104,17 @@ class training_generator:
                 if np.any(np.isnan(target)):
                     continue
                 #check for E = 0.0
-                if not np.all(target):
+                if not np.all(target): #np.all returns false if ANY E==0 (0.0 is FALSE). 
                     continue
 
                 yield input, target
 
-    def quick_scalar(self,n_batches,is_gun=True):
+    def quick_scalar(self,n_batches,do_norm=True,is_gun=True):
 
+        if not do_norm:
+            return
+
+        print("Calculating Mean asd Stdev using %i batches"%(n_batches))
         with h5py.File(self.file, 'r') as hf:
 
             #INPUT
@@ -120,10 +145,15 @@ class training_generator:
                     target_means[i] = np.nanmean(target[:,i,:])
                     target_stdevs[i] = np.nanstd(target[:,i,:])
 
-            np.save("input_means.npy",input_means)
-            np.save("input_stdevs.npy",input_stdevs)
-            np.save("target_means.npy",target_means)
-            np.save("target_stdevs.npy",target_stdevs)
+            np.save("%s/%s_means.npy"%(self.path,self.input_dataset),input_means)
+            np.save("%s/%s_stdevs.npy"%(self.path,self.input_dataset),input_stdevs)
+            np.save("%s/%s_means.npy"%(self.path,self.target_dataset),target_means)
+            np.save("%s/%s_stdevs.npy"%(self.path,self.target_dataset),target_stdevs)
+
+            self.input_means = input_means 
+            self.input_stdevs = input_stdevs
+            self.target_means = target_means
+            self.target_stdevs = target_stdevs
 
             print("Input Means = ",input_means)
             print("Input Stdevs = ",input_stdevs)
@@ -133,7 +163,12 @@ class training_generator:
             return
 
 
-def preprocess_input_data(data, do_norm=True): #Add cell index argument?            
+# Would be nice to put the following functions into a parent class for generators,
+# but the tf.dataset api needs a strict __call__ function that differes for 
+# test (input only) and val/train (input + target). Written as separate function s.t.
+# test and train can call the same functions
+
+def preprocess_input_data(data, input_means,input_stdevs, do_norm=True): #Add cell index argument?            
     data = np.transpose(data, (0,2,1)) #PFN wants [events,particles, features]
 
     if (do_norm):
@@ -144,12 +179,14 @@ def preprocess_input_data(data, do_norm=True): #Add cell index argument?
     return data 
 
 
-def preprocess_target_data(target, do_norm=True,is_gun=True): #Add cell index argument?            
+    preprocess_target_data(target,self.target_means, self.target_stdevs,self.do_norm)
+def preprocess_target_data(target, target_means,target_stdevs, do_norm=True,is_gun=True): 
+    #Add cell index argument?            
+
     target = np.transpose(target,(0,2,1)) #want [events, gen_part, features]
     target = target[:,:,mcE_Index] # target = target[:,:,mcE_index:] # for Theta too
 
     if do_norm:
-        # target = np.log10(target) #genE is FLAT distribution, shouldn't log10 it.
         target = (target - target_means[mcE_Index]) / target_stdevs[mcE_Index]
 
     if is_gun:
@@ -158,8 +195,62 @@ def preprocess_target_data(target, do_norm=True,is_gun=True): #Add cell index ar
     target = np.nan_to_num(target)
     return target
 
+def get_input_scalar(file,input_dataset,path,n_batches=100,batch_size=1000):
+
+    print("Calculating Mean and Stdev using %i batches for %s"%(n_batches,input_dataset))
+    with h5py.File(file, 'r') as hf:
+
+        h5_input_dataset = hf[input_dataset]
+        input = h5_input_dataset[:n_batches*batch_size]
+        input[:,E_Index,:] = np.log10(input[:,E_Index,:])
+
+        input_keys = ["E","X","Y","Z"] # match HDF5 File
+        input_means =  np.zeros(len(input_keys))
+        input_stdevs = np.zeros(len(input_keys))
+
+        for i in range(len(input_keys)):
+            input_means[i]  = np.nanmean(input[:,i,:])
+            input_stdevs[i] = np.nanstd (input[:,i,:])
+
+    np.save("%s/%s_means.npy"%(path,input_dataset),input_means)
+    np.save("%s/%s_stdevs.npy"%(path,input_dataset),input_stdevs)
+    print("Input Means = ",input_means)
+    print("Input Stdevs = ",input_stdevs)
+
+    return input_means, input_stdevs
+        
+
+def get_target_scalar(file, dataset ,path="./",n_batches=100,batch_size=1000,is_gun=True):
+
+    print("Calculating Mean and Stdev using %i batches for %s"%(n_batches,dataset))
+    with h5py.File(file, 'r') as hf:
+
+        h5_target_dataset = hf[dataset]
+        target = h5_target_dataset[:n_batches*batch_size]
+
+        target_keys = ["PDG","SimStat","GenStat","mcPX",
+            "mcPY","mcPZ","mcMass","mcPT","mcP","mcTheta"]
+        target_means = np.zeros(len(target_keys))
+        target_stdevs = np.zeros(len(target_keys))
+
+        for i in range(len(target_keys)):
+            if (is_gun):
+                target_means[i] = np.nanmean(target[:,i,0])
+                target_stdevs[i] = np.nanstd(target[:,i,0])
+            else:
+                target_means[i] = np.nanmean(target[:,i,:])
+                target_stdevs[i] = np.nanstd(target[:,i,:])
+
+    np.save("%s/%s_means.npy"%(path,dataset),target_means)
+    np.save("%s/%s_stdevs.npy"%(path,dataset),target_stdevs)
+    print("Target Means = ",target_means)
+    print("Target Stdevs = ",target_stdevs)
+
+    return target_means,target_stdevs
 
 def scalar_from_generator(tf_dataset, nbatch_stop):
+   #This function doesn't work because it messes with the tf.dataset ITERATOR, 
+   #so the actual training gets messed up if you run this 
     input_scaler = StandardScaler()
     target_scaler = StandardScaler()
 
@@ -206,6 +297,7 @@ def pre_training_QA(h5_name, path,n_batches=10,batch_size=1000,do_norm=True):
     input_array,target_array,val_input_array,val_target_array,test_array = \
         get_np_from_gen(h5_name,n_batches,batch_size)
 
+
     fig,axes=plt.subplots(2,3,figsize=(14,7))
     axes = axes.ravel()
     density = True
@@ -239,21 +331,25 @@ def pre_training_QA(h5_name, path,n_batches=10,batch_size=1000,do_norm=True):
 
 def get_np_from_gen(h5_filename,n_batches,batch_size=1000,do_norm=True):
 
+    #can probably just do array = h5_dataset[:n_batches*batch_size]
+    #like quick_scalar used to. This serves at least as an example.
+
+    get_scalar = False
     train_generator = tf.data.Dataset.from_generator(
-        training_generator(h5_filename,'train_hcal','train_mc',batch_size,do_norm),
+        training_generator(h5_filename,'train_hcal','train_mc',batch_size,do_norm,"./",get_scalar),
         output_shapes=(tf.TensorShape([None,None,None]),[None]),
         output_types=(tf.float64, tf.float64))
- 
+
     val_generator = tf.data.Dataset.from_generator(
-        training_generator(h5_filename,'val_hcal','val_mc',batch_size,do_norm),
+        training_generator(h5_filename,'val_hcal','val_mc',batch_size,do_norm,"./",get_scalar),
         output_shapes=(tf.TensorShape([None,None,None]),[None]),
         output_types=(tf.float64, tf.float64))
 
     testing_generator = tf.data.Dataset.from_generator(
-        test_generator(h5_filename,'test_hcal',batch_size,do_norm),
+        test_generator(h5_filename,'test_hcal',batch_size,do_norm,"./",get_scalar),
         output_shapes=(tf.TensorShape([None,None,None])),
         output_types=(tf.float64))
-    
+
     base_shape = (1,1861,4)
 
     #Training Data
@@ -282,6 +378,10 @@ def get_np_from_gen(h5_filename,n_batches,batch_size=1000,do_norm=True):
 
     return input_array,target_array,val_input_data,val_target_data,test_array
 
-
-
+class batch_history(tf.keras.callbacks.Callback):
+    batch_loss = [] # loss at given batch    
+    def __init__(self):
+        super(batch_history,self).__init__() 
+    def on_train_batch_end(self, batch, logs=None):                
+        batch_history.batch_loss.append(logs.get('loss'))
 
