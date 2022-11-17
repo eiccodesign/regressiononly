@@ -8,11 +8,20 @@ import matplotlib.pyplot as plt
 #Simple function for defining the data generator (interface to data as if it were an infinite stream)
 #Mean and standard deviations are obtained from training dataset for performing a standard scalar transformation
 
+input_keys = ["E","X","Y","Z"] # match HDF5 File
+target_keys = ["PDG","SimStat","GenStat","mcPX",
+    "mcPY","mcPZ","mcMass","mcPT","mcP","mcTheta"]
+
+input_means = np.zeros(len(input_keys))
+input_stdevs = np.ones(len(input_keys))
+target_means = np.zeros(len(target_keys))
+target_stdevs = np.ones(len(target_keys))
+
 #Defaults, if one doesn't want to recalculate
-input_means = np.load("./input_means.npy")
-input_stdevs = np.load("./input_stdevs.npy")
-target_means = np.load("./target_means.npy")
-target_stdevs = np.load("./target_stdevs.npy")
+# input_means = np.load("./input_means.npy")
+# input_stdevs = np.load("./input_stdevs.npy")
+# target_means = np.load("./target_means.npy")
+# target_stdevs = np.load("./target_stdevs.npy")
 
 E_Index = 0
 mcE_Index = 8 #see to_hdf5
@@ -29,7 +38,7 @@ class generator:
                 yield data
 
 class test_generator:          
-    def __init__(self, file, input_dataset, batch_size=1000,do_norm=True,path="./",get_scalar=True,n_scalar_batches=100):
+    def __init__(self, file, input_dataset, target_dataset, batch_size=1000,do_norm=True,path="./",get_scalar=True,n_scalar_batches=100):
         self.file = file
         self.input_dataset = input_dataset
         self.batch_size = batch_size
@@ -41,6 +50,7 @@ class test_generator:
         if do_norm and get_scalar:
             self.input_means, self.input_stdevs = \
             get_input_scalar(file,input_dataset,path,n_scalar_batches,batch_size)
+            _, _, = get_target_scalar(file,target_dataset,path,n_scalar_batches,batch_size)
     
     def __call__(self):            
         with h5py.File(self.file, 'r') as hf:
@@ -122,7 +132,6 @@ class training_generator:
             input = input_dataset[:n_batches*self.batch_size]
             input[:,E_Index,:] = np.log10(input[:,E_Index,:])
 
-            input_keys = ["E","X","Y","Z"] # match HDF5 File
             input_means =  np.zeros(len(input_keys))
             input_stdevs = np.zeros(len(input_keys))
             for i in range(len(input_keys)):
@@ -133,8 +142,6 @@ class training_generator:
             target_dataset = hf[self.target_dataset]
             target = target_dataset[:n_batches*self.batch_size]
 
-            target_keys = ["PDG","SimStat","GenStat","mcPX",
-                "mcPY","mcPZ","mcMass","mcPT","mcP","mcTheta"]
             target_means = np.zeros(len(target_keys))
             target_stdevs = np.zeros(len(target_keys))
             for i in range(len(target_keys)):
@@ -179,7 +186,6 @@ def preprocess_input_data(data, input_means,input_stdevs, do_norm=True): #Add ce
     return data 
 
 
-    preprocess_target_data(target,self.target_means, self.target_stdevs,self.do_norm)
 def preprocess_target_data(target, target_means,target_stdevs, do_norm=True,is_gun=True): 
     #Add cell index argument?            
 
@@ -214,8 +220,9 @@ def get_input_scalar(file,input_dataset,path,n_batches=100,batch_size=1000):
 
     np.save("%s/%s_means.npy"%(path,input_dataset),input_means)
     np.save("%s/%s_stdevs.npy"%(path,input_dataset),input_stdevs)
-    print("Input Means = ",input_means)
-    print("Input Stdevs = ",input_stdevs)
+
+    # print("Input Means = ",input_means)
+    # print("Input Stdevs = ",input_stdevs)
 
     return input_means, input_stdevs
         
@@ -243,14 +250,15 @@ def get_target_scalar(file, dataset ,path="./",n_batches=100,batch_size=1000,is_
 
     np.save("%s/%s_means.npy"%(path,dataset),target_means)
     np.save("%s/%s_stdevs.npy"%(path,dataset),target_stdevs)
-    print("Target Means = ",target_means)
-    print("Target Stdevs = ",target_stdevs)
+
+    # print("Target Means = ",target_means)
+    # print("Target Stdevs = ",target_stdevs)
 
     return target_means,target_stdevs
 
 def scalar_from_generator(tf_dataset, nbatch_stop):
    #This function doesn't work because it messes with the tf.dataset ITERATOR, 
-   #so the actual training gets messed up if you run this 
+   #so the actual training gets messed up if you run this. To Be deleted
     input_scaler = StandardScaler()
     target_scaler = StandardScaler()
 
@@ -276,18 +284,6 @@ def scalar_from_generator(tf_dataset, nbatch_stop):
         print("target mean = ",target_scaler.mean_,"+/-",np.sqrt(target_scaler.var_))
 
     return input_scaler,target_scaler
-
-
-def lr_decay(epoch, lr):
-    min_rate = 1.01e-7
-    N_epochs = 5
-    N_start = N_epochs - 1
-
-    if epoch > N_start and lr >= min_rate:
-        if (epoch%N_epochs==0):
-            return lr * 0.1
-
-    return lr
 
 
 def pre_training_QA(h5_name, path,n_batches=10,batch_size=1000,do_norm=True):
@@ -332,7 +328,7 @@ def pre_training_QA(h5_name, path,n_batches=10,batch_size=1000,do_norm=True):
 def get_np_from_gen(h5_filename,n_batches,batch_size=1000,do_norm=True):
 
     #can probably just do array = h5_dataset[:n_batches*batch_size]
-    #like quick_scalar used to. This serves at least as an example.
+    #like quick_scalar used to. This is used to debug generators in QA.
 
     get_scalar = False
     train_generator = tf.data.Dataset.from_generator(
@@ -346,7 +342,7 @@ def get_np_from_gen(h5_filename,n_batches,batch_size=1000,do_norm=True):
         output_types=(tf.float64, tf.float64))
 
     testing_generator = tf.data.Dataset.from_generator(
-        test_generator(h5_filename,'test_hcal',batch_size,do_norm,"./",get_scalar),
+        test_generator(h5_filename,'test_hcal','test_mc',batch_size,do_norm,"./",get_scalar),
         output_shapes=(tf.TensorShape([None,None,None])),
         output_types=(tf.float64))
 
@@ -377,6 +373,19 @@ def get_np_from_gen(h5_filename,n_batches,batch_size=1000,do_norm=True):
         test_array = np.concatenate((test_array,test_data),axis=0)
 
     return input_array,target_array,val_input_data,val_target_data,test_array
+
+
+#CALLBACKS
+def lr_decay(epoch, lr):
+    min_rate = 1.01e-7
+    N_epochs = 5
+    N_start = N_epochs - 1
+
+    if epoch > N_start and lr >= min_rate:
+        if (epoch%N_epochs==0):
+            return lr * 0.5
+
+    return lr
 
 class batch_history(tf.keras.callbacks.Callback):
     batch_loss = [] # loss at given batch    

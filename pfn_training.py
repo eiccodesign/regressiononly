@@ -13,9 +13,10 @@ gpus = tf.config.experimental.list_physical_devices('GPU')
 print(gpus)
 
 h5_filename = "2M_uncompressed.hdf5"
+# h5_filename = "2M_50GeV-.hdf5"
 h5_file = h5.File(h5_filename,'r')
 
-label = "test_norm"  #Replace with your own variation!      
+label = "MAELoss_50E"  #Replace with your own variation!      
 path = "./"+label
 shutil.rmtree(path, ignore_errors=True)
 os.makedirs(path)
@@ -24,16 +25,15 @@ os.makedirs(path)
 do_normalization = True
 input_dim = h5_file['train_hcal'].shape[-2] #should be 4: Cell E,X,Y,Z, the number of features per particle
 learning_rate = 1e-3
-dropout_rate = 0.05
+dropout_rate = 0.1
 batch_size = 1_000
 N_Epochs = 50
-# N_Epochs = 1
 patience = 10
 N_Latent = 128
 shuffle_split = True #Turn FALSE for images!
 train_shuffle = True #Turn TRUE for images!
 Y_scalar = True
-loss = 'mae' #'mae' #'swish'
+loss = 'mae' #'mae'
 
 Phi_sizes, F_sizes = (100, 100, N_Latent), (100, 100, 100)
 output_act, output_dim = 'linear', 1 #Train to predict error
@@ -70,7 +70,7 @@ val_generator = tf.data.Dataset.from_generator(
     output_types=(tf.float64, tf.float64))
 
 test_generator = tf.data.Dataset.from_generator(
-    test_generator(h5_filename,'test_hcal',batch_size,do_normalization,path),
+    test_generator(h5_filename,'test_hcal','test_mc',batch_size,do_normalization,path),
     output_shapes=(tf.TensorShape([None,None,None])),
     output_types=(tf.float64))
 
