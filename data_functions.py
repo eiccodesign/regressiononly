@@ -6,16 +6,6 @@ def make_comparison_plots( root_array, h5_array, var_name, yscale='log' ) :
     
     fig,ax = plt.subplots( 1, 2, figsize=(20, 9) ,constrained_layout=True)
     
-    # gen_string = "gen"
-    # if gen_string.lower() not in var_name.lower():
-    #     root_cuts = root_hits_e > hit_e_min
-    #     root_cuts = np.logical_and( root_cuts, root_hits_e <= hit_e_max )
-    #     root_cuts = np.logical_and( root_cuts, root_hits_t <= hit_t_max )
-    
-    #     root_hist = ax[0].hist( root_array[root_cuts].flatten(), bins=200 )
-    #     h5_hist   = ax[1].hist( h5_array[h5_hits_e>0].flatten(), bins=200 )
-    
-    # else:
     root_hist = ax[0].hist( root_array.flatten(), bins=200 )
     h5_hist   = ax[1].hist( h5_array.flatten(), bins=200 )
 
