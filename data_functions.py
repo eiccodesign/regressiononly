@@ -46,14 +46,14 @@ def get_res_scale(truth,test,N_Bins=20,min=0,max=100):
     slices = np.empty((N_Bins,max_count))
     slices.fill(np.nan)
 
-    counter = np.zeros(N_Bins,int)
+    counter = np.zeros(N_Bins,int) #for getting mean from sum, and incrementing element number in bin
     avg_truth = np.zeros(N_Bins,float)
     test_over_truth = np.zeros(N_Bins,float)
 
 
     for i in range(len(test)):
         bin = indecies[i]
-        slices[bin][counter[bin]] = test[i] #slices[bin, element inside bin]
+        slices[bin][counter[bin]] = test[i] #slice_array[bin number][element number inside bin] = test[i]
         counter[bin]+=1
         avg_truth[bin]+=truth[i]
         test_over_truth[bin] += test[i]/truth[i]
