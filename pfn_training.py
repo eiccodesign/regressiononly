@@ -1,22 +1,29 @@
 import tensorflow as tf
 from energyflow.archs import PFN
 from training_functions import *
-from sklearn.preprocessing import StandardScaler
 import h5py as h5
-import matplotlib.pyplot as plt
 import numpy as np
 import os
 import shutil
 import pickle
 
-gpus = tf.config.experimental.list_physical_devices('GPU')
-print(gpus)
+print(tf.config.experimental.list_physical_devices('GPU'))
+
+import yaml
+
+#Using YAML configuration File
+with open("config.yaml", "r") as config_file:
+    config = yaml.safe_load(config_file)
+
+h5_file_name = config["h5_file_name"]
+learning_rate = config["learning_rate"]
+num_epochs = config["n_epochs"]
+batch_size = config["batch_size"]
 
 h5_filename = "2M_uncompressed.hdf5"
-# h5_filename = "2M_50GeV-.hdf5"
 h5_file = h5.File(h5_filename,'r')
 
-label = "MAELoss_50E"  #Replace with your own variation!      
+label = "MAELoss_NoTarget_Norm_50E"  #Replace with your own variation!      
 path = "./"+label
 shutil.rmtree(path, ignore_errors=True)
 os.makedirs(path)
@@ -32,7 +39,6 @@ patience = 10
 N_Latent = 128
 shuffle_split = True #Turn FALSE for images!
 train_shuffle = True #Turn TRUE for images!
-Y_scalar = True
 loss = 'mae' #'mae'
 
 Phi_sizes, F_sizes = (100, 100, N_Latent), (100, 100, 100)
@@ -58,11 +64,15 @@ model_checkpoint = tf.keras.callbacks.ModelCheckpoint(filepath=path, save_best_o
 callbacks=[lr_scheduler, early_stopping,history_logger,batch_history(),model_checkpoint]
 
 
-
 train_generator = tf.data.Dataset.from_generator(
     training_generator(h5_filename,'train_hcal','train_mc',batch_size,do_normalization,path),
     output_shapes=(tf.TensorShape([None,None,None]),[None]),
     output_types=(tf.float64, tf.float64))
+
+# train_generator = tf.data.Dataset.from_generator(
+#     training_generator(h5_filename,'train_hcal','train_mc',batch_size,do_normalization,path),
+#     tf.TensorSpec(shape=((None,None,None),(None)), dtype=tf.float64),
+#     output_types=(tf.float64, tf.float64))
 
 val_generator = tf.data.Dataset.from_generator(
     training_generator(h5_filename,'val_hcal','val_mc',batch_size,do_normalization,path),
@@ -75,7 +85,7 @@ test_generator = tf.data.Dataset.from_generator(
     output_types=(tf.float64))
 
 
-N_QA_Batches = 5
+N_QA_Batches = 5 #number of batches for just plotting input data
 pre_training_QA(h5_filename,path,N_QA_Batches,batch_size,do_normalization)
 
 history = pfn.fit(

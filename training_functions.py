@@ -23,8 +23,8 @@ target_stdevs = np.ones(len(target_keys))
 # target_means = np.load("./target_means.npy")
 # target_stdevs = np.load("./target_stdevs.npy")
 
-E_Index = 0
-mcE_Index = 8 #see to_hdf5
+energy_index = 0
+mc_energy_index = 8 #see to_hdf5
 mcTheta_Index = 9
 
 class generator:
@@ -70,7 +70,8 @@ class test_generator:
 
 
 class training_generator:
-    def __init__(self, file, input_dataset, target_dataset,batch_size=1000,do_norm=True,path="./",get_scalar=True,n_scalar_batches=100):
+    def __init__(self, file, input_dataset, target_dataset,batch_size=1000,
+                 do_norm=True,path="./",get_scalar=True,n_scalar_batches=100):
         self.file = file
         self.input_dataset = input_dataset
         self.target_dataset = target_dataset
@@ -119,18 +120,18 @@ class training_generator:
 
                 yield input, target
 
-    def quick_scalar(self,n_batches,do_norm=True,is_gun=True):
+    def quick_scalar(self,n_batches,normalization=True,is_gun=True):
 
-        if not do_norm:
+        if not normalization:
             return
 
         print("Calculating Mean asd Stdev using %i batches"%(n_batches))
         with h5py.File(self.file, 'r') as hf:
 
             #INPUT
-            input_dataset = hf[self.input_dataset] #string to H5 dataset
+            input_dataset = hf[self.input_dataset] 
             input = input_dataset[:n_batches*self.batch_size]
-            input[:,E_Index,:] = np.log10(input[:,E_Index,:])
+            input[:,energy_index,:] = np.log10(input[:,energy_index,:])
 
             input_means =  np.zeros(len(input_keys))
             input_stdevs = np.zeros(len(input_keys))
@@ -175,42 +176,65 @@ class training_generator:
 # test (input only) and val/train (input + target). Written as separate function s.t.
 # test and train can call the same functions
 
-def preprocess_input_data(data, input_means,input_stdevs, do_norm=True): #Add cell index argument?            
-    data = np.transpose(data, (0,2,1)) #PFN wants [events,particles, features]
+def preprocess_input_data(input_data,
+                          input_means,
+                          input_stdevs, 
+                          do_norm=True,
+                          energy_index=energy_index
+                          ):
+
+    # Transpose the input data to the format that PFN expects: [events,particles, features] 
+    input_data = np.transpose(input_data, (0,2,1)) 
 
     if (do_norm):
-        data[:,:,E_Index] = np.log10(data[:,:,E_Index])                
-        data = (data - input_means) / input_stdevs             
+        input_data[:,:,energy_index] = np.log10(input_data[:,:,energy_index])                
+        input_data = (input_data - input_means) / input_stdevs             
 
-    data = np.nan_to_num(data)     
-    return data 
+    if (np.any(np.isnan(input_data))):
+        input_data = np.nan_to_num(input_data)     
+
+    return input_data 
 
 
-def preprocess_target_data(target, target_means,target_stdevs, do_norm=True,is_gun=True): 
-    #Add cell index argument?            
+def preprocess_target_data(
+        target, 
+        target_means,
+        target_stdevs, 
+        normalization=True,
+        is_gun=True,
+        energy_index = mc_energy_index
+    ): 
 
-    target = np.transpose(target,(0,2,1)) #want [events, gen_part, features]
-    target = target[:,:,mcE_Index] # target = target[:,:,mcE_index:] # for Theta too
+    # Transpose the input data to the format that PFN expects: [events,particles, features] 
+    target = np.transpose(target, (0,2,1)) 
 
-    if do_norm:
-        target = (target - target_means[mcE_Index]) / target_stdevs[mcE_Index]
+    #Grab only the Energy for now, for simple Energy regression 
+    target = target[:,:,energy_index] # target = target[:,:,mcE_index:] # for Theta too
 
-    if is_gun:
-        target = target[:,0] 
+    #Apply Standard Scalar Nomalization
+    if normalization:
+        target = (target - target_means[energy_index]) / target_stdevs[energy_index]
+
+    #keep only single particle if particle gun is used
+    if is_gun: target = target[:,0] 
 
     target = np.nan_to_num(target)
     return target
 
+
 def get_input_scalar(file,input_dataset,path,n_batches=100,batch_size=1000):
+
+    input_keys = ["E","X","Y","Z"] # match HDF5 File format
+    mean_file_name = "%s/%s_means.npy"%(path,input_dataset)
+    stdev_file_name = "%s/%s_stdevs.npy"%(path,input_dataset)
 
     print("Calculating Mean and Stdev using %i batches for %s"%(n_batches,input_dataset))
     with h5py.File(file, 'r') as hf:
 
         h5_input_dataset = hf[input_dataset]
         input = h5_input_dataset[:n_batches*batch_size]
-        input[:,E_Index,:] = np.log10(input[:,E_Index,:])
+        input[:,energy_index,:] = np.log10(input[:,energy_index,:])
 
-        input_keys = ["E","X","Y","Z"] # match HDF5 File
         input_means =  np.zeros(len(input_keys))
         input_stdevs = np.zeros(len(input_keys))
 
@@ -218,11 +242,8 @@ def get_input_scalar(file,input_dataset,path,n_batches=100,batch_size=1000):
             input_means[i]  = np.nanmean(input[:,i,:])
             input_stdevs[i] = np.nanstd (input[:,i,:])
 
-    np.save("%s/%s_means.npy"%(path,input_dataset),input_means)
-    np.save("%s/%s_stdevs.npy"%(path,input_dataset),input_stdevs)
-
-    # print("Input Means = ",input_means)
-    # print("Input Stdevs = ",input_stdevs)
+    np.save(mean_file_name,input_means)
+    np.save(stdev_file_name,input_stdevs)
 
     return input_means, input_stdevs
         
@@ -267,7 +288,7 @@ def scalar_from_generator(tf_dataset, nbatch_stop):
         input = np.array(data[0]) #event,cell,feature
         input = input.reshape(-1,4)
         print(input[1600:1610,1])
-        input[:,E_Index] = np.log10(input[:,E_Index]) #Log10 on Energy only 
+        input[:,energy_index] = np.log10(input[:,energy_index]) #Log10 on Energy only 
         print(input[1600:1610,1])
         # input = np.nan_to_num(input)
         input_scaler.partial_fit(input)

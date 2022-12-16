@@ -35,36 +35,78 @@ def make_comparison_plots( root_array, h5_array, var_name, yscale='log' ) :
 
 
 # Get Resolution, scale, and distributions of Pred/X in bins of truth
-def get_res_scale(truth,test,N_Bins=20,min=0,max=100):
-    if (len(truth) != len(test)):
-        print("truth and test arrays must be same length")
+def get_res_scale(truth,pred,N_Bins=20,min=0,max=100):
+    if (len(truth) != len(pred)):
+        print("truth and prediction arrays must be same length")
         return
 
     binning = np.linspace(min,max,N_Bins+1)
-    indecies = np.digitize(truth,binning)-1
+    indecies = np.digitize(truth,binning)-1 #Get the bin number each element belongs to.
     max_count = np.bincount(indecies).max()
     slices = np.empty((N_Bins,max_count))
     slices.fill(np.nan)
 
     counter = np.zeros(N_Bins,int) #for getting mean from sum, and incrementing element number in bin
     avg_truth = np.zeros(N_Bins,float)
-    test_over_truth = np.zeros(N_Bins,float)
+    pred_over_truth = np.zeros(N_Bins,float)
 
 
-    for i in range(len(test)):
+    for i in range(len(pred)):
         bin = indecies[i]
-        slices[bin][counter[bin]] = test[i] #slice_array[bin number][element number inside bin] = test[i]
+        slices[bin][counter[bin]] = pred[i] #slice_array[bin number][element number inside bin] = pred[i]
         counter[bin]+=1
         avg_truth[bin]+=truth[i]
-        test_over_truth[bin] += test[i]/truth[i]
+        pred_over_truth[bin] += pred[i]/truth[i]
 
+
+    slices[0], slices[1]
+    for i in range(len(slices)):
+        hist.(silces[0]
 
     #Resoluton = stdev(pred)/avg_truth 
     avg_truth = avg_truth/counter
-    test_stdev = np.nanstd(slices,axis=1)
-    resolution = test_stdev/avg_truth
+    pred_stdev = np.nanstd(slices,axis=1)
+    resolution = pred_stdev/avg_truth
+    #Scale = <pred/truth>
 
-    #Scale = <test/truth>
-    scale = test_over_truth/counter
+    scale = pred_over_truth/counter
 
     return resolution,scale,avg_truth,slices
+
+def get_res_scale_in_reco_bins(truth,pred,reco,N_Bins=20,min=0,max=100):
+    if (len(truth) != len(pred)):
+        print("truth and pred arrays must be same length")
+        return
+
+    binning = np.linspace(min,max,N_Bins+1)
+    indecies = np.digitize(reco,binning)-1 #get bin number of reco bins for each element
+    max_count = np.bincount(indecies).max()
+    slices = np.empty((N_Bins,max_count))
+    slices.fill(np.nan)
+
+    counter = np.zeros(N_Bins,int) #for getting mean from sum, and incrementing element number in bin
+    avg_reco = np.zeros(N_Bins,float)
+    avg_truth = np.zeros(N_Bins,float)
+    pred_over_truth = np.zeros(N_Bins,float)
+
+
+    for i in range(len(pred)):
+        bin = indecies[i]
+        if (bin >= N_Bins): continue
+        slices[bin][counter[bin]] = pred[i] #slice_array[bin number][element number inside bin] = pred[i]
+        counter[bin]+=1 #increment the element number inside [bin]
+        avg_reco[bin]+=reco[i]
+        avg_truth[bin]+=truth[i]
+        pred_over_truth[bin] += pred[i]/truth[i]
+
+
+    #Resoluton = stdev(pred)/avg_truth 
+    avg_reco = avg_reco/counter
+    avg_truth = avg_truth/counter
+    pred_stdev = np.nanstd(slices,axis=1)
+    resolution = pred_stdev/avg_truth
+
+    #Scale = <pred/truth>
+    scale = pred_over_truth/counter
+
+    return resolution,scale,avg_reco,avg_truth,slices
