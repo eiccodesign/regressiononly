@@ -58,11 +58,6 @@ def get_res_scale(truth,pred,N_Bins=20,min=0,max=100):
         avg_truth[bin]+=truth[i]
         pred_over_truth[bin] += pred[i]/truth[i]
 
-
-    slices[0], slices[1]
-    for i in range(len(slices)):
-        hist.(silces[0]
-
     #Resoluton = stdev(pred)/avg_truth 
     avg_truth = avg_truth/counter
     pred_stdev = np.nanstd(slices,axis=1)
