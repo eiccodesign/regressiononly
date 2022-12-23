@@ -367,7 +367,7 @@ def get_np_from_gen(h5_filename,n_batches,batch_size=1000,do_norm=True):
         output_shapes=(tf.TensorShape([None,None,None])),
         output_types=(tf.float64))
 
-    base_shape = (1,1861,4)
+    base_shape = (1,3248,4)
 
     #Training Data
     input_array = np.zeros(base_shape)

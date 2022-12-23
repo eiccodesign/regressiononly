@@ -35,13 +35,15 @@ def make_comparison_plots( root_array, h5_array, var_name, yscale='log' ) :
 
 
 # Get Resolution, scale, and distributions of Pred/X in bins of truth
-def get_res_scale(truth,pred,N_Bins=20,min=0,max=100):
+# def get_res_scale(truth,pred,N_Bins=20,min=0,max=100):
+def get_res_scale(truth,pred,binning=np.linspace(0,100,21)):
     if (len(truth) != len(pred)):
         print("truth and prediction arrays must be same length")
         return
 
-    binning = np.linspace(min,max,N_Bins+1)
-    indecies = np.digitize(truth,binning)-1 #Get the bin number each element belongs to.
+    # indecies = np.digitize(truth,binning)-1 #Get the bin number each element belongs to.
+    N_Bins = len(binning)
+    indecies = np.digitize(truth,binning) #Get the bin number each element belongs to.
     max_count = np.bincount(indecies).max()
     slices = np.empty((N_Bins,max_count))
     slices.fill(np.nan)
@@ -49,6 +51,8 @@ def get_res_scale(truth,pred,N_Bins=20,min=0,max=100):
     counter = np.zeros(N_Bins,int) #for getting mean from sum, and incrementing element number in bin
     avg_truth = np.zeros(N_Bins,float)
     pred_over_truth = np.zeros(N_Bins,float)
+    scale_array = np.empty((N_Bins,max_count+1))
+    scale_array.fill(np.nan)
 
 
     for i in range(len(pred)):
@@ -57,6 +61,7 @@ def get_res_scale(truth,pred,N_Bins=20,min=0,max=100):
         counter[bin]+=1
         avg_truth[bin]+=truth[i]
         pred_over_truth[bin] += pred[i]/truth[i]
+        scale_array[bin][counter[bin]] = pred[i]/truth[i]
 
     #Resoluton = stdev(pred)/avg_truth 
     avg_truth = avg_truth/counter
@@ -65,16 +70,17 @@ def get_res_scale(truth,pred,N_Bins=20,min=0,max=100):
     #Scale = <pred/truth>
 
     scale = pred_over_truth/counter
+    median_scale = np.nanmedian(scale_array,axis=-1)
 
-    return resolution,scale,avg_truth,slices
+    return resolution,median_scale,avg_truth,slices
 
-def get_res_scale_in_reco_bins(truth,pred,reco,N_Bins=20,min=0,max=100):
+def get_res_scale_in_reco_bins(truth,pred,reco,binning=np.linspace(0,100,21)):
     if (len(truth) != len(pred)):
         print("truth and pred arrays must be same length")
         return
 
-    binning = np.linspace(min,max,N_Bins+1)
-    indecies = np.digitize(reco,binning)-1 #get bin number of reco bins for each element
+    N_Bins = len(binning)
+    indecies = np.digitize(reco,binning) #get bin number of reco bins for each element
     max_count = np.bincount(indecies).max()
     slices = np.empty((N_Bins,max_count))
     slices.fill(np.nan)
@@ -83,6 +89,8 @@ def get_res_scale_in_reco_bins(truth,pred,reco,N_Bins=20,min=0,max=100):
     avg_reco = np.zeros(N_Bins,float)
     avg_truth = np.zeros(N_Bins,float)
     pred_over_truth = np.zeros(N_Bins,float)
+    scale_array = np.empty((N_Bins,max_count+1))
+    scale_array.fill(np.nan)
 
 
     for i in range(len(pred)):
@@ -93,6 +101,7 @@ def get_res_scale_in_reco_bins(truth,pred,reco,N_Bins=20,min=0,max=100):
         avg_reco[bin]+=reco[i]
         avg_truth[bin]+=truth[i]
         pred_over_truth[bin] += pred[i]/truth[i]
+        scale_array[bin][counter[bin]] = pred[i]/truth[i]
 
 
     #Resoluton = stdev(pred)/avg_truth 
@@ -103,5 +112,6 @@ def get_res_scale_in_reco_bins(truth,pred,reco,N_Bins=20,min=0,max=100):
 
     #Scale = <pred/truth>
     scale = pred_over_truth/counter
+    median_scale = np.nanmedian(scale_array,axis=-1)
 
-    return resolution,scale,avg_reco,avg_truth,slices
+    return resolution,median_scale,avg_reco,avg_truth,slices
