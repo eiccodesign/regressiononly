@@ -41,9 +41,9 @@ def get_res_scale(truth,pred,binning=np.linspace(0,100,21)):
         print("truth and prediction arrays must be same length")
         return
 
-    # indecies = np.digitize(truth,binning)-1 #Get the bin number each element belongs to.
+    indecies = np.digitize(truth,binning)-1 #Get the bin number each element belongs to.
     N_Bins = len(binning)
-    indecies = np.digitize(truth,binning) #Get the bin number each element belongs to.
+    # indecies = np.digitize(truth,binning) #Get the bin number each element belongs to.
     max_count = np.bincount(indecies).max()
     slices = np.empty((N_Bins,max_count))
     slices.fill(np.nan)
@@ -80,7 +80,7 @@ def get_res_scale_in_reco_bins(truth,pred,reco,binning=np.linspace(0,100,21)):
         return
 
     N_Bins = len(binning)
-    indecies = np.digitize(reco,binning) #get bin number of reco bins for each element
+    indecies = np.digitize(reco,binning)-1 #get bin number of reco bins for each element
     max_count = np.bincount(indecies).max()
     slices = np.empty((N_Bins,max_count))
     slices.fill(np.nan)
