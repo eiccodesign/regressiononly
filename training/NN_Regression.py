@@ -1,3 +1,4 @@
+sys.path.insert(0, 'functions')
 from Clusterer import load_ClusterSum_and_GenP
 
 import tensorflow as tf

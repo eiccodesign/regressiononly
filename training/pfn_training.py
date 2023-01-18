@@ -8,6 +8,7 @@ import shutil
 import pickle
 
 print(tf.config.experimental.list_physical_devices('GPU'))
+sys.path.insert(0, '../functions')
 
 import yaml
 
