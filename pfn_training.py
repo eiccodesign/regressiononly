@@ -20,10 +20,10 @@ learning_rate = config["learning_rate"]
 num_epochs = config["n_epochs"]
 batch_size = config["batch_size"]
 
-h5_filename = "2M_uncompressed.hdf5"
+h5_filename = "../generate_data/to_hdf5/Uniform_pi+_0-100GeV_standalone_TVT_Split.hdf5"
 h5_file = h5.File(h5_filename,'r')
 
-label = "MAELoss_NoTarget_Norm_50E"  #Replace with your own variation!      
+label = "Gen_Data_Fixed"  #Replace with your own variation!      
 path = "./"+label
 shutil.rmtree(path, ignore_errors=True)
 os.makedirs(path)
