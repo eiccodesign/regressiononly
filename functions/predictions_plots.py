@@ -61,12 +61,12 @@ def Plot_Resolutions(NN, strawman,label):
 
 
 
-def Plot_Energy_Scale(NN, strawman,label,sampling_fraction,ymin=0.95,ymax=1.05):
-    mask = ~np.isnan(NN["resolution"])
+def Plot_Energy_Scale(NN, label, sampling_fraction, strawman=None, bin_label="truth", ymin=0.95,ymax=1.05):
+    mask = ~np.isnan(NN["median_scale"])
     fig=plt.figure(figsize=(14,10))
-    plt.title("AI Codesign Scale",fontsize=25)
-    plt.ylabel("$(E_\mathrm{Pred}/E_\mathrm{Truth})$",fontsize=24)
-    plt.xlabel("$E_\mathrm{Truth}$ [GeV]",fontsize=24)
+    plt.title("AI Codesign Scale $E_\mathrm{%s}$ Bins"%(bin_label),fontsize=25)
+    plt.ylabel("$(E_\mathrm{Pred}/(E_\mathrm{%s})$"%(bin_label),fontsize=24)
+    plt.xlabel("$E_\mathrm{%s}$ [GeV]"%(bin_label) ,fontsize=24)
     plt.xticks(fontsize=20)
     plt.yticks(fontsize=20)
     plt.tick_params(direction='in',right=True,top=True,length=10)
@@ -75,18 +75,21 @@ def Plot_Energy_Scale(NN, strawman,label,sampling_fraction,ymin=0.95,ymax=1.05):
 
     ax = plt.subplot(1,1,1)
     first_bin = 0
-    last_bin = len(NN["avg_truth"])
+    last_bin = len(NN[f"avg_{bin_label}"][mask])
 
     color1 = 'blue'
     color2 = 'dodgerblue'
 
+    print(NN[f"avg_{bin_label}"][mask])
+    print(NN["median_scale"][mask])
     #NN   
-    plt.errorbar(NN["avg_truth"][mask][first_bin:last_bin],NN["median_scale"][mask][first_bin:last_bin],#yerr=errors[first_bin:last_bin],
+    plt.errorbar(NN[f"avg_{bin_label}"][mask][first_bin:last_bin],NN["median_scale"][mask][first_bin:last_bin],#yerr=errors[first_bin:last_bin],
                  linestyle="--",linewidth=2.0,capsize=4,capthick=1.2,elinewidth=1.2,
                  ecolor='black',marker="o",color=color1,alpha=0.7,label="Neural Network")
 
     #Strawman
-    plt.errorbar(strawman["avg_truth"][mask][first_bin:last_bin],strawman["median_scale"][mask][first_bin:last_bin],
+    if (strawman):
+        plt.errorbar(strawman[f"avg_{bin_label}"][mask][first_bin:last_bin],strawman["median_scale"][mask][first_bin:last_bin],
                  linestyle="-",linewidth=2.0,capsize=4,capthick=1.2,elinewidth=1.2,ecolor='black',
                  marker="o",color=color2,alpha=0.7,label="Strawman $\sum_\mathrm{Cluster\ E} /\ %1.2f$"%(sampling_fraction))
 
@@ -98,4 +101,62 @@ def Plot_Energy_Scale(NN, strawman,label,sampling_fraction,ymin=0.95,ymax=1.05):
 
     path = "./"+label
     plt.savefig("%s/scale_plot.pdf"%(path))
+
+
+def plot_slices(input_slices,truth,label,E_Bins,bin_label="Truth",scale=False):
+
+    # mask = ~(np.all(np.isnan(input_slices)))
+    mask = []
+    for i in range(len(input_slices)):  
+        mask.append(~(np.all(np.isnan(input_slices[i])))) 
+    N_Bins = len(truth[mask])
+    input_slices = input_slices[mask]
+    truth = truth[mask]
+    nrows = int(N_Bins/10)
+    if (nrows < 1): 
+        nrows =1
+
+    fig,axs = plt.subplots(nrows,int(N_Bins/nrows), figsize=(32, 10),sharex=False,sharey=True,constrained_layout=True)
+    axs = np.asarray(axs)
+
+    for i in range(N_Bins):
+        row = int(i/10)
+        col = i%10
+        if (nrows==1): ax = axs[col]
+        else: ax = axs[row,col]
+        
+        if (col==0):
+            ax.set_ylabel("Counts",fontsize=15)
+        if (np.all(np.isnan(input_slices[i]))): continue
+
+        ax.set_title("%1.1f $ < E_\mathrm{%s} < $%1.1f [GeV]"%(E_Bins[mask][i],bin_label,E_Bins[mask][i]+E_Bins[1]),fontsize=10)
+        #^^^assums linspace
+
+        ax.set_xlabel("Predicted Eenergy")
+        ax.hist(input_slices[i],label="Predicted Energies",bins=30)
+
+        if (scale):
+            ax.axvline(x=truth[i]/truth[i],color='red',alpha=0.3,linestyle="--",
+                       label="Median $E_\mathrm{Truth}/E_\mathrm{Truth} = %1.2f$"%(truth[i]/truth[i]))
+            ax.axvline(x=np.nanmedian(input_slices,axis=-1)[i],color='cyan',alpha=0.3,linestyle="--",
+                       label="Avg. $E_\mathrm{Pred} = %1.2f$"%(np.nanmedian(input_slices,axis=-1)[i]))
+        else:
+            ax.axvline(x=truth[i],color='red',alpha=0.3,linestyle="--",
+                       label="Median $E_\mathrm{Truth} = %1.2f$"%(truth[i]))
+            ax.axvline(x=np.nanmedian(input_slices,axis=-1)[i],color='cyan',alpha=0.3,linestyle="--",
+                       label="Median $E_\mathrm{Pred} = %1.2f$"%(np.nanmedian(input_slices,axis=-1)[i]))
+
+        if (nrows==1):
+            ax.legend(fontsize=15)
+        else: 
+            ax.legend(fontsize=7.5)
+
+        ax.tick_params(direction='in',right=True,top=True,length=5)
+
+    if (scale):
+        plt.suptitle("Distributions of $E_\mathrm{Pred} / E_\mathrm{Truth}$",fontsize=25)
+    else:
+        plt.suptitle("Distributions of $E_\mathrm{Pred}$",fontsize=25)
+
+    plt.savefig("./%s/resolutions_%sslices.pdf"%(label,bin_label))
 

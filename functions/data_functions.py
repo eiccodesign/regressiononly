@@ -94,6 +94,7 @@ def get_res_scale_in_reco_bins(truth,pred,reco,binning=np.linspace(0,100,21)):
 
     N_Bins = len(binning)
     indecies = np.digitize(reco,binning)-1 #get bin number of reco bins for each element
+    indecies[indecies==-1.] = 0.
     max_count = np.bincount(indecies).max()
 
     #distributions of pred. in bins of truth
