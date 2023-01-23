@@ -1,5 +1,12 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.colors import LogNorm
+from copy import copy
+
+
+import sys  
+sys.path.insert(0, 'functions')
+from Clusterer import E_binning
 
 star_energies = [12,16,20,25,30,50,60,70]
 star_res = [0.18, 0.16, 0.15, 0.14, 0.13, 0.098, 0.092, 0.090]
@@ -7,6 +14,60 @@ star_res = [0.18, 0.16, 0.15, 0.14, 0.13, 0.098, 0.092, 0.090]
 ECCE_res = [0.15,0.127,0.117,0.121,0.106,0.102,0.092,0.098]
 ECCE_energies = [10,20,30,40,50,60,80,100]
 
+def ClusterSum_vs_GenP(clusterSum, genP, label, ylabel="Cluster Sum", plot_offset = 5.0):
+
+    fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(12, 10), constrained_layout=True)
+    cmap = copy(plt.cm.plasma)
+    cmap.set_bad(cmap(0))
+
+    #Bins and Range
+    sumE_maxPlot = 125.0 #max cluster energy to plot. Has high tails that mess up plotting
+    sumE_maxPlot = min(sumE_maxPlot,np.max(clusterSum))
+    cluster_bins = E_binning(np.min(clusterSum),sumE_maxPlot+plot_offset)
+    truth_bins   = E_binning(np.min(genP),np.max(genP)+plot_offset)
+
+    h, xedges, yedges = np.histogram2d(genP, clusterSum, bins=[truth_bins, cluster_bins])
+    pcm = ax.pcolormesh(xedges, yedges, h.T, cmap=cmap, norm=LogNorm(vmin=1.0e-2,vmax=1.1e4), rasterized=True)
+    cb = fig.colorbar(pcm, ax=ax, pad=0)
+    cb.ax.tick_params(labelsize=20)
+    ax.set_xlabel("Generated Energy",fontsize=22)
+    ax.set_ylabel("Cluster Sum Energy",fontsize=25)
+    ax.set_title(f"Cluster Sum vs. Generated Energy",fontsize=30)
+
+    draw_identity_line(ax, color='cyan', linewidth=2, alpha=0.5, label="Ideal")
+    ax.legend(loc="upper left")
+    fig.text(0.95,-0.05,label,transform=ax.transAxes,fontsize=10)
+
+
+    path = "./"+label
+    plt.savefig(f"{path}/ClusterSum_vs_GenP_Colormap.pdf") 
+def energy_QA_plots(flat_hits_e, genP, cluster_sum, label):
+
+    print("Plotting QA Distributions...")
+
+    fig, ax = plt.subplots(nrows=1, ncols=3, figsize=(36, 10), constrained_layout=True)
+    axes = np.ravel(ax)
+
+    max_hits_e = np.mean(flat_hits_e)+ 2*np.std(flat_hits_e)
+
+    bins_hits_e = np.linspace(np.min(flat_hits_e),max_hits_e,100)
+    axes[0].hist(flat_hits_e, bins=bins_hits_e, color="cyan", alpha=0.8)
+    axes[0].set_ylabel("Counts",fontsize=22) 
+    axes[0].set_xlabel("Cell Hit Energy [GeV]",fontsize=22) 
+    axes[0].set_title("Cell Energy Distribution",fontsize=22) 
+
+    axes[1].hist(np.ravel(genP),color="red",alpha=0.8)
+    axes[1].set_ylabel("Counts",fontsize=22) 
+    axes[1].set_xlabel("Generated Momentum [GeV]",fontsize=22) 
+    axes[1].set_title("Gen. Momentum Distribution",fontsize=22) 
+
+    axes[2].hist(cluster_sum,color="blue",alpha=0.8)
+    axes[2].set_ylabel("Counts",fontsize=22) 
+    axes[2].set_xlabel("Cluster Energy [GeV]",fontsize=22) 
+    axes[2].set_title("Cluster Sum Distribution (Raw)",fontsize=22) 
+
+    path = "./"+label
+    plt.savefig(f"{path}/energy_QA_plots.pdf")
 def Plot_Loss_Curve(loss,val_loss,label,loss_string):
 
     fig,axes = plt.subplots(1,1,figsize=(14,10))
@@ -159,4 +220,25 @@ def plot_slices(input_slices,truth,label,E_Bins,bin_label="Truth",scale=False):
         plt.suptitle("Distributions of $E_\mathrm{Pred}$",fontsize=25)
 
     plt.savefig("./%s/resolutions_%sslices.pdf"%(label,bin_label))
+
+
+def draw_identity_line(axes, *line_args, **line_kwargs):
+    identity, = axes.plot([], [], *line_args, **line_kwargs)
+    def callback(axes):
+        low_x, high_x = axes.get_xlim()
+        low_y, high_y = axes.get_ylim()
+        low = max(low_x, low_y)
+        high = min(high_x, high_y)
+        identity.set_data([low, high], [low, high])
+    callback(axes)
+    axes.callbacks.connect('xlim_changed', callback)
+    axes.callbacks.connect('ylim_changed', callback)
+    return axes
+
+
+
+
+
+
+
 
