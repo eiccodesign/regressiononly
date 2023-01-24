@@ -117,6 +117,8 @@ class training_generator:
                 #check for E = 0.0
                 if not np.all(target): #np.all returns false if ANY E==0 (0.0 is FALSE). 
                     continue
+                
+                print("Input = ",input[0][0])
 
                 yield input, target
 

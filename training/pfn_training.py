@@ -1,14 +1,15 @@
 import tensorflow as tf
 from energyflow.archs import PFN
-from training_functions import *
 import h5py as h5
 import numpy as np
 import os
 import shutil
 import pickle
 
+import sys
 print(tf.config.experimental.list_physical_devices('GPU'))
 sys.path.insert(0, '../functions')
+from training_functions import *
 
 import yaml
 
@@ -16,12 +17,13 @@ import yaml
 with open("config.yaml", "r") as config_file:
     config = yaml.safe_load(config_file)
 
-h5_file_name = config["h5_file_name"]
+h5_filename = config["h5_filename"]
+print("TRYING TO OPEN ",h5_filename)
 learning_rate = config["learning_rate"]
 num_epochs = config["n_epochs"]
 batch_size = config["batch_size"]
 
-h5_filename = "../generate_data/to_hdf5/Uniform_pi+_0-100GeV_standalone_TVT_Split.hdf5"
+# h5_filename = "../generate_data/to_hdf5/Uniform_pi+_0-100GeV_standalone_TVT_Split.hdf5"
 h5_file = h5.File(h5_filename,'r')
 
 label = "Gen_Data_Fixed"  #Replace with your own variation!      
