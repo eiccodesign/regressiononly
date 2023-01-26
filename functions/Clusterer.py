@@ -126,16 +126,16 @@ class Strawman_Clusterer:
         if self.hits_z_exist():
 
             z_layers = get_Z_segmentation(self.hits_z,self.n_Z_layers)
-            self.z_mask =  get_Z_masks(self.hits_z,z_layers)
+            self.z_mask =  get_Z_masks(self.hits_z,z_layers) #mask for binning
 
-            cluster_sum = []
+            segmented_cluster_sum = []
             for zbin in range(self.n_Z_layers):
                 mask = self.z_mask[zbin]
                 print("Doing Cluster Sum for z-bin %i..."%(zbin))
-                cluster_sum.append(ak.to_numpy(ak.sum(self.hits_e[mask] ,axis=-1)))
+                segmented_cluster_sum.append(ak.to_numpy(ak.sum(self.hits_e[mask] ,axis=-1)))
 
-            self.segmented_cluster_sum = np.asarray(cluster_sum)
-            self.cluster_sum = np.sum(self.cluster_sum, axis=0)
+            self.segmented_cluster_sum = np.asarray(segmented_cluster_sum)
+            self.cluster_sum = np.sum(segmented_cluster_sum, axis=0)
             
             if (self.take_log):
                 self.cluster_sum = np.log(self.cluster_sum)
@@ -201,22 +201,28 @@ class Strawman_Clusterer:
         print(f"cluster sum saved to {self.path}/clusterSum.npy")
 
         if self.segmented_cluster_sum_exist():
-            save_npy(self.segmented_cluster_sum, "segmented_clusterSum")
+            self.save_npy(self.segmented_cluster_sum, "segmented_clusterSum")
 
         if self.cluster_genP_exist():
-            save_npy(self.genP, "genP")
-            save_npy(self.genTheta, "genTheta")
+            self.save_npy(self.genP, "genP")
+            self.save_npy(self.genTheta, "genTheta")
 
         if (self.hits_e_exist):
-            save_npy(self.hits_e, "flat_hits_e")
+            self.save_npy(self.flat_hits_e, "flat_hits_e")
 
         if (self.hits_z_exist):
-            save_npy(self.hits_z, "flat_hits_z")
+            self.save_npy(self.flat_hits_z, "flat_hits_z")
        
-        save_npy(self.sampling_fraction, "sampling_fraction")
+        self.save_npy(self.sampling_fraction, "sampling_fraction")
 
         print(f"Files saved to {self.path}/")
 
+        return
+
+
+    def save_npy(self, data, name):
+        np.save(f"{self.path}/{name}.npy",data)
+        print(f" {name} saved to {self.path}/{name}.npy")
         return
 
 
@@ -255,18 +261,22 @@ class Strawman_Clusterer:
         if not hasattr(self, 'segmented_cluster_sum'):
             print(f"segmented cluster sum not calculated. (OK if doing 1-1 regression) ")
             return False
+        return True
 
-    def save_npy(self, data, name):
-        np.save(f"{self.path}/{name}.npy",data)
-        print(f" {data} saved to {self.path}/{data}.npy")
-
-def load_ClusterSum_and_GenP(label):
+def load_ClusterSum(label):
     clusterSum = np.load(f"./{label}/clusterSum.npy")
+    return clusterSum
+
+def load_segmented_ClusterSum(label):
+    segmented_clusterSum = np.load(f"./{label}/segmented_clusterSum.npy")
+    return segmented_clusterSum
+
+def load_GenP(label):
     genP = np.load(f"./{label}/genP.npy")
-    return clusterSum,genP
+    return genP
 
 def load_flat_hits_e(label):
-    flat_hits_e = np.load(f"./{label}/flat_hits_e.npy")
+    flat_hits_e = np.load(f"./{label}/flat_hits_e.npy",allow_pickle=True)
     return flat_hits_e
 
 def E_binning(min_E, max_E,N_bins=100,log=False):

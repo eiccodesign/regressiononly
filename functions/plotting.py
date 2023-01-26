@@ -42,7 +42,7 @@ def ClusterSum_vs_GenP(clusterSum, genP, label, ylabel="Cluster Sum", plot_offse
     path = "./"+label
     plt.savefig(f"{path}/ClusterSum_vs_GenP_Colormap.pdf") 
 
-def energy_QA_plots(flat_hits_e, genP, cluster_sum, label, segmented=False):
+def energy_QA_plots(flat_hits_e, genP, cluster_sum, label):
 
     print("Plotting QA Distributions...")
 
@@ -62,7 +62,7 @@ def energy_QA_plots(flat_hits_e, genP, cluster_sum, label, segmented=False):
     axes[1].set_xlabel("Generated Momentum [GeV]",fontsize=22) 
     axes[1].set_title("Gen. Momentum Distribution",fontsize=22) 
 
-    if (segmented):
+    if len(np.shape(cluster_sum)) > 1:
         n_zbins = np.shape(cluster_sum)[0]
         colors = ["blue","dodgerblue","darkturquoise"]
         for zbin in range(n_zbins):
