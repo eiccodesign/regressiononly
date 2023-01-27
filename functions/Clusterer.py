@@ -25,8 +25,8 @@ class Strawman_Clusterer:
                  detector_name: str,
                  sampling_fraction: float,
                  num_eventsMax = 100_000,
-                 tree_name = 'events',
                  n_Z_layers=3, #start with 3
+                 tree_name = 'events',
                  take_log = False
                  ):
 
@@ -116,7 +116,7 @@ class Strawman_Clusterer:
             self.cluster_sum = ak.to_numpy( ak.sum(self.hits_e,axis=-1) ) #takes a while...
 
             if (self.take_log):
-                self.cluster_sum = np.log(self.cluster_sum)
+                self.cluster_sum = np.log10(self.cluster_sum)
             print("Cluster Sum Done!")
 
         return
@@ -134,8 +134,11 @@ class Strawman_Clusterer:
                 print("Doing Cluster Sum for z-bin %i..."%(zbin))
                 segmented_cluster_sum.append(ak.to_numpy(ak.sum(self.hits_e[mask] ,axis=-1)))
 
+            segmented_cluster_sum = np.swapaxes(segmented_cluster_sum,0,1)
             self.segmented_cluster_sum = np.asarray(segmented_cluster_sum)
-            self.cluster_sum = np.sum(segmented_cluster_sum, axis=0)
+            print("SHAPE = ",np.shape(segmented_cluster_sum))
+            self.cluster_sum = np.sum(segmented_cluster_sum, axis=-1)
+            print("sum all layers SHAPE = ",np.shape(self.cluster_sum))
             
             if (self.take_log):
                 self.cluster_sum = np.log(self.cluster_sum)
@@ -165,7 +168,9 @@ class Strawman_Clusterer:
         ''' apply to data and label! '''
 
         cluster_cut = self.cluster_sum > self.cluster_e_min
+        print(np.shape(cluster_cut),"CUTS")
         self.cluster_sum = self.cluster_sum[cluster_cut]
+        #Above should be placed into it's own function if more complex
 
         if self.cluster_genP_exist():
             self.genP = self.genP[cluster_cut]
@@ -173,26 +178,28 @@ class Strawman_Clusterer:
 
         if self.segmented_cluster_sum_exist():
 
-            if (np.shape(self.cluster_sum)[0] == self.n_Z_layers) :
+            if (self.n_Z_layers > 1) :
 
-                print("Before Cuts, N = ",np.shape(self.cluster_sum))
+                print("Before Cuts, N = ",np.shape(self.segmented_cluster_sum))
                 new_clusters = []
-                cluster_cut = np.sum(self.cluster_sum, axis=0) > self.cluster_e_min
-                print(np.shape(cluster_cut))
 
                 for z_bin in range(self.n_Z_layers):
-                    cluster_segment = self.cluster_sum[z_bin]
+                    cluster_segment = self.segmented_cluster_sum[:,z_bin]
                     new_clusters.append(cluster_segment[cluster_cut])
 
-                self.cluster_sum = np.asarray(new_clusters)
-                print("After Cuts, N = ",np.shape(self.cluster_sum))
-
-
+                self.segmented_cluster_sum = self.segmented_cluster_sum[cluster_cut]
+                # self.segmented_cluster_sum = new_clusters
+                print("After Cuts, N = ",np.shape(self.segmented_cluster_sum))
 
         return
 
     def apply_sampling_fraction(self):
+
         self.cluster_sum = self.cluster_sum/self.sampling_fraction
+
+        if self.segmented_cluster_sum_exist():
+            self.segmented_cluster_sum = self.segmented_cluster_sum/self.sampling_fraction
+
         print(f"Applied Sampling Fraction of {self.sampling_fraction} to Cluster Sums")
 
     def np_save_genP_clusterE(self):
@@ -207,11 +214,12 @@ class Strawman_Clusterer:
             self.save_npy(self.genP, "genP")
             self.save_npy(self.genTheta, "genTheta")
 
-        if (self.hits_e_exist):
+        if self.hits_e_exist():
             self.save_npy(self.flat_hits_e, "flat_hits_e")
 
-        if (self.hits_z_exist):
-            self.save_npy(self.flat_hits_z, "flat_hits_z")
+        if self.hits_z_exist():
+            self.save_npy(self.hits_z, "flat_hits_z")
+            # self.save_npy(self.flat_hits_z, "flat_hits_z")
        
         self.save_npy(self.sampling_fraction, "sampling_fraction")
 
@@ -237,7 +245,7 @@ class Strawman_Clusterer:
     def hits_z_exist(self):
 
         if not hasattr(self, 'hits_z'):
-            print(f"Error: get_hits_z() needs to be run!")
+            print(f"hits_z does not exist. May need to run get_hits_z()")
             return False
         return True
 
