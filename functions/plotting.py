@@ -2,7 +2,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.colors import LogNorm
 from copy import copy
-
+from matplotlib import cm
+import pickle
 
 import sys  
 sys.path.insert(0, 'functions')
@@ -14,7 +15,7 @@ star_res = [0.18, 0.16, 0.15, 0.14, 0.13, 0.098, 0.092, 0.090]
 ECCE_res = [0.15,0.127,0.117,0.121,0.106,0.102,0.092,0.098]
 ECCE_energies = [10,20,30,40,50,60,80,100]
 
-def ClusterSum_vs_GenP(clusterSum, genP, label, ylabel="Cluster Sum", plot_offset = 5.0):
+def ClusterSum_vs_GenP(clusterSum, genP, label, take_log = False, ylabel="Cluster Sum", plot_offset = 5.0):
 
     fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(12, 10), constrained_layout=True)
     cmap = copy(plt.cm.plasma)
@@ -23,8 +24,8 @@ def ClusterSum_vs_GenP(clusterSum, genP, label, ylabel="Cluster Sum", plot_offse
     #Bins and Range
     sumE_maxPlot = 125.0 #max cluster energy to plot. Has high tails that mess up plotting
     sumE_maxPlot = min(sumE_maxPlot,np.max(clusterSum))
-    cluster_bins = E_binning(np.min(clusterSum),sumE_maxPlot+plot_offset)
-    truth_bins   = E_binning(np.min(genP),np.max(genP)+plot_offset)
+    cluster_bins = E_binning(np.min(clusterSum),sumE_maxPlot+plot_offset, take_log)
+    truth_bins   = E_binning(np.min(genP),np.max(genP)+plot_offset, take_log)
 
     h, xedges, yedges = np.histogram2d(genP, clusterSum, bins=[truth_bins, cluster_bins])
     pcm = ax.pcolormesh(xedges, yedges, h.T, cmap=cmap, norm=LogNorm(vmin=1.0e-2,vmax=1.1e4), rasterized=True)
@@ -49,10 +50,10 @@ def energy_QA_plots(flat_hits_e, genP, cluster_sum, label):
     fig, ax = plt.subplots(nrows=1, ncols=3, figsize=(36, 10), constrained_layout=True)
     axes = np.ravel(ax)
 
-    max_hits_e = np.mean(flat_hits_e)+ 2*np.std(flat_hits_e)
+    max_hits_e = np.mean(flat_hits_e) + np.std(flat_hits_e)
 
     bins_hits_e = np.linspace(np.min(flat_hits_e),max_hits_e,100)
-    axes[0].hist(flat_hits_e, bins=bins_hits_e, color="cyan", alpha=0.8)
+    axes[0].hist(flat_hits_e, bins=bins_hits_e, color="gold", alpha=0.8)
     axes[0].set_ylabel("Counts",fontsize=22) 
     axes[0].set_xlabel("Cell Hit Energy [GeV]",fontsize=22) 
     axes[0].set_title("Cell Energy Distribution",fontsize=22) 
@@ -63,11 +64,15 @@ def energy_QA_plots(flat_hits_e, genP, cluster_sum, label):
     axes[1].set_title("Gen. Momentum Distribution",fontsize=22) 
 
     if len(np.shape(cluster_sum)) > 1:
-        n_zbins = np.shape(cluster_sum)[0]
-        colors = ["blue","dodgerblue","darkturquoise"]
+        n_zbins = np.shape(cluster_sum)[1]
+        print(f"N Z bins = {n_zbins}")
+        cm_subsection = np.linspace(0.0, 1.0, n_zbins) 
+        colors = [ cm.winter(x) for x in cm_subsection ]
+
         for zbin in range(n_zbins):
-            axes[2].hist(cluster_sum[zbin],color=colors[zbin],
-                         label="segment %i"%(zbin),alpha=0.8,bins=20)
+            axes[2].hist(cluster_sum[:,zbin],color=colors[zbin],
+                         label="Layer %i"%(zbin),alpha=0.8,bins=20)
+
         axes[2].set_ylabel("Counts",fontsize=22) 
         axes[2].set_xlabel("Cluster Energy [GeV]",fontsize=22) 
         axes[2].set_title("Cluster Sum Distribution (Raw)",fontsize=22) 
@@ -80,6 +85,7 @@ def energy_QA_plots(flat_hits_e, genP, cluster_sum, label):
 
     path = "./"+label
     plt.savefig(f"{path}/energy_QA_plots.pdf")
+
 def Plot_Loss_Curve(loss,val_loss,label,loss_string):
 
     fig,axes = plt.subplots(1,1,figsize=(14,10))
@@ -133,7 +139,6 @@ def Plot_Resolutions(NN, strawman,label):
     plt.savefig("%s/resolution_plot.pdf"%(path))
 
 
-
 def Plot_Energy_Scale(NN, label, sampling_fraction, strawman=None, bin_label="truth", ymin=0.95,ymax=1.05):
     mask = ~np.isnan(NN["median_scale"])
     fig=plt.figure(figsize=(14,10))
@@ -153,8 +158,6 @@ def Plot_Energy_Scale(NN, label, sampling_fraction, strawman=None, bin_label="tr
     color1 = 'blue'
     color2 = 'dodgerblue'
 
-    print(NN[f"avg_{bin_label}"][mask])
-    print(NN["median_scale"][mask])
     #NN   
     plt.errorbar(NN[f"avg_{bin_label}"][mask][first_bin:last_bin],NN["median_scale"][mask][first_bin:last_bin],#yerr=errors[first_bin:last_bin],
                  linestyle="--",linewidth=2.0,capsize=4,capthick=1.2,elinewidth=1.2,
@@ -250,7 +253,82 @@ def draw_identity_line(axes, *line_args, **line_kwargs):
 
 
 
+def Compare_Resolutions(dirs,labels,logscale=False):
+
+    cm_subsection = np.linspace(0.2, 0.8, len(labels))
+    colors = [ cm.plasma(x) for x in cm_subsection ]
+
+    fig=plt.figure(figsize=(14,10))
+    plt.title("AI Codesign Resolution",fontsize=25)
+    plt.ylabel("$(\sigma_{E,\mathrm{Pred}}/E_\mathrm{Truth})$",fontsize=24)
+    plt.xlabel("$E_\mathrm{Truth}$ [GeV]",fontsize=24)
+    plt.xticks(fontsize=20)
+    plt.yticks(fontsize=20)
+    plt.tick_params(direction='in',right=True,top=True,length=10)
+    # plt.ylim(0.075,.2)
+    # plt.xlim(-1,110.01)
+
+    ax = plt.subplot(1,1,1)
+    plt.text(0.8,-0.08,dirs[0],transform=ax.transAxes,fontsize=10)
+
+    if (logscale):
+        plt.xscale('log')
+
+    for i, (dir,label) in enumerate (zip(dirs,labels)):
+        with open(f'./{dir}/res_scale.pickle', 'rb') as handle:
+            dict = pickle.load(handle)
+
+            mask = ~np.isnan(dict["resolution"])
+            first_bin = 0
+            last_bin = len(dict["avg_truth"])
+
+            plt.errorbar(dict["avg_truth"][mask][first_bin:last_bin],
+                         dict["resolution"][mask][first_bin:last_bin],
+                         linestyle="-", linewidth=2.0, capsize=4, 
+                         capthick=1.2,elinewidth=1.2,ecolor='black',
+                         marker="o",color=colors[i],alpha=0.99,label=label)
+
+    plt.legend(fontsize=15,loc="upper right")
+    plt.savefig("comparing_resolution_plot.pdf")
 
 
+def Compare_Scales(dirs,labels,bin_label="Truth",ymin=0.95,ymax=1.05,logscale=False):
+
+    cm_subsection = np.linspace(0.2, 0.8, len(labels))
+    colors = [ cm.plasma(x) for x in cm_subsection ]
+    bin_label = "Truth"
+
+    fig=plt.figure(figsize=(14,10))
+
+    plt.title("AI Codesign Scale $E_\mathrm{%s}$ Bins"%(bin_label),fontsize=25)
+    plt.ylabel("$(E_\mathrm{Pred}/(E_\mathrm{%s})$"%(bin_label),fontsize=24)
+    plt.xlabel("$E_\mathrm{%s}$ [GeV]"%(bin_label) ,fontsize=24)
+    plt.xticks(fontsize=20)
+    plt.yticks(fontsize=20)
+    plt.tick_params(direction='in',right=True,top=True,length=10)
+    plt.axhline(y=1.0, color='k', linestyle='--',alpha=0.5)#plt.ylim(-0.02,0.4)
+    plt.ylim(ymin,ymax)
+    if (logscale):
+        plt.xscale('log')
+
+    ax = plt.subplot(1,1,1)
+    plt.text(0.8,-0.08,dirs[0],transform=ax.transAxes,fontsize=10)
+
+    for i, (dir,label) in enumerate (zip(dirs,labels)):
+        with open(f'./{dir}/res_scale.pickle', 'rb') as handle:
+            dict = pickle.load(handle)
+
+            mask = ~np.isnan(dict["median_scale"])
+            first_bin = 0
+            last_bin = len(dict["avg_truth"])
+
+            plt.errorbar(dict["avg_truth"][mask][first_bin:last_bin],
+                         dict["median_scale"][mask][first_bin:last_bin],
+                         linestyle="-", linewidth=2.0, capsize=4, 
+                         capthick=1.2,elinewidth=1.2,ecolor='black',
+                         marker="o",color=colors[i],alpha=0.99,label=label)
+
+    plt.legend(fontsize=15,loc="upper right")
+    plt.savefig("comparing_median_scale_plot.pdf")
 
 

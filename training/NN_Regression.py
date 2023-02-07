@@ -1,6 +1,6 @@
 import sys
 sys.path.insert(0, 'functions')
-from Clusterer import load_ClusterSum_and_GenP
+from Clusterer import load_ClusterSum, load_GenP, load_segmented_ClusterSum
 
 import tensorflow as tf
 from energyflow.utils import data_split #FIXME: switch to sklearn...
@@ -10,6 +10,7 @@ import numpy as np
 class NN_Regressor:
     def __init__(self,
                  label: str,
+                 num_calo_segments = 1,
                  learning_rate = 1e-5,
                  dropout_rate = 0.05,
                  batch_size = 1000,
@@ -20,6 +21,8 @@ class NN_Regressor:
 
         self.label = label
         self.path = "./"+label
+
+        self.num_calo_segments = num_calo_segments
 
         self.learning_rate = learning_rate
         self.dropout_rate = dropout_rate
@@ -38,7 +41,14 @@ class NN_Regressor:
     def get_X_Y(self):
 
         # self.cluster_sum, self.genP = load_ClusterSum_and_GenP(self.label)
-        cluster_sum, genP = load_ClusterSum_and_GenP(self.label)
+        if self.num_calo_segments > 1:
+            cluster_sum = load_segmented_ClusterSum(self.label)
+            print(f"Loading Segmented Cluster Sum, shape = {np.shape(cluster_sum)}")
+            print("Nevents = ",len(cluster_sum))
+        else:
+            cluster_sum = load_ClusterSum(self.label)
+        genP = load_GenP(self.label)
+        print("Nevents = ",len(genP))
 
         self.x_train, self.x_val, self.x_test, self.y_train, self.y_val, self.y_test = data_split(cluster_sum, genP, val=0.2, test=0.3,shuffle=True)
 
@@ -46,7 +56,7 @@ class NN_Regressor:
 
     def define_model(self):
         self.model = tf.keras.models.Sequential([
-                                              tf.keras.layers.Input(shape=[1]),
+                                              tf.keras.layers.Input(shape=[self.num_calo_segments]),
                                               tf.keras.layers.Dense(64, activation='relu'), 
                                               tf.keras.layers.Dense(64, activation='relu'),
                                               tf.keras.layers.Dense(64, activation='relu'),

@@ -136,12 +136,11 @@ class Strawman_Clusterer:
 
             segmented_cluster_sum = np.swapaxes(segmented_cluster_sum,0,1)
             self.segmented_cluster_sum = np.asarray(segmented_cluster_sum)
-            print("SHAPE = ",np.shape(segmented_cluster_sum))
             self.cluster_sum = np.sum(segmented_cluster_sum, axis=-1)
-            print("sum all layers SHAPE = ",np.shape(self.cluster_sum))
             
             if (self.take_log):
-                self.cluster_sum = np.log(self.cluster_sum)
+                self.segmented_cluster_sum = np.log10(self.segmented_cluster_sum)
+                self.cluster_sum = np.log10(self.cluster_sum)
             print("Cluster Sum(s) Done!")
 
         return
@@ -159,7 +158,7 @@ class Strawman_Clusterer:
         self.genTheta = np.arccos(genPz/self.genP)*180/np.pi
 
         if (self.take_log):
-            self.genP = np.log(self.genP)
+            self.genP = np.log10(self.genP)
 
         return
 
@@ -181,14 +180,7 @@ class Strawman_Clusterer:
             if (self.n_Z_layers > 1) :
 
                 print("Before Cuts, N = ",np.shape(self.segmented_cluster_sum))
-                new_clusters = []
-
-                for z_bin in range(self.n_Z_layers):
-                    cluster_segment = self.segmented_cluster_sum[:,z_bin]
-                    new_clusters.append(cluster_segment[cluster_cut])
-
                 self.segmented_cluster_sum = self.segmented_cluster_sum[cluster_cut]
-                # self.segmented_cluster_sum = new_clusters
                 print("After Cuts, N = ",np.shape(self.segmented_cluster_sum))
 
         return
@@ -287,7 +279,7 @@ def load_flat_hits_e(label):
     flat_hits_e = np.load(f"./{label}/flat_hits_e.npy",allow_pickle=True)
     return flat_hits_e
 
-def E_binning(min_E, max_E,N_bins=100,log=False):
+def E_binning(min_E, max_E,log=False,N_bins=100,):
 
     bins = np.linspace(min_E,max_E,N_bins+1)
 

@@ -18,7 +18,7 @@ with open("config.yaml", "r") as config_file:
     config = yaml.safe_load(config_file)
 
 h5_filename = config["h5_filename"]
-print("TRYING TO OPEN ",h5_filename)
+print(h5_filename)
 learning_rate = config["learning_rate"]
 num_epochs = config["n_epochs"]
 batch_size = config["batch_size"]

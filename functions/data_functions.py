@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import pickle
 
 #Compares to datasets, bin-bin in histograms
 def make_comparison_plots( data_1, data_2, var_name, label1 = "ROOT", label2 = "HDF5", verbose=2,yscale='log' ) :
@@ -39,11 +40,11 @@ def make_comparison_plots( data_1, data_2, var_name, label1 = "ROOT", label2 = "
 
 
 # Get Resolution, scale, and distributions of Pred/X in bins of truth
-def get_res_scale(truth,pred,binning=np.linspace(0,100,21)):
+def get_res_scale(truth,pred,binning=np.linspace(0,100,21),label=""):
+
     if (len(truth) != len(pred)):
         print("truth and prediction arrays must be same length")
         return
-
 
     indecies = np.digitize(truth,binning)-1 #Get the bin number each element belongs to.
     N_Bins = len(binning)
@@ -83,10 +84,14 @@ def get_res_scale(truth,pred,binning=np.linspace(0,100,21)):
     dict["slices"]       = slices
     dict["scale_array"]  = scale_array
 
+    if (label != ""):
+        with open(f'./{label}/res_scale.pickle', 'wb') as pickle_file:
+            pickle.dump(dict, pickle_file, protocol=pickle.HIGHEST_PROTOCOL)
+
     return dict
 
 
-def get_res_scale_in_reco_bins(truth,pred,reco,binning=np.linspace(0,100,21)):
+def get_res_scale_in_reco_bins(truth,pred,reco,binning=np.linspace(0,100,21),label=""):
     #FIXME: can do: if not(reco) -> us truth for determining slices-> or reco=truth?
     if (len(truth) != len(pred)):
         print("truth and pred arrays must be same length")
@@ -143,6 +148,10 @@ def get_res_scale_in_reco_bins(truth,pred,reco,binning=np.linspace(0,100,21)):
     dict["avg_scale"]    = avg_scale
     dict["slices"]       = slices
     dict["scale_array"]  = scale_array
+
+    if (label != ""):
+        with open(f'./{label}/res_scale_RecoBins.pickle', 'wb') as pickle_file:
+            pickle.dump(dict, pickle_file, protocol=pickle.HIGHEST_PROTOCOL)
 
     return dict
     # return resolution, median_scale, avg_reco, avg_truth, slices, scale_array
