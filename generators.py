@@ -211,6 +211,7 @@ class MPGraphDataGenerator:
         nodes = self.get_cell_data(event_data[event_ind])
         cluster_num_nodes = len(nodes)
         global_node = self.get_cluster_calib(event_data[event_ind])
+        print("NODES = ",nodes)
 
         return nodes, np.array([global_node]), cluster_num_nodes
 
@@ -223,9 +224,9 @@ class MPGraphDataGenerator:
 
         for feature in self.nodeFeatureNames:
 
-            feature_data = event_data[self.detector_name+feature_name][mask]
+            feature_data = event_data[self.detector_name+feature][mask]
 
-            if "energy" in feature_name:  
+            if "energy" in feature:  
                 feature_data = np.log10(feature_data)
 
             #standard scalar transform
@@ -245,7 +246,7 @@ class MPGraphDataGenerator:
         cluster_sum_E = np.sum(cell_E,axis=-1) #global node feature later
         cluster_calib_E  = cluster_sum_E / self.sampling_fraction
 
-        cluster_calib_E = (cluster_calib_E - means_dict["clusterE"]) / stdvs_dict["clusterE"]
+        cluster_calib_E = (cluster_calib_E - self.means_dict["clusterE"]) / self.stdvs_dict["clusterE"]
 
         if cluster_calib_E <= 0:
             return None
@@ -264,7 +265,7 @@ class MPGraphDataGenerator:
         #the generation has the parent praticle always at index 2
 
         genP = np.log10(np.sqrt(genPx*genPx + genPy*genPy + genPz*genPz))
-        genP = (genP - means_dict["genP"]) / stdvs_dict["genP"]
+        genP = (genP - self.means_dict["genP"]) / self.stdvs_dict["genP"]
 
         return genP
 
