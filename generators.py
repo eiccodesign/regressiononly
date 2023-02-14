@@ -11,6 +11,7 @@ import compress_pickle as pickle
 from scipy.stats import circmean
 import random
 
+#Change these for your usecase!
 data_dir = '/clusterfs/ml4hep_nvme2/ftoralesacosta/regressiononly/data/'
 out_dir = '/clusterfs/ml4hep_nvme2/ftoralesacosta/regressiononly/preprocessed_data/'
 
@@ -48,6 +49,8 @@ class MPGraphDataGenerator:
         self.num_nodeFeatures = len(self.nodeFeatureNames)
         self.num_targetFeatures = 1 #Regression on Energy only for now
 
+        self.scalar_keys = self.nodeFeatureNames + ["clusterE","genP"]
+
         # self.edgeFeatureNames = self.cellGeo_data.keys()[9:]
         # self.num_edgeFeatures = len(self.edgeFeatureNames)
 
@@ -82,13 +85,14 @@ class MPGraphDataGenerator:
             print("MEANS = ",means)
             print("STDVS = ",stdvs)
 
-            pickle.dump(means, open(
-                        self.output_dir + 'means.p', 'wb'), 
-                    compression='gzip')
+            self.means_dict = dict(zip(self.scalar_keys,means))
+            self.stdvs_dict = dict(zip(self.scalar_keys,stdvs))
 
-            pickle.dump(stdvs, open(
-                        self.output_dir + 'stdvs.p', 'wb'), 
-                    compression='gzip')
+            pickle.dump(self.means_dict, open(
+                        self.output_dir + 'means.p', 'wb'), compression='gzip')
+
+            pickle.dump(self.stdvs_dict, open(
+                        self.output_dir + 'stdvs.p', 'wb'), compression='gzip')
 
         print(f"Finished Mean and Standard Deviation Calculation using { n_calcs } Files")
 
@@ -216,13 +220,19 @@ class MPGraphDataGenerator:
 
         for feature in self.nodeFeatureNames:
 
-            if "energy" in feature:  
-                cell_data.append(np.log10(event_data[self.detector_name+feature][mask]))
-            else:
-                cell_data.append(event_data[self.detector_name+feature][mask])
+            feature_data = event_data[self.detector_name+feature_name][mask]
+
+            if "energy" in feature_name:  
+                feature_data = np.log10(feature_data)
+
+            #standard scalar transform
+            feature_data = (feature_data - self.means_dict[feature]) / self.stdvs_dict[feature]
+
+            cell_data.append(feature_data)
+
 
         return np.swapaxes(cell_data,0,1) # returns [Events, Features]
-    #alternative: cell_data = np.reshape(cell_data, (len(self.nodeFeatureNames), -1)).T
+        #alternative: cell_data = np.reshape(cell_data, (len(self.nodeFeatureNames), -1)).T
 
 
     def get_cluster_calib(self, event_data):
@@ -231,6 +241,8 @@ class MPGraphDataGenerator:
         cell_E = event_data[self.detector_name+".energy"]
         cluster_sum_E = np.sum(cell_E,axis=-1) #global node feature later
         cluster_calib_E  = cluster_sum_E / self.sampling_fraction
+
+        cluster_calib_E = (cluster_calib_E - means_dict["clusterE"]) / stdvs_dict["clusterE"]
 
         if cluster_calib_E <= 0:
             return None
@@ -249,6 +261,8 @@ class MPGraphDataGenerator:
         #the generation has the parent praticle always at index 2
 
         genP = np.log10(np.sqrt(genPx*genPx + genPy*genPy + genPz*genPz))
+        genP = (genP - means_dict["genP"]) / stdvs_dict["genP"]
+
         return genP
 
 
