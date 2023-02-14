@@ -60,6 +60,8 @@ class MPGraphDataGenerator:
             self.preprocess_scalar(n_scalar_files)
             self.preprocess_data()
 
+        self.means_dict = pickle.load(open("./preprocessed_data/means.p", 'rb'),compression='gzip')
+        self.stdvs_dict = pickle.load(open("./preprocessed_data/stdvs.p", 'rb'),compression='gzip')
 
 
     def preprocess_scalar(self,n_calcs):
@@ -158,6 +160,7 @@ class MPGraphDataGenerator:
             p.join()
 
         self.file_list = [self.output_dir + f'data_{i:03d}.p' for i in range(self.num_files)]
+
 
     def preprocessor(self, worker_id):
 
