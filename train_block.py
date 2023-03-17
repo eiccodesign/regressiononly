@@ -100,12 +100,15 @@ if __name__=="__main__":
     
     ## Checkpointing 
     checkpoint = tf.train.Checkpoint(module=model)
-    checkpoint_prefix = os.path.join(save_dir, 'latest_model')
-    latest = tf.train.latest_checkpoint(save_dir)
-    if latest is not None:
-        checkpoint.restore(latest)
+    best_ckpt_prefix = os.path.join(save_dir, 'best_model')
+    best_ckpt = tf.train.latest_checkpoint(save_dir)
+    last_ckpt_path = save_dir + '/last_saved_model'
+    if best_ckpt is not None:
+        checkpoint.restore(best_ckpt)
+    if os.path.exists(last_ckpt_path+'.index'):
+        checkpoint.read(last_ckpt_path)
     else:
-        checkpoint.save(checkpoint_prefix)
+        checkpoint.write(last_ckpt_path)
 
     def convert_to_tuple(graphs):
         nodes = []
@@ -203,6 +206,7 @@ if __name__=="__main__":
     for e in range(epochs):
 
         print('\n\nStarting epoch: {}'.format(e))
+        epoch_start = time.time()
 
         training_loss = []
         val_loss = []
@@ -232,6 +236,7 @@ if __name__=="__main__":
         print('Took {:.3f} secs'.format(end-start))
     
         training_loss_epoch.append(training_loss)
+        training_end = time.time()
 
         # validate
         print('\nValidation...')
@@ -264,19 +269,38 @@ if __name__=="__main__":
               format(i, val_loss[-1], np.mean(val_loss)), end='\t')
         print('Took {:.3f} secs'.format(end-start))
 
+        epoch_end = time.time()
+
         all_targets = np.concatenate(all_targets)
         all_outputs = np.concatenate(all_outputs)
         
         val_loss_epoch.append(val_loss)
     
         np.savez(save_dir+'/losses', training=training_loss_epoch, validation=val_loss_epoch)
-        checkpoint.save(checkpoint_prefix)
+        checkpoint.write(last_ckpt_path)
+
+        val_mins = int((epoch_end - training_end)/60)
+        val_secs = int((epoch_end - training_end)%60)
+        training_mins = int((training_end - epoch_start)/60)
+        training_secs = int((training_end - epoch_start)%60)
+        print('\nEpoch {} ended\nTraining: {:2d}:{:02d}\nValidation: {:2d}:{:02d}'. \
+              format(e, training_mins, training_secs, val_mins, val_secs))
     
         if np.mean(val_loss)<curr_loss:
-            print('\nLoss decreased from {:.4f} to {:.4f}'.format(curr_loss, np.mean(val_loss)))
+            print('\nLoss decreased from {:.6f} to {:.6f}'.format(curr_loss, np.mean(val_loss)))
             print('Checkpointing and saving predictions to:\n{}'.format(save_dir))
             curr_loss = np.mean(val_loss)
             np.savez(save_dir+'/predictions', 
                     targets=all_targets, 
                     outputs=all_outputs)
-            checkpoint.save(checkpoint_prefix)
+            checkpoint.save(best_ckpt_prefix)
+        else:
+            print('\nLoss did not decrease from {:.6f}'.format(curr_loss))
+
+        if not (e+1)%4:
+            optimizer.learning_rate = optimizer.learning_rate/2
+            if optimizer.learning_rate<1e-6:
+                optimizer.learning_rate = 1e-6 
+                print('\nLearning rate would fall below 1e-6, setting to: {:.5e}'.format(optimizer.learning_rate.value()))
+            else:
+                print('\nLearning rate decreased to: {:.5e}'.format(optimizer.learning_rate.value()))
