@@ -12,8 +12,11 @@ from scipy.stats import circmean
 import random
 
 #Change these for your usecase!
-data_dir = '/clusterfs/ml4hep_nvme2/ftoralesacosta/regressiononly/data/'
-out_dir = '/clusterfs/ml4hep_nvme2/ftoralesacosta/regressiononly/preprocessed_data/'
+# data_dir = '/clusterfs/ml4hep_nvme2/ftoralesacosta/regressiononly/data/'
+# out_dir = '/clusterfs/ml4hep_nvme2/ftoralesacosta/regressiononly/preprocessed_data/'
+
+data_dir = '/usr/workspace/hip/eic/log10_Uniform_03-23/log10_pi+_Uniform_0-140Gev_17deg_1/'
+out_dir = '/usr/WS2/karande1/eic/gitrepos/regressiononly/preprocessed_data/'
 
 
 class MPGraphDataGenerator:
@@ -21,22 +24,26 @@ class MPGraphDataGenerator:
                  file_list: list,
                  batch_size: int,
                  shuffle: bool = True,
-                 num_procs = 32,
-                 calc_scalar= False,
-                 preprocess = False,
-                 output_dir = None):
+                 num_procs: int = 32,
+                 calc_stats: bool = False,
+                 preprocess: bool = False,
+                 already_preprocessed: bool = False,
+                 is_val: bool = False,
+                 output_dir: str = None):
         """Initialization"""
 
         self.preprocess = preprocess
+        self.already_preprocessed = already_preprocessed
+        self.calc_stats = calc_stats
+        self.is_val = is_val
         self.output_dir = output_dir
+        self.stats_dir = os.path.realpath(self.output_dir+'../')
 
         self.file_list = file_list
         self.num_files = len(self.file_list)
 
         self.batch_size = batch_size
         self.shuffle = shuffle
-        
-        if self.shuffle: np.random.shuffle(self.file_list)
         
         self.num_procs = num_procs
         self.procs = []
@@ -54,18 +61,30 @@ class MPGraphDataGenerator:
         # self.edgeFeatureNames = self.cellGeo_data.keys()[9:]
         # self.num_edgeFeatures = len(self.edgeFeatureNames)
 
-        if self.preprocess and self.output_dir is not None:
-            os.makedirs(self.output_dir, exist_ok=True)
+        if not self.is_val and self.calc_stats:
             n_scalar_files = 8 #num files to use for scaler calculation
             self.preprocess_scalar(n_scalar_files)
-            self.preprocess_data()
+        else:
+            self.means_dict = pickle.load(open(f"{self.stats_dir}/means.p", 'rb'), compression='gzip')
+            self.stdvs_dict = pickle.load(open(f"{self.stats_dir}/stdvs.p", 'rb'), compression='gzip')
 
-        self.means_dict = pickle.load(open("./preprocessed_data/means.p", 'rb'),compression='gzip')
-        self.stdvs_dict = pickle.load(open("./preprocessed_data/stdvs.p", 'rb'),compression='gzip')
+
+        if self.already_preprocessed and os.path.isdir(self.output_dir):
+            self.file_list = [self.output_dir + f'data_{i:03d}.p' for i in range(self.num_files)]
+        elif self.preprocess and self.output_dir is not None:
+            os.makedirs(self.output_dir, exist_ok=True)
+            self.preprocess_data()
+        else:
+            print('Check preprocessing config!!')
+
+
+
+        if self.shuffle: np.random.shuffle(self.file_list)
 
 
     def preprocess_scalar(self,n_calcs):
-        print(f'\nCalcing Scalars and saving data to {self.output_dir}')
+
+        print(f'\nCalcing Scalars and saving data to {self.stats_dir}')
 
         self.n_calcs = min(n_calcs,self.num_files)
 
@@ -84,17 +103,17 @@ class MPGraphDataGenerator:
 
             means = np.mean(means,axis=0) #avg means along file dimension
             stdvs = np.mean(stdvs,axis=0) #avg stdvs from files
-            print("MEANS = ",means)
-            print("STDVS = ",stdvs)
 
             self.means_dict = dict(zip(self.scalar_keys,means))
             self.stdvs_dict = dict(zip(self.scalar_keys,stdvs))
+            print("MEANS = ",self.means_dict)
+            print("STDVS = \n",self.stdvs_dict)
 
             pickle.dump(self.means_dict, open(
-                        self.output_dir + 'means.p', 'wb'), compression='gzip')
+                        self.stats_dir + '/means.p', 'wb'), compression='gzip')
 
             pickle.dump(self.stdvs_dict, open(
-                        self.output_dir + 'stdvs.p', 'wb'), compression='gzip')
+                        self.stats_dir + '/stdvs.p', 'wb'), compression='gzip')
 
         print(f"Finished Mean and Standard Deviation Calculation using { n_calcs } Files")
 
@@ -130,8 +149,8 @@ class MPGraphDataGenerator:
             cluster_sum_E = ak.sum(cell_E,axis=-1) #global node feature later
             mask = cluster_sum_E > 0.0
             cluster_calib_E  = np.log10(cluster_sum_E[mask] / self.sampling_fraction)
-            file_means.append(np.nanmean(cluster_calib_E))
-            file_stdvs.append(np.nanstd(cluster_calib_E))
+            file_means.append(np.mean(cluster_calib_E))
+            file_stdvs.append(np.std(cluster_calib_E))
             
             genPx = event_data['MCParticles.momentum.x'][:,2]
             genPy = event_data['MCParticles.momentum.y'][:,2]
@@ -149,7 +168,7 @@ class MPGraphDataGenerator:
 
 
     def preprocess_data(self):
-        print(f'\nPreprocessing and saving data to {self.output_dir}')
+        print(f'\nPreprocessing and saving data to {os.path.realpath(self.output_dir)}')
 
         for i in range(self.num_procs):
             p = Process(target=self.preprocessor, args=(i,), daemon=True)
@@ -180,6 +199,9 @@ class MPGraphDataGenerator:
 
                 nodes, global_node, cluster_num_nodes = self.get_nodes(event_data, event_ind)
                 senders, receivers, edges = self.get_edges(cluster_num_nodes) #returns 'None'
+                
+                if not global_node:
+                    continue
 
                 graph = {'nodes': nodes.astype(np.float32), 'globals': global_node.astype(np.float32),
                     'senders': senders, 'receivers': receivers, 'edges': edges} 
@@ -193,16 +215,14 @@ class MPGraphDataGenerator:
                 meta_data = [f_name]
                 meta_data.extend(self.get_meta(event_data, event_ind))
 
-                preprocessed_data.append((graph, target,meta_data))
+                preprocessed_data.append((graph, target, meta_data))
 
             random.shuffle(preprocessed_data) #should be done BEFORE multiple 'images' per geant event
 
-            pickle.dump(preprocessed_data, open(
-                            self.output_dir + f'data_{file_num:03d}.p', 'wb'), 
-                        compression='gzip')
+            pickle.dump(preprocessed_data, open(self.output_dir + f'data_{file_num:03d}.p', 'wb'), compression='gzip')
 
+            print(f"Finished processing file number {file_num}")
             file_num += self.num_procs
-            print(f"Finished processing {file_num} files")
 
 
 
@@ -211,7 +231,7 @@ class MPGraphDataGenerator:
         nodes = self.get_cell_data(event_data[event_ind])
         cluster_num_nodes = len(nodes)
         global_node = self.get_cluster_calib(event_data[event_ind])
-        print("NODES = ",nodes)
+        # print("NODES = ",nodes)
 
         return nodes, np.array([global_node]), cluster_num_nodes
 
@@ -244,15 +264,12 @@ class MPGraphDataGenerator:
 
         cell_E = event_data[self.detector_name+".energy"]
         cluster_sum_E = np.sum(cell_E,axis=-1) #global node feature later
-        cluster_calib_E  = cluster_sum_E / self.sampling_fraction
-
-        cluster_calib_E = (cluster_calib_E - self.means_dict["clusterE"]) / self.stdvs_dict["clusterE"]
-
-        if cluster_calib_E <= 0:
+        if cluster_sum_E <= 0:
             return None
 
-        else:
-            return(cluster_calib_E)
+        cluster_calib_E  = np.log10(cluster_sum_E/self.sampling_fraction)
+        cluster_calib_E = (cluster_calib_E - self.means_dict["clusterE"])/self.stdvs_dict["clusterE"]
+        return(cluster_calib_E)
 
     def get_edges(self, num_nodes):
         return None,None,None
@@ -309,7 +326,7 @@ class MPGraphDataGenerator:
         while file_num < self.num_files:
             file_data = pickle.load(open(self.file_list[file_num], 'rb'), compression='gzip')
 
-            print("FILE DATA SHAPE = ",np.shape(file_data))
+            # print("FILE DATA SHAPE = ",np.shape(file_data))
 
             for i in range(len(file_data)):
                 batch_graphs.append(file_data[i][0])
@@ -375,22 +392,18 @@ class MPGraphDataGenerator:
 
 if __name__ == '__main__':
     pion_files = np.sort(glob.glob(data_dir+'*.root')) #dirs L14
-    pion_files = pion_files[:8]
-    print("Pion Files = ",pion_files)
+    pion_files = pion_files[:20]
+    # print("Pion Files = ",pion_files)
 
     data_gen = MPGraphDataGenerator(file_list=pion_files, 
                                     batch_size=32,
                                     shuffle=False,
                                     num_procs=32,
                                     preprocess=True,
+                                    already_preprocessed=True,
                                     output_dir=out_dir)
 
     gen = data_gen.generator()
-
-    from tqdm.auto import tqdm
-
-    for batch in tqdm(gen):
-        pass
 
     print("\n~ DONE ~\n")
     exit()
