@@ -17,9 +17,9 @@ Next, edit `already_preprocessed` in the config file to `False` only when runnin
 
 ```python train_block.py```
 or 
-```python train_block.py --config [config file name]
+```python train_block.py --config [config file name]```
 
-One may need to limit `num_procs` and `batch_size` according to what there computer can handle.
+One may need to limit `num_procs` and `batch_size` according to what their computer can handle.
 
 ### MISC
 There is a deprecated folder that, as the name suggests, should not be used anymore, and will be deleted soon. 
