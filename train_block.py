@@ -33,6 +33,7 @@ if __name__=="__main__":
     data_dir = data_config['data_dir']
     num_train_files = data_config['num_train_files']
     num_val_files = data_config['num_val_files']
+    num_test_files = data_config['num_test_files']
     batch_size = data_config['batch_size']
     shuffle = data_config['shuffle']
     num_procs = data_config['num_procs']
@@ -55,8 +56,20 @@ if __name__=="__main__":
     train_start = 0
     train_end = train_start + num_train_files
     val_end = train_end + num_val_files
+    test_end = val_end + num_test_files
+
+    # Comment the block below for real running
+    train_end = train_start + 20
+    val_end = train_end + 5
+    test_end = val_end + 5
+
     root_train_files = root_files[train_start:train_end]
     root_val_files = root_files[train_end:val_end]
+    root_test_files = root_files[val_end:test_end]
+
+    print("\n\n Train Files = ",root_train_files)
+    print("\n\n Val Files = ",root_val_files)
+    print("\n\n Test Files = ",root_test_files)
 
     train_output_dir = None
     val_output_dir = None
@@ -82,6 +95,16 @@ if __name__=="__main__":
                                         num_procs=num_procs,
                                         calc_stats=calc_stats,
                                         is_val=True,
+                                        preprocess=preprocess,
+                                        already_preprocessed=already_preprocessed,
+                                        output_dir=val_output_dir)
+
+    data_gen_test = MPGraphDataGenerator(file_list=root_test_files,
+                                        batch_size=batch_size,
+                                        shuffle=shuffle,
+                                        num_procs=num_procs,
+                                        calc_stats=calc_stats,
+                                        is_val=True, #decides to save mean and std
                                         preprocess=preprocess,
                                         already_preprocessed=already_preprocessed,
                                         output_dir=val_output_dir)
@@ -203,6 +226,8 @@ if __name__=="__main__":
         return loss, predictions
 
     curr_loss = 1e5
+
+    #Main Epoch Loop
     for e in range(epochs):
 
         print('\n\nStarting epoch: {}'.format(e))
@@ -304,3 +329,52 @@ if __name__=="__main__":
                 print('\nLearning rate would fall below 1e-6, setting to: {:.5e}'.format(optimizer.learning_rate.value()))
             else:
                 print('\nLearning rate decreased to: {:.5e}'.format(optimizer.learning_rate.value()))
+
+
+#Inference over Test Dataset
+print('\nTest Predictions...')
+i = 1
+test_loss = []
+all_targets = []
+all_outputs = []
+all_etas = []
+start = time.time()
+for graph_data_test, targets_test in get_batch(data_gen_test.generator()):#test_iter):
+    losses_test, output_tests = val_step(graph_data_test, targets_test) 
+    # val_step above simply evaluates the model with the inputs as the first argument. Returns predictions.
+    # This function is used for validation, but since THIS use block is outside of the training loop, 
+    # the resulting loss and set of predictions are not used in the training at all.
+
+    targets_test = targets_test.numpy()
+    output_tests = output_tests.numpy().squeeze()
+
+    test_loss.append(losses_test.numpy())
+    all_targets.append(targets_test)
+    all_outputs.append(output_tests)
+
+
+    if not (i)%50: #FIXME: WTH is this loop for if not training?
+        end = time.time()
+        print('Iter: {:03d}, Val_loss_curr: {:.4f}, Val_loss_mean: {:.4f}'. \
+              format(i, test_loss[-1], np.mean(test_loss)), end='\t')
+        print('Took {:.3f} secs'.format(end-start))
+        start = time.time()
+
+    i += 1 
+
+end = time.time()
+print('Iter: {:03d}, Val_loss_curr: {:.4f}, Val_loss_mean: {:.4f}'. \
+      format(i, test_loss[-1], np.mean(test_loss)), end='\t')
+print('Took {:.3f} secs'.format(end-start))
+
+epoch_end = time.time()
+
+all_targets = np.concatenate(all_targets)
+all_outputs = np.concatenate(all_outputs)
+
+np.savez(save_dir+'/test_predictions', 
+         targets=all_targets, 
+         outputs=all_outputs)
+np.savez(save_dir+'/test_loss', test=test_loss)
+
+
