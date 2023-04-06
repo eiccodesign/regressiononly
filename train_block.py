@@ -78,6 +78,7 @@ if __name__=="__main__":
     if preprocess:
         train_output_dir = output_dir + '/train/'
         val_output_dir = output_dir + '/val/'
+        test_output_dir = output_dir + '/test/'
 
     data_gen_train = MPGraphDataGenerator(file_list=root_train_files,
                                           batch_size=batch_size,
@@ -107,7 +108,7 @@ if __name__=="__main__":
                                         is_val=True, #decides to save mean and std
                                         preprocess=preprocess,
                                         already_preprocessed=already_preprocessed,
-                                        output_dir=val_output_dir)
+                                        output_dir=test_output_dir)
 
     # if preprocess and not already_preprocessed:
     #    exit()
