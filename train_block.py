@@ -59,9 +59,9 @@ if __name__=="__main__":
     test_end = val_end + num_test_files
 
     # Comment the block below for real running
-    train_end = train_start + 20
-    val_end = train_end + 5
-    test_end = val_end + 5
+    # train_end = train_start + 10
+    # val_end = train_end + 5
+    # test_end = val_end + 5
 
     root_train_files = root_files[train_start:train_end]
     root_val_files = root_files[train_end:val_end]
