@@ -66,7 +66,7 @@ class MPGraphDataGenerator:
 
         # if not self.is_val and self.calc_stats:
         if self.calc_stats:
-            n_scalar_files = 1 #num files to use for scaler calculation
+            n_scalar_files = 8 #num files to use for scaler calculation
             self.preprocess_scalar(n_scalar_files)
         else:
             self.means_dict = pickle.load(open(f"{self.stats_dir}/means.p", 'rb'), compression='gzip')
