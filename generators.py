@@ -6,7 +6,8 @@ import os
 import uproot as ur
 import awkward as ak
 import time
-from multiprocessing import Process, Queue, Manager, set_start_method
+# from multiprocessing import Process, Queue, Manager, set_start_method
+from multiprocess import Process, Queue, Manager, set_start_method
 import compress_pickle as pickle
 from scipy.stats import circmean
 import random
@@ -15,8 +16,10 @@ import random
 # data_dir = '/clusterfs/ml4hep_nvme2/ftoralesacosta/regressiononly/data/'
 # out_dir = '/clusterfs/ml4hep_nvme2/ftoralesacosta/regressiononly/preprocessed_data/'
 
-data_dir = '/usr/workspace/hip/eic/log10_Uniform_03-23/log10_pi+_Uniform_0-140Gev_17deg_1/'
-out_dir = '/usr/WS2/karande1/eic/gitrepos/regressiononly/preprocessed_data/'
+# data_dir = '/usr/workspace/hip/eic/log10_Uniform_03-23/log10_pi+_Uniform_0-140Gev_17deg_1/'
+# out_dir = '/usr/WS2/karande1/eic/gitrepos/regressiononly/preprocessed_data/'
+data_dir = '/Users/fernando/regressiononly/log10_pi+_Uniform_0-140GeV_17deg_data/'
+out_dir = '/Users/fernando/regressiononly/preprocessed_data/'
 
 
 class MPGraphDataGenerator:
@@ -37,7 +40,8 @@ class MPGraphDataGenerator:
         self.calc_stats = calc_stats
         self.is_val = is_val
         self.output_dir = output_dir
-        self.stats_dir = os.path.realpath(self.output_dir+'../')
+        self.stats_dir = os.path.realpath(self.output_dir)
+        # self.stats_dir = os.path.realpath(self.output_dir+'../')
 
         self.file_list = file_list
         self.num_files = len(self.file_list)
@@ -61,8 +65,9 @@ class MPGraphDataGenerator:
         # self.edgeFeatureNames = self.cellGeo_data.keys()[9:]
         # self.num_edgeFeatures = len(self.edgeFeatureNames)
 
-        if not self.is_val and self.calc_stats:
-            n_scalar_files = 8 #num files to use for scaler calculation
+        # if not self.is_val and self.calc_stats:
+        if self.calc_stats:
+            n_scalar_files = 1 #num files to use for scaler calculation
             self.preprocess_scalar(n_scalar_files)
         else:
             self.means_dict = pickle.load(open(f"{self.stats_dir}/means.p", 'rb'), compression='gzip')
@@ -107,7 +112,8 @@ class MPGraphDataGenerator:
             self.means_dict = dict(zip(self.scalar_keys,means))
             self.stdvs_dict = dict(zip(self.scalar_keys,stdvs))
             print("MEANS = ",self.means_dict)
-            print("STDVS = \n",self.stdvs_dict)
+            print("STDVS = ",self.stdvs_dict)
+            print(f"saving calc files to {self.stats_dir}/means.p\n")
 
             pickle.dump(self.means_dict, open(
                         self.stats_dir + '/means.p', 'wb'), compression='gzip')
