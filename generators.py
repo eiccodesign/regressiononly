@@ -16,10 +16,9 @@ import random
 # data_dir = '/clusterfs/ml4hep_nvme2/ftoralesacosta/regressiononly/data/'
 # out_dir = '/clusterfs/ml4hep_nvme2/ftoralesacosta/regressiononly/preprocessed_data/'
 
-# data_dir = '/usr/workspace/hip/eic/log10_Uniform_03-23/log10_pi+_Uniform_0-140Gev_17deg_1/'
-# out_dir = '/usr/WS2/karande1/eic/gitrepos/regressiononly/preprocessed_data/'
-data_dir = '/Users/fernando/regressiononly/log10_pi+_Uniform_0-140GeV_17deg_data/'
-out_dir = '/Users/fernando/regressiononly/preprocessed_data/'
+data_dir = '/usr/workspace/hip/eic/log10_Uniform_03-23/log10_pi+_Uniform_0-140Gev_17deg_1/'
+out_dir = '/usr/WS2/karande1/eic/gitrepos/regressiononly/preprocessed_data/'
+
 
 
 class MPGraphDataGenerator:
