@@ -6,8 +6,8 @@ import os
 import uproot as ur
 import awkward as ak
 import time
-# from multiprocessing import Process, Queue, Manager, set_start_method
-from multiprocess import Process, Queue, Manager, set_start_method
+from multiprocessing import Process, Queue, Manager, set_start_method
+# from multiprocess import Process, Queue, Manager, set_start_method
 import compress_pickle as pickle
 from scipy.stats import circmean
 import random
