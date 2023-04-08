@@ -29,8 +29,28 @@ if __name__=="__main__":
     data_config = config['data']
     model_config = config['model']
     train_config = config['training']
+    
+    #data_dir = data_config['data_dir']
+    data_dirs = []
+    root_files = []
+    # Iterate over the keys in the 'data' dictionary and append the values to the list  
+    for key, value in data_config.items():
+        if key.startswith('data_dir'):
+            data_dirs.append(value)
 
-    data_dir = data_config['data_dir']
+    #for dir in data_dirs:
+    #    print(data_dirs)
+
+    for dir_path in data_dirs:
+        # find all *.root files in the current directory  
+        file_paths = glob.glob(dir_path + '*.root')
+        # add the file paths to the list 
+        root_files += file_paths
+    # sort the file paths 
+    root_files = np.sort(root_files)
+    print(len(root_files))
+
+    
     num_train_files = data_config['num_train_files']
     num_val_files = data_config['num_val_files']
     num_test_files = data_config['num_test_files']
@@ -45,6 +65,7 @@ if __name__=="__main__":
     concat_input = model_config['concat_input']
 
     epochs = train_config['epochs']
+    num_features=train_config['num_features']
     learning_rate = train_config['learning_rate']
     save_dir = train_config['save_dir'] + '/Block_'+time.strftime("%Y%m%d_%H%M")+'_concat'+str(concat_input)
     os.makedirs(save_dir, exist_ok=True)
@@ -52,7 +73,7 @@ if __name__=="__main__":
 
     # print('Running training for {} with concant_input: {}\n'.format(particle_type, concat_input))
 
-    root_files = np.sort(glob.glob(data_dir+'*root'))
+    #root_files = np.sort(glob.glob(data_dir+'*root'))
     train_start = 0
     train_end = train_start + num_train_files
     val_end = train_end + num_val_files
@@ -67,19 +88,28 @@ if __name__=="__main__":
     root_val_files = root_files[train_end:val_end]
     root_test_files = root_files[val_end:test_end]
 
-    print("\n\n Train Files = ",root_train_files)
-    print("\n\n Val Files = ",root_val_files)
-    print("\n\n Test Files = ",root_test_files)
+    #print("\n\n Train Files = ",root_train_files)
+    #print("\n\n Val Files = ",root_val_files)
+    #print("\n\n Test Files = ",root_test_files)
 
     train_output_dir = None
     val_output_dir = None
-            
+                
     # Get Data
     if preprocess:
         train_output_dir = output_dir + '/train/'
         val_output_dir = output_dir + '/val/'
         test_output_dir = output_dir + '/test/'
 
+
+    train_valid_test_list=[train_output_dir, val_output_dir, test_output_dir]
+    for train_valid_test in train_valid_test_list:
+        if not os.path.exists(train_valid_test):
+            os.makedirs(train_valid_test)
+            print(f"Created Directory : {train_valid_test}")
+        else:
+            print(f"Directory already exists: {dir}")
+            
     data_gen_train = MPGraphDataGenerator(file_list=root_train_files,
                                           batch_size=batch_size,
                                           shuffle=shuffle,
@@ -88,7 +118,8 @@ if __name__=="__main__":
                                           is_val=False,
                                           preprocess=preprocess,
                                           already_preprocessed=already_preprocessed,
-                                          output_dir=train_output_dir)
+                                          output_dir=train_output_dir,
+                                          num_features=num_features)
 
     data_gen_val = MPGraphDataGenerator(file_list=root_val_files,
                                         batch_size=batch_size,
@@ -98,7 +129,8 @@ if __name__=="__main__":
                                         is_val=True,
                                         preprocess=preprocess,
                                         already_preprocessed=already_preprocessed,
-                                        output_dir=val_output_dir)
+                                        output_dir=val_output_dir,
+                                        num_features=num_features)
 
     data_gen_test = MPGraphDataGenerator(file_list=root_test_files,
                                         batch_size=batch_size,
@@ -108,7 +140,8 @@ if __name__=="__main__":
                                         is_val=True, #decides to save mean and std
                                         preprocess=preprocess,
                                         already_preprocessed=already_preprocessed,
-                                        output_dir=test_output_dir)
+                                        output_dir=test_output_dir,
+                                        num_features=num_features)
 
     # if preprocess and not already_preprocessed:
     #    exit()
