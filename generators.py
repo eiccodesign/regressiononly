@@ -16,8 +16,8 @@ import random
 # data_dir = '/clusterfs/ml4hep_nvme2/ftoralesacosta/regressiononly/data/'
 # out_dir = '/clusterfs/ml4hep_nvme2/ftoralesacosta/regressiononly/preprocessed_data/'
 
-data_dir = '/usr/workspace/hip/eic/log10_Uniform_03-23/log10_pi+_Uniform_0-140Gev_17deg_1/'
-out_dir = '/usr/WS2/karande1/eic/gitrepos/regressiononly/preprocessed_data/'
+#data_dir = '/usr/workspace/hip/eic/log10_Uniform_03-23/log10_pi+_Uniform_0-140Gev_17deg_1/'
+#out_dir = '/usr/WS2/karande1/eic/gitrepos/regressiononly/preprocessed_data/'
 
 
 
@@ -31,7 +31,8 @@ class MPGraphDataGenerator:
                  preprocess: bool = False,
                  already_preprocessed: bool = False,
                  is_val: bool = False,
-                 output_dir: str = None):
+                 output_dir: str = None,
+                 num_features: int = 4):
         """Initialization"""
 
         self.preprocess = preprocess
@@ -55,7 +56,12 @@ class MPGraphDataGenerator:
         self.detector_name = "HcalEndcapPHitsReco" #'Insert' after the 'P'
         self.sampling_fraction = 0.02 #0.0098 for Insert
 
-        self.nodeFeatureNames = [".energy",".position.x",".position.y",".position.z",]
+        self.nodeFeatureNames = [".energy",".position.z", ".position.x",".position.y",]
+        self.num_nodeFeatures = num_features
+
+        # Slice the nodeFeatureNames list to only include the first 'num_features' elements
+        self.nodeFeatureNames = self.nodeFeatureNames[:num_features]
+        
         self.num_nodeFeatures = len(self.nodeFeatureNames)
         self.num_targetFeatures = 1 #Regression on Energy only for now
 
@@ -406,7 +412,8 @@ if __name__ == '__main__':
                                     num_procs=32,
                                     preprocess=True,
                                     already_preprocessed=True,
-                                    output_dir=out_dir)
+                                    output_dir=out_dir,
+                                    num_features=num_features)
 
     gen = data_gen.generator()
 
