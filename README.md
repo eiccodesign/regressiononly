@@ -1,15 +1,27 @@
-# Regression Only
+# Regression Only Repo
 
+### Introduction
 The idea of this repo is to learn a regression model conditioned on detector properties.  This can then be combined with a post-hoc optimizer.  The followup to this will be the combination of a regression model and a generative model.
 
-<!-- There are two main types of HDF5 files. The first are `event` HDF5 files. These are simple conversions from the reconstruction ROOT files made in the [generate_data](https://github.com/eiccodesign/generate_data) repository. -->
 
-<!-- The `H5_hitQA` notebook checks `event HDF5 files` -->
+### Running Simple NN
+The functions folders contains .py files related to plotting and clustering cells. The training folder contains python scripts for running a simple Neural-Network. It is used for quick initial testing of inputs, and for experimentation (for example, the first variations of z-layering)
 
-<!-- The other type of HDF5 file are `image` HDF5 files. These are heavily processed HDF5 files where an `image` is a convolution of ECal and HCal cell data, with various HCAL segmentations. Each real event yields multiple images (each image contains the same ECAL and HCAL data, but vary the HCAL segmentation). -->
-<!-- These files are created by feeding an `event hdf5 file` to the `H5_GetImages` code, found [here](https://github.com/eiccodesign/generate_data/blob/main/to_hdf5/H5_GetImages.cc). -->
+### Deep Sets Training
+The train_block.py is a training script for DeepSets and GNNs (coming soon). It's primary advantage is its ability to train on input data in a permutation invariant way. The GNNs can also directly encode geometric data.
 
-The functions folders contains .py files related to plotting and clustering cells. The training folder contains python scripts for running a simple Neural-Network, and a deep-sets model based on the Energy-Flow package.
+To run `train_block.py` for the first time, go to the `configs` directory, and either edit `default.yaml`, or add your own.
+In the configuration file, make sure `data_dir` points to a directory with appropriated data, created using the [generate_data](https://github.com/eiccodesign/generate_data) repository, ideally in the form of several small ROOT files, each with a few thousand events.
 
+Next, edit `already_preprocessed` in the config file to `False` only when running over a dataset for the first time. Afterwards, try running the training:
+
+```python train_block.py```
+or 
+```python train_block.py --config [config file name]```
+
+One may need to limit `num_procs` and `batch_size` according to what their computer can handle.
+
+### MISC
+There is a deprecated folder that, as the name suggests, should not be used anymore, and will be deleted soon. 
 The pfn training script is located in the training folder, and should be runable from there.
 

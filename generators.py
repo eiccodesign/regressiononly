@@ -7,6 +7,7 @@ import uproot as ur
 import awkward as ak
 import time
 from multiprocessing import Process, Queue, Manager, set_start_method
+# from multiprocess import Process, Queue, Manager, set_start_method
 import compress_pickle as pickle
 from scipy.stats import circmean
 import random
@@ -15,8 +16,9 @@ import random
 # data_dir = '/clusterfs/ml4hep_nvme2/ftoralesacosta/regressiononly/data/'
 # out_dir = '/clusterfs/ml4hep_nvme2/ftoralesacosta/regressiononly/preprocessed_data/'
 
-data_dir = '/usr/workspace/hip/eic/log10_Uniform_03-23/log10_pi+_Uniform_0-140Gev_17deg_1/'
-out_dir = '/usr/WS2/karande1/eic/gitrepos/regressiononly/preprocessed_data/'
+#data_dir = '/usr/workspace/hip/eic/log10_Uniform_03-23/log10_pi+_Uniform_0-140Gev_17deg_1/'
+#out_dir = '/usr/WS2/karande1/eic/gitrepos/regressiononly/preprocessed_data/'
+
 
 
 class MPGraphDataGenerator:
@@ -29,7 +31,8 @@ class MPGraphDataGenerator:
                  preprocess: bool = False,
                  already_preprocessed: bool = False,
                  is_val: bool = False,
-                 output_dir: str = None):
+                 output_dir: str = None,
+                 num_features: int = 4):
         """Initialization"""
 
         self.preprocess = preprocess
@@ -37,7 +40,8 @@ class MPGraphDataGenerator:
         self.calc_stats = calc_stats
         self.is_val = is_val
         self.output_dir = output_dir
-        self.stats_dir = os.path.realpath(self.output_dir+'../')
+        self.stats_dir = os.path.realpath(self.output_dir)
+        # self.stats_dir = os.path.realpath(self.output_dir+'../')
 
         self.file_list = file_list
         self.num_files = len(self.file_list)
@@ -52,7 +56,12 @@ class MPGraphDataGenerator:
         self.detector_name = "HcalEndcapPHitsReco" #'Insert' after the 'P'
         self.sampling_fraction = 0.02 #0.0098 for Insert
 
-        self.nodeFeatureNames = [".energy",".position.x",".position.y",".position.z",]
+        self.nodeFeatureNames = [".energy",".position.z", ".position.x",".position.y",]
+        self.num_nodeFeatures = num_features
+
+        # Slice the nodeFeatureNames list to only include the first 'num_features' elements
+        self.nodeFeatureNames = self.nodeFeatureNames[:num_features]
+        
         self.num_nodeFeatures = len(self.nodeFeatureNames)
         self.num_targetFeatures = 1 #Regression on Energy only for now
 
@@ -61,7 +70,8 @@ class MPGraphDataGenerator:
         # self.edgeFeatureNames = self.cellGeo_data.keys()[9:]
         # self.num_edgeFeatures = len(self.edgeFeatureNames)
 
-        if not self.is_val and self.calc_stats:
+        # if not self.is_val and self.calc_stats:
+        if self.calc_stats:
             n_scalar_files = 8 #num files to use for scaler calculation
             self.preprocess_scalar(n_scalar_files)
         else:
@@ -107,7 +117,8 @@ class MPGraphDataGenerator:
             self.means_dict = dict(zip(self.scalar_keys,means))
             self.stdvs_dict = dict(zip(self.scalar_keys,stdvs))
             print("MEANS = ",self.means_dict)
-            print("STDVS = \n",self.stdvs_dict)
+            print("STDVS = ",self.stdvs_dict)
+            print(f"saving calc files to {self.stats_dir}/means.p\n")
 
             pickle.dump(self.means_dict, open(
                         self.stats_dir + '/means.p', 'wb'), compression='gzip')
@@ -401,7 +412,8 @@ if __name__ == '__main__':
                                     num_procs=32,
                                     preprocess=True,
                                     already_preprocessed=True,
-                                    output_dir=out_dir)
+                                    output_dir=out_dir,
+                                    num_features=num_features)
 
     gen = data_gen.generator()
 
