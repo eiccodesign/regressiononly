@@ -1,17 +1,16 @@
 data:
-  data_dir1: /media/miguel/Elements/Data_hcali/Data1/log10_Uniform_03-23/log10_pi+_Uniform_0-140Gev_17deg_1/
-  data_dir2: /media/miguel/Elements/Data_hcali/Data1/log10_Uniform_03-23/log10_pi+_Uniform_0-140Gev_17deg_2/
-  data_dir3: /media/miguel/Elements/Data_hcali/Data1/log10_Uniform_03-23/log10_pi+_Uniform_0-140Gev_17deg_3/ 
+  # data_dir: /usr/workspace/hip/eic/log10_Uniform_03-23/log10_pi+_Uniform_0-140Gev_17deg_1/  
+  data_dir: /Users/fernando/regressiononly/data_dir/
   particle_type: pion
-  num_train_files: 20
-  num_val_files: 5
-  num_test_files: 5
-  batch_size: 2048
+  num_train_files: 300
+  num_val_files: 50
+  num_test_files: 50
+  batch_size: 512
   shuffle: False
   num_procs: 2
   preprocess: True
-  output_dir: /media/miguel/Elements/Data_hcali/Data1/log10_Uniform_03-23/DeepSets_output/preprocessed_data/
-  already_preprocessed: True
+  output_dir: preprocessed_data/
+  already_preprocessed: False
   calc_stats: True
 model:
   block_type: deepsets
