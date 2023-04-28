@@ -11,7 +11,9 @@ from multiprocessing import Process, Queue, Manager, set_start_method
 import compress_pickle as pickle
 from scipy.stats import circmean
 import random
-
+MIP=0.0006 ## GeV
+time_TH=150  ## ns
+energy_TH=0.5*MIP
 #Change these for your usecase!
 # data_dir = '/clusterfs/ml4hep_nvme2/ftoralesacosta/regressiononly/data/'
 # out_dir = '/clusterfs/ml4hep_nvme2/ftoralesacosta/regressiononly/preprocessed_data/'
@@ -53,8 +55,9 @@ class MPGraphDataGenerator:
         self.procs = []
 
 
-        self.detector_name = "HcalEndcapPHitsReco" #'Insert' after the 'P'
-        self.sampling_fraction = 0.02 #0.0098 for Insert
+        #self.detector_name = "HcalEndcapPHitsReco" #'Insert' after the 'P'
+        self.detector_name = "HcalEndcapPInsertHitsReco" #'Insert' after the 'P
+        self.sampling_fraction =0.0098 #0.0224 #0.0098 for Insert
 
         self.nodeFeatureNames = [".energy",".position.z", ".position.x",".position.y",]
         self.num_nodeFeatures = num_features
@@ -145,7 +148,9 @@ class MPGraphDataGenerator:
             file_stdvs = []
 
             cell_E = event_data[self.detector_name+".energy"]
-            mask = cell_E > 0.0
+            ### Bishnu Added following 2 lines to apply time and hit energy cuts
+            time=event_data[self.detector_name+".time"]
+            mask = (cell_E > energy_TH) & (time<time_TH) & (cell_E<1e10)
 
             for feature_name in self.nodeFeatureNames:
                 feature_data = event_data[self.detector_name+feature_name][mask]
@@ -251,7 +256,10 @@ class MPGraphDataGenerator:
         cell_data = []
 
         cell_E = event_data[self.detector_name+".energy"]
-        mask = cell_E > 0.0
+        ### Bishnu Added following 2 lines to apply time and hit energy cuts
+        time=event_data[self.detector_name+".time"]
+        mask = (cell_E > energy_TH) & (time<time_TH) & (cell_E<1e10)
+
 
         for feature in self.nodeFeatureNames:
 
