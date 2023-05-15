@@ -1,15 +1,18 @@
 data:
-  data_dir1: /media/miguel/Elements/Data_hcali/Data1/log10_Uniform_03-23/log10_pi+_Uniform_0-140Gev_17deg_1/
-  data_dir2: /media/miguel/Elements/Data_hcali/Data1/log10_Uniform_03-23/log10_pi+_Uniform_0-140Gev_17deg_2/
-  data_dir3: /media/miguel/Elements/Data_hcali/Data1/log10_Uniform_03-23/log10_pi+_Uniform_0-140Gev_17deg_3/
+  #data_dir: /media/miguel/Elements/Data_hcali/Data1/log10_Uniform_03-23/log10_pi+_Uniform_0-140Gev_17deg_1/
+  #data_dir: /media/miguel/Elements/Data_hcali/Data1/log10_Uniform_03-23/log10_pi+_uniform_2.83deg_100_6k_1/  
+  #data_dir: /media/miguel/Elements/Data_hcali/Data1/log10_Uniform_03-23/log10_e-_Uniform_0-95GeV_17deg_1/
+  #data_dir: /media/miguel/Elements/Data_hcali/Data1/log10_Uniform_03-23/log10_pi+_100_10k_10-30deg_1/    # 80, 36 ,   36  
+  data_dir: /media/miguel/Elements/Data_hcali/Data1/log10_Uniform_03-23/log10_pi+_100_10k_17deg_ECAL_1/
   particle_type: pion
-  num_train_files: 50
-  num_val_files: 20
+  num_train_files: 80 
+  num_val_files: 36 
+  num_test_files: 36 
   batch_size: 2048
   shuffle: False
   num_procs: 2
   preprocess: True
-  output_dir: /media/miguel/Elements/Data_hcali/Data1/log10_Uniform_03-23/DeepSets_output/preprocessed_data/
+  output_dir: /media/miguel/Elements/Data_hcali/Data1/log10_Uniform_03-23/DeepSets_output/preprocessed_data
   already_preprocessed: False
   calc_stats: True
 model:
@@ -35,5 +38,7 @@ model:
     use_globals: True
 training:
   epochs: 100
+  num_features: 4
+  output_dim: 1
   learning_rate: 1.e-3
   save_dir: /media/miguel/Elements/Data_hcali/Data1/log10_Uniform_03-23/DeepSets_output/results/
