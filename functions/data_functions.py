@@ -85,7 +85,7 @@ def get_res_scale(truth,pred,binning=np.linspace(0,100,21),label=""):
     dict["scale_array"]  = scale_array
 
     if (label != ""):
-        with open(f'./{label}/res_scale.pickle', 'wb') as pickle_file:
+        with open(f'{label}/res_scale.pickle', 'wb') as pickle_file:
             pickle.dump(dict, pickle_file, protocol=pickle.HIGHEST_PROTOCOL)
 
     return dict
@@ -150,7 +150,7 @@ def get_res_scale_in_reco_bins(truth,pred,reco,binning=np.linspace(0,100,21),lab
     dict["scale_array"]  = scale_array
 
     if (label != ""):
-        with open(f'./{label}/res_scale_RecoBins.pickle', 'wb') as pickle_file:
+        with open(f'{label}/res_scale_RecoBins.pickle', 'wb') as pickle_file:
             pickle.dump(dict, pickle_file, protocol=pickle.HIGHEST_PROTOCOL)
 
     return dict

@@ -4,10 +4,18 @@ from matplotlib.colors import LogNorm
 from copy import copy
 from matplotlib import cm
 import pickle
-
+import awkward as ak
+import math
+import json
+from scipy.optimize import curve_fit
+import uproot3 as ur
+def gaussian(x, amp, mean, sigma):
+    return amp * np.exp( -0.5*((x - mean)/sigma)**2) /sigma
 import sys  
-sys.path.insert(0, 'functions')
+#sys.path.insert(0, 'functions')
 from Clusterer import E_binning
+import pandas as pd
+from matplotlib.ticker import AutoMinorLocator
 
 star_energies = [12,16,20,25,30,50,60,70]
 star_res = [0.18, 0.16, 0.15, 0.14, 0.13, 0.098, 0.092, 0.090]
@@ -40,7 +48,7 @@ def ClusterSum_vs_GenP(clusterSum, genP, label, take_log = False, ylabel="Cluste
     fig.text(0.95,-0.05,label,transform=ax.transAxes,fontsize=10)
 
 
-    path = "./"+label
+    path =label
     plt.savefig(f"{path}/ClusterSum_vs_GenP_Colormap.pdf") 
 
 def energy_QA_plots(flat_hits_e, genP, cluster_sum, label):
@@ -83,7 +91,7 @@ def energy_QA_plots(flat_hits_e, genP, cluster_sum, label):
         axes[2].set_xlabel("Cluster Energy [GeV]",fontsize=22) 
         axes[2].set_title("Cluster Sum Distribution (Raw)",fontsize=22) 
 
-    path = "./"+label
+    path = label
     plt.savefig(f"{path}/energy_QA_plots.pdf")
 
 def Plot_Loss_Curve(loss,val_loss,label,loss_string):
@@ -95,17 +103,19 @@ def Plot_Loss_Curve(loss,val_loss,label,loss_string):
     axes[0].set_title('Model Loss vs. Epoch',fontsize=26)
 
     # fig.text(1.05,1.1,label,transform=axes[0].transAxes,fontsize=10)
-    plt.text(0.8,-0.08,label,transform=axes[0].transAxes,fontsize=10)
+    #plt.text(0.8,-0.08,label,transform=axes[0].transAxes,fontsize=10)
     axes[0].set_ylabel(f'Loss ({loss_string})',fontsize=22)
-    axes[0].set_yscale('log')
-    axes[0].set_xlabel('epoch',fontsize=22)
-    plt.xticks(fontsize=20)
-    plt.yticks(fontsize=20)
-    plt.tick_params(direction='in',right=True,top=True,length=10)
-    plt.tick_params(direction='in',right=True,top=True,which='minor')
+    #axes[0].set_yscale('log')
+    axes[0].set_xlabel('Epoch',fontsize=22)
+    plt.xticks(fontsize=30)
+    plt.yticks(fontsize=30)
+    #plt.tick_params(direction='in',right=True,top=True,length=10)
+    #plt.tick_params(direction='in',right=True,top=True,which='minor')
     axes[0].set_xlim([-1,101])
+    axes[0].set_ylim(0.02,0.15)
+    
     axes[0].legend(['train', 'validation'], loc='upper right',fontsize=22)
-    plt.savefig(f"./{label}/ROOT_Correlation.png")
+    plt.savefig(f"{label}/ROOT_Correlation.png")
 
 
 def Plot_Resolutions(NN, strawman,label):
@@ -129,13 +139,13 @@ def Plot_Resolutions(NN, strawman,label):
 
     plt.text(0.8,-0.08,label,transform=ax.transAxes,fontsize=10)
     plt.errorbar(NN["avg_truth"][mask][first_bin:last_bin],NN["resolution"][mask][first_bin:last_bin],#yerr=errors[first_bin:last_bin],
-                 linestyle="-",linewidth=2.0,capsize=4,capthick=1.2,elinewidth=1.2,ecolor='black',marker="o",color='dodgerblue',alpha=0.7,label="Simple NN")
+                 linestyle="-",linewidth=2.0,capsize=4,capthick=1.2,elinewidth=1.2,ecolor='black',marker="o",color='dodgerblue',alpha=0.7,label="Deepsets")
 
     plt.plot(ECCE_energies,ECCE_res,"-o",label = "EIC Ref",color="limegreen")
     plt.plot(star_energies,star_res,"-o",label = "STAR",color="deeppink")
     plt.legend(fontsize=15,loc="upper left")
 
-    path = "./"+label
+    path =label
     plt.savefig("%s/resolution_plot.pdf"%(path))
 
 
@@ -172,10 +182,10 @@ def Plot_Energy_Scale(NN, label, sampling_fraction, strawman=None, bin_label="tr
 
 #plt.text(0.7,0.7,"ROOT",transform=ax.transAxes,fontsize=25)
 
-    plt.legend(fontsize=20)
+    plt.legend(fontsize=30)
     plt.text(0.8,-0.08,label,transform=ax.transAxes,fontsize=10)
 
-    path = "./"+label
+    path = label
     plt.savefig("%s/scale_plot.pdf"%(path))
 
 
@@ -330,5 +340,575 @@ def Compare_Scales(dirs,labels,bin_label="Truth",ymin=0.95,ymax=1.05,logscale=Fa
 
     plt.legend(fontsize=15,loc="upper right")
     plt.savefig("comparing_median_scale_plot.pdf")
+    
+     
+## Gives number of energy generated and puts them in bin    
+def get_binning_Nbins(log_base,particle):
+    binning=[]
+    if log_base==2:
+        if particle=='pi+' or particle=='pp':
+            N_Bins=9
+        elif particle=='e-' or particle =='ele':
+            N_Bins=8
+        else:
+            print("You are analyzing log2 base generated data but have not provided the particle like pion/electron") 
+            
+        for n in range(0,N_Bins):
+            egen=pow(2,n)
+            binning.append(egen)   
+    
+        
+    elif log_base==10:
+        if particle=='pi+' or particle=='pp':
+            N_Bins=11
+        elif particle=='e-' or particle =='ele':
+            N_Bins=11
+    
+        else:
+            print("You are analyzing log2 base generated data but have not provided the particle like pion/electron")
+        for n in range(0,N_Bins):
+            ran_power=(n+1)*0.20
+            pevent=int(pow(10,ran_power))
+            binning.append(pevent)
+         
+    elif log_base=='continuous':
+        N_Bins=21
+        if particle=='pi+' or particle=='pp':
+            bin = np.linspace(0.1,110,N_Bins)
+        elif particle=='e-' or particle =='ele':
+            bin = np.linspace(0.,92,N_Bins)
+            
+        print("I am uniform")
+        binning=bin    
+    else:
+        print('Chose the data if generated in log10 or log2 base')
+        return
+    #nn=int(np.log2(upto)) +1
+    print(N_Bins)
+    #print('binning range. ',binning)
+    return N_Bins, binning    
+    
+    
+    
+    
+   
+    
+def print_parameter(variable, name_tag, detector):
+    name=name_tag+"_"+detector+ "=np."
+    true=np.array(variable)
+    np.set_printoptions(precision=2)
+    print(name,repr(true))
+
+def get_greek_particle(particle):
+    if particle=='pi-':
+        greek_particle='$\pi^{-}$'
+    elif particle=='e-' or particle=='ele':
+        greek_particle='$e^-$'
+    elif particle=='pi+' or particle=='pp':
+        greek_particle='$\pi^{+}$'    
+    else:
+        print("You forgot to pick the particle")
+    return greek_particle
+        
+ 
+def draw_plot_res_scale(var_X, var_Y,labels, title, xlimits,ylimits, particle, detector, legend_position):
+    fig=plt.figure(figsize=(8,6))
+    greek_particle=get_greek_particle(particle)
+    #plt.title("AI Codesign Scale",fontsize=25
+    if title=='scale':
+        plt.ylabel("$(E_\mathrm{Pred}/E_\mathrm{Truth})$",fontsize=24)
+        ylim_min=0.9
+        title_head='Energy Scale for '+ greek_particle + ' in ' +' '+detector
+    elif title=='resolution':
+        plt.ylabel("$(\sigma_{E,\mathrm{Pred}}/E_\mathrm{Truth})$",fontsize=24)
+        ylim_min=0
+        title_head='Energy Resolution for '+ greek_particle + ' in' +' '+ detector
+
+    plt.xlabel("$E_\mathrm{Truth}$ [GeV]",fontsize=24)
+    plt.xticks(fontsize=20)
+    plt.yticks(fontsize=20)
+    plt.tick_params(direction='in',right=True,top=True,length=10)
+    plt.axhline(y=1.0, color='k', linestyle='--',alpha=0.5)#plt.ylim(-0.02,0.4)
+    plt.ylim(ylimits)
+    plt.xlim(xlimits)
+    #plt.grid()
+    #errors = 1.0/(np.sqrt(2*counter-2))*stdev_pred
+    ax = plt.subplot(1,1,1)
+    for x,y,label in zip(var_X,var_Y,labels):
+        print(label)
+        plt.errorbar(x, y,linewidth=2.0,marker="o",alpha=0.7,  label=label)
+
+    #plt.errorbar(straw_X,straw_Y,linewidth=2.0,marker="o",alpha=0.7,\
+    #             label="Strawman")
+    plt.legend(fontsize=15,loc=legend_position)
+    plt.title(title_head, fontsize=20)
+
+### compare the loss and val loss for given directories    
+
+        #label_train.append("train_" +ilabel)
+        #label_val.append("val_"+ilabel)
+        
+def compare_loss_plots(result_paths, labels, title, particle, xlimits,ylimits): 
+    num_plots = len(labels)
+    col = min(num_plots, int(np.sqrt(num_plots)))  # Determine number of columns, minimum of sqrt(num_plots) and num_plots
+    row = int(np.ceil(num_plots / col)) 
+    if col == 1:
+        fig, axes = plt.subplots(num_plots, 1, figsize=(10, 8), sharex=True, sharey=True, constrained_layout=True)
+    else:    
+        fig,axes = plt.subplots(row,col, figsize=(22, 10),sharex=True, sharey=True,constrained_layout=True)
+    #plt.subplots_adjust(wspace=0, hspace=0)      
+    
+    for index, (result_path, ilabel) in  enumerate(zip(result_paths, labels)):
+        npz_unpacked_loss = np.load(result_path+"/losses.npz")
+        loss = npz_unpacked_loss['training']
+        val_loss = npz_unpacked_loss['validation']
+            
+        
+        if col == 1:
+            axes[index].plot(loss[:, -1], label="train_" + ilabel)
+            axes[index].plot(val_loss[:,-1],  label="val_"+ilabel)
+            axes[row-1].set_xlabel('Epoch',fontsize=30)
+            axes[row-2].set_ylabel('Loss (MAE)',fontsize=30)
+            axes[index].legend(loc='upper right', fontsize=20)   
+            axes[index].xaxis.set_tick_params(labelsize=30, length=10)
+            axes[index].yaxis.set_tick_params(labelsize=30, length=10)
+            axes[index].set_ylim(ylimits)
+            axes[index].set_xlim(xlimits)
+            axes[index].minorticks_on()
+            axes[index].tick_params(axis='both', which='minor', length=4, width=4, labelsize=20)
+           
+            
+        else:    
+            irow=index//col
+            icol=index%col
+            print(irow,icol)    
+            axes[irow,icol].plot(loss[:,-1],   label="train_" +ilabel)
+            axes[irow,icol].plot(val_loss[:,-1],  label="val_"+ilabel)
+            
+            
+            axes[irow, icol].set_xlim(xlimits)
+            axes[irow, icol].set_ylim(ylimits)
+            axes[irow, icol].minorticks_on()
+            #axes[0,0].set_title(title,fontsize=30)
+            #axes.title.set_position([.5, 1.05])
+            #axes[irow,icol].set_yscale('log')
+            axes[1,0].set_xlabel('Epoch',fontsize=30)
+            axes[1,0].set_ylabel('Loss (MAE)',fontsize=30)
+            
+            axes[irow,icol].xaxis.set_tick_params(labelsize=30, length=20)
+            axes[irow,icol].yaxis.set_tick_params(labelsize=30, length=20)
+            
+            axes[irow,icol].tick_params(axis='both', which='minor', length=4, width=4, labelsize=20)
+        
+            for xlabel in axes[irow, icol].get_xticklabels():#, ax[irow, icol].get_yticklabels()):
+                #ylabel.set_weight('bold')
+                xlabel.set_weight('bold')
+
+            for ylabel in axes[irow, icol].get_yticklabels():#, ax[irow, icol].get_yticklabels()):
+                ylabel.set_weight('bold')
+            
+            axes[irow,icol].legend(loc='upper right', fontsize=30)    
+        fig.suptitle(title, fontsize=30,ha="center")       
+def read_start_stop(file_path, detector, entry_start, entry_stop):
+    ur_file = ur.open(file_path)
+    ur_tree = ur_file['events']
+    num_entries = ur_tree.numentries
+    #num_entries=int(train_frac*num_entriesss)
+
+    #print(means.shape,'      ',stds.shape)
+    #print("PRINT  DETECTOR ", detector)    
+    if detector=="hcal":
+        detector_name = "HcalEndcapPHitsReco"
+
+    elif detector=="hcal_insert":
+        detector_name= "HcalEndcapPInsertHitsReco"
+    else:
+        print("Please make sure you have picked right detector name")     
+        print("Pick: hcal or hcal_insert for endcap calo/ hcal_insert for insert")
+            
+    if(entry_stop<entry_start):
+        return
+        
+    genPx = ur_tree.array('MCParticles.momentum.x',entrystart=entry_start, entrystop=entry_stop)[:,2]
+    genPy = ur_tree.array('MCParticles.momentum.y',entrystart=entry_start, entrystop=entry_stop)[:,2]
+    genPz = ur_tree.array('MCParticles.momentum.z',entrystart=entry_start, entrystop=entry_stop)[:,2]
+    mass = ur_tree.array("MCParticles.mass", entrystart=entry_start      , entrystop=entry_stop)[:,2]
+    root_gen_P = np.sqrt(genPx*genPx + genPy*genPy + genPz*genPz)
+    gen_energy=np.sqrt(root_gen_P**2 + mass**2)
+
+    hit_e =ur_tree.array(f'{detector_name}.energy',entrystart=entry_start, entrystop=entry_stop)
+    time =ur_tree.array(f'{detector_name}.time',entrystart=entry_start, entrystop=entry_stop)
+    
+    return hit_e, time, gen_energy    
+    
+
+    
+    
+    
+    
 
 
+## Fits the prediction distrubution 
+## get the resolution and energy scale 
+## using fit parameter and media
+def get_res_scale_fit_log10_log2(truth,pred, nbins, log_base, particle):    
+    #get_res_scale_fit_log10_log2(truth, pred, file_name, nbins, log_base, particle):
+    N_Bins,binning=get_binning_Nbins(log_base,particle)
+    
+    #print(binning)
+    times=1
+    FIT_SIGMA=3 ## fit within +- 3 sigma                                                                                                                             
+      ## draw histogram within +- times sigma                                                                                                              
+    bin_width=1 ## bin width of the histogram to be fitted                                                                                                           
+    row=math.ceil(np.sqrt(N_Bins))
+    if (row**2-N_Bins)>1:
+        col=row-1
+    else:
+        col=row
+
+    resolution_arr=[]
+    mean_arr=[]
+    resolution_cor_arr=[]
+    scale_arr=[]
+    avg_truth_arr=[]
+    slices_arr=[]
+    slices_pred_truth_arr=[]
+    slices_truth_arr=[]
+    scale_median_arr=[]
+    
+    res_stdev_pred_median_arr=[]
+    res_sigma_median_arr=[]
+    
+    
+    
+    #fig,axs = plt.subplots(row,col, figsize=(22, 10),sharex=True,constrained_layout=True)
+    fig,axs = plt.subplots(row,col, figsize=(18, 15),sharex=False)#,constrained_layout=True)
+    plt.subplots_adjust(wspace=0, hspace=0.3)
+    if (len(truth) != len(pred)):
+        print("truth and prediction arrays must be same length")
+        #return
+    #binning = np.linspace(min,max,N_Bins+1)
+    #truth=np.rint(truth)
+    indecies = np.digitize(truth,binning)-1 #Get the bin number each element belongs to.
+    max_count = np.bincount(indecies).max()
+    slices = np.empty((N_Bins,max_count))
+    
+    slices_truth=np.empty((N_Bins,max_count))
+    slices_truth.fill(np.nan)
+    
+    #slices_pred_truth=np.empty((N_Bins,max_count))
+    #slices_pred_truth.fill(np.nan)
+    
+    slices.fill(np.nan)
+    
+    scale_array = np.empty((N_Bins,max_count+1))
+    scale_array.fill(np.nan)
+
+    counter = np.zeros(N_Bins,int) #for getting mean from sum, and incrementing element number in bin                                                                
+    avg_truth = np.zeros(N_Bins,float)
+    pred_over_truth = np.zeros(N_Bins,float)
+    xticks=np.linspace(0,100,6)
+    one_ytics=round(max_count,-3)## round to thousand                                                                                                                
+    yticks=np.linspace(0,one_ytics,6)
+    
+    #print(binning)
+    
+    for i in range(len(pred)):
+        bin = indecies[i]
+        if (bin>=N_Bins): continue
+        slices[bin][counter[bin]] = pred[i] #slice_array[bin number][element number inside bin] = pred[i]                                                            
+        slices_truth[bin][counter[bin]] = truth[i]
+        counter[bin]+=1
+        avg_truth[bin]+=truth[i]
+        if truth[i]<=0:
+            truth[i]=999
+        pred_over_truth[bin] += pred[i]/truth[i]
+        scale_array[bin][counter[bin]] = pred[i]/truth[i]
+
+    counter[counter == 0] = 1
+    avg_truth = avg_truth/counter
+
+    stdev_pred = np.nanstd(slices,axis=1)
+    avg_pred   = np.nanmean(slices,axis=1)
+    stdev_truth = np.nanstd(slices_truth,axis=1)
+    scale_median_comp=np.nanmedian(scale_array,axis=-1)
+    median_pred=np.nanmedian(slices,axis=-1)
+    #median_scale = np.nanmedian(scale_array,axis=-1)
+    #print(avg_pred)
+    
+    for ii in range(0,N_Bins):
+        ## guess parameters for fitting                                                                                                                              
+        mean_guess=avg_pred[ii]
+        sigma_guess=stdev_pred[ii]
+        
+        ## min and max range for histogram to be fitted to extract resolution/scale                                                                                  
+        #min_range=mean_guess - times*sigma_guess
+        #max_range=mean_guess + times*sigma_guess
+        
+        if(log_base!='continuous'):
+            if ii>5:
+                times=0.05
+            min_range=binning[ii] - times*binning[ii]
+            max_range=binning[ii] + times*binning[ii]
+            
+        else:
+            min_range=binning[ii]-  times*binning[ii]
+            max_range=binning[ii] + times*binning[ii]
+       
+        #print(min_range,'  Min and max range ',max_range)
+        if min_range<0:
+            min_range=0
+        if max_range<5:
+            max_range=10
+            
+
+        ## mean value of range within which histogram is draw                                                                                                        
+        mean_here=(min_range + max_range)/2.0
+
+        irow=int(ii/col)
+        icol=int(ii%col)
+        
+        if irow<row:
+            
+            ax = axs[irow,icol]
+            count, bins,_=ax.hist(slices[ii].ravel(),bins=nbins,alpha=0.5,range=(min_range,max_range),label='HCAL',color='b',linewidth=8)
+            binscenters = np.array([0.5 * (bins[i] + bins[i+1]) for i in range(len(bins)-1)])
+        
+            mask=(binscenters>(mean_guess-FIT_SIGMA*sigma_guess)) & (binscenters<(mean_guess+FIT_SIGMA*sigma_guess))
+            error_counts=np.sqrt(count)
+            error_counts=np.where(error_counts==0,1,error_counts)
+        
+        
+            
+        # PARAMETER BOUNDS ARE NOT USED FOR NOW                                                                                                                      
+            param_bounds=([-np.inf,-np.inf,-np.inf], [np.inf,np.inf,np.inf])
+            popt, pcov = curve_fit(gaussian,binscenters[mask],count[mask],p0=[np.max(count),mean_guess,sigma_guess],bounds=param_bounds)
+
+            ax.plot(binscenters[mask], gaussian(binscenters[mask], *popt), color='red', linewidth=2.5, label=r'F')
+            #ax.set_xticks(xticks,fontsize=15)
+            #ax.set_xlim(0,120)
+            ax.set_xlim(math.floor(min_range),math.ceil(max_range))
+     
+            #ax.text(binning[ii]*1.2,y_text_val,"$E_{True}$" + "= {0:.0f} GeV".format(for_plot),fontsize=22)
+        
+        
+        
+            for_plot=round(avg_truth[ii])
+            y_text_val=int(np.max(count))*0.7
+            #ax.text(50,y_text_val,"$E_{True}$" + "= {0:.0f} GeV".format(for_plot),fontsize=15)
+            #ax.text(binning[ii]*1.2,y_text_val,"$E_{True}$" + "= {0:.0f} GeV".format(for_plot),fontsize=22)
+        
+            if log_base=='continuous':
+                ax.set_title("{:.1f} - {:.1f} GeV".format(binning[ii], (binning[ii] + binning[1])), fontsize=15)
+            else: 
+                ax.set_title("{0} GeV".format(binning[ii]), fontsize=15)
+        
+            
+        #ax.text(binning[ii],y_text_val,"$E_{True}$" + "= {0:.0f} GeV".format(for_plot),fontsize=22)
+            if irow==row-1:
+                ax.set_xlabel('Predicted Energy (GeV)',fontsize=15)
+    
+            if icol==0:
+                ax.set_ylabel("Entries",fontsize=15)
+
+
+            #plt.savefig(file_name)
+            mean=popt[1]
+            std=popt[2]
+            scale_median=scale_median_comp[ii]
+            scale=mean/avg_truth[ii]
+            resolution=(std/avg_truth[ii])/scale  ## This is fit sigma and fit mean
+            resolution_scale_corr=(stdev_pred[ii]/avg_truth[ii])/scale_median  ## this is std vs median
+            resolution_scale_corrected=np.nan_to_num(resolution_scale_corr)
+        
+            res_stdev_pred_median=stdev_pred[ii]/median_pred[ii]
+         
+            res_sigma_median=std/avg_truth[ii]
+            slices_pred_truth=(slices[ii] - slices_truth[ii])/slices_truth[ii]
+
+            resolution_arr.append(resolution)
+            mean_arr.append(mean)
+            resolution_cor_arr.append(resolution_scale_corrected)
+            scale_arr.append(scale)
+            slices_arr.append(slices[ii])
+            avg_truth_arr.append(avg_truth[ii])
+            scale_median_arr.append(scale_median)
+            
+            
+            slices_pred_truth_arr.append(slices_pred_truth)
+
+            res_stdev_pred_median_arr.append(res_stdev_pred_median)
+            res_sigma_median_arr.append(res_sigma_median)
+        else:
+            continue
+    return resolution_arr,scale_arr,avg_truth_arr,slices_arr,resolution_cor_arr, scale_median_arr, slices_pred_truth_arr,\
+    res_stdev_pred_median_arr,res_sigma_median_arr      
+
+def generate_file_name_dict(input_dims, latent_sizes,num_layers, learning_rates, folders_used, data_types,labels, particles):
+    file_name_dict = {}
+    path_to_result_dir='/media/miguel/Elements/Data_hcali/Data1/log10_Uniform_03-23/DeepSets_output'
+    
+    for dim, size, layer, lr, folder, data_type, label, part in zip(input_dims, latent_sizes, num_layers, learning_rates, folders_used, data_types, labels, particles):
+        result_path = f"{path_to_result_dir}/results_{dim}_{data_type}_{folder}Fol_{size}_{lr}_{layer}Lay_{part}/{label}"
+        key = f"{dim}_{size}_{layer}_{lr}_{folder}_{data_type}_{part}"
+        file_name_dict[key] = result_path
+    with open('file_name_dict.json', 'w') as f:
+        json.dump(file_name_dict, f)
+        
+        
+        
+def get_fit_parameters_strawman(root_file, detector, particle, total_events, data_type, output_path, nbins, time_TH, MIP_TH):
+    if detector=='hcal': 
+        sampling_fraction=0.0224 
+    elif detector=='hcal_insert':
+        sampling_fraction=0.0089 ## time 150 ns and MIP 0.5*MIP
+       
+    
+    ur_file = ur.open(root_file) 
+    ur_tree = ur_file['events']
+    num_entries = ur_tree.numentries
+    val_fraction=0.3
+    train_fraction=0.5
+    test_fraction=1-val_fraction-train_fraction
+
+    train_start=0
+    train_end=int(num_entries*train_fraction)
+
+    val_start=train_end
+    val_end=train_end + int(num_entries*val_fraction)
+
+    test_start=val_end
+    test_end=num_entries
+
+    print("Test start  ",test_start, '  test end  ', test_end, ' total events between test start and end   ', test_end - test_start)
+    
+    begin_from=0
+    entry_begin=test_start + begin_from
+    stop=entry_begin+total_events
+    
+    hit_e_raw, time, gen_energy=read_start_stop(root_file, detector, entry_begin, stop)
+    
+    mask=(hit_e_raw>MIP_TH)  & (time<time_TH) & (hit_e_raw<1e10)
+    hit_e=hit_e_raw[mask]
+    
+    root_cluster_hcali_raw = ak.sum(hit_e, axis=-1)
+    root_cluster_sum_hcali_temp = ak.to_numpy(root_cluster_hcali_raw)
+    cluster_sum=np.divide(root_cluster_sum_hcali_temp,sampling_fraction)
+    
+    #NN = get_res_scale(gen_energy, cluster_sum,Energy_Bins,path)
+    resolution_fit, pred_over_truth_fit, true_fit,slices_fit,resolution_scale_corr_median, median_scale_fit,slices_pred_truth,\
+   res_std_median, res_sigma_median =get_res_scale_fit_log10_log2(gen_energy,cluster_sum, nbins, data_type, particle)
+    
+    
+    name_tag='straw_'   
+    particle_detector=f'{particle}_{detector}_{data_type}'
+    print_parameter(true_fit, name_tag +'energy',particle_detector ) 
+    print_parameter(resolution_scale_corr_median, name_tag+'res_cor',particle_detector  )
+    #print_parameter(pred_over_truth_fit, name_tag +'scale_fit', particle_detector ) 
+    print_parameter(resolution_fit, name_tag +'res_sigma', particle_detector ) 
+    print_parameter(res_std_median, name_tag +'res_std_median', particle_detector ) 
+    print_parameter(res_sigma_median, name_tag +'res_sigma_median', particle_detector )
+    print_parameter(median_scale_fit, name_tag +'scale_median', particle_detector )
+    
+    
+    
+    
+
+    df = pd.DataFrame(slices_fit)
+    df.to_csv(f'{output_path}/pred_strawman_{particle_detector}.csv', index=False)         
+    
+    
+    df_straw_truth = pd.DataFrame(slices_pred_truth)
+    df_straw_truth.to_csv(f'{output_path}/pred_true_strawman_{particle_detector}.csv', index=False)
+    
+    
+    
+## PLOT (E_PRED - E_TRUTH )/ E_TRUTH    
+    
+def compare_energy_response_E_over_pred(files_pred_truth, data_type, particle, detector, labels, 
+                                    slices_individual=True, ylogscale=True):
+
+    N_Bins, Gen_Energy =get_binning_Nbins(data_type,particle)
+
+
+    if data_type=='continuous':
+        mean_values = (Gen_Energy[:-1] + Gen_Energy[1:]) / 2
+
+    val_alpha=0.7
+    row=math.ceil(np.sqrt(N_Bins))
+    if (row**2-N_Bins)>1:
+        col=row-1
+    else:
+        col=row
+
+    params = {'axes.titlesize':'20',
+              'xtick.labelsize':'20',
+              'ytick.labelsize':'20'}
+    plt.rcParams.update(params)
+    fig,axs = plt.subplots(row,col, figsize=(20, 15),constrained_layout=True)
+    width_plot=2
+    E_min=0
+
+    for file_pred_truth,   label in zip(files_pred_truth,   labels):
+
+        df = pd.read_csv(file_pred_truth)
+
+        #df=df_pred.subtract(df_truth)
+        for ii in range(0,N_Bins):
+            irow=ii//col
+            icol=ii%col
+            if irow<row:
+
+                ax = axs[irow,icol]
+                width=int(100/N_Bins)
+                E_max=E_min+width
+                Expected_E=(E_min + E_max)/2
+                counts=np.zeros(N_Bins,int)
+                bins=np.zeros(N_Bins,int)
+
+                if ii>6:
+                    width_plot=0.5
+                if(slices_individual):
+                    min_range=-1
+                    max_range=1
+                    nbins=40
+                    ytitle="$E_{Truth}$"
+
+
+                ## For the ratio    
+                else:
+                    min_range=0
+                    max_range=10
+                    nbins=80
+                    Expected_E=1
+                    ytitle="$E_{Reco}/E_{Truth}$"
+                    if (ylogscale==False):
+                        min_range=0
+                        max_range=2
+                        nbins=80
+
+
+                tot_count=0  
+                #if approach=='DeepSets':
+                df.iloc[ii:ii+1].T.hist(bins=nbins,ax=axs[irow,icol],label=label,
+                                        alpha=val_alpha, range=(min_range,max_range),histtype='step',linewidth=2,
+                                        density=True)   
+
+                #axs[irow,icol].set_title("E =[{0} - {1}] GeV".format(E_min,E_max))
+                if data_type=='continuous':
+                    axs[irow,icol].set_title("{:.1f} - {:.1f} GeV".format(Gen_Energy[ii], (Gen_Energy[ii]+Gen_Energy[1])))
+                else:    
+                    axs[irow,icol].set_title("{0} GeV".format(Gen_Energy[ii]))
+                if (ylogscale):
+                    axs[irow,icol].set_yscale('log')
+                    axs[0,0].legend(loc='upper right', fontsize=20)
+                else:
+                    axs[0,0].legend(loc='upper right', fontsize=20)
+                axs[0,0].legend(loc='upper left', fontsize=15)
+                #axs[irow,icol].axvline(mean_values[ii],linestyle='dashed',linewidth=3,color='b')
+                axs[4,1].set_xlabel(r'$\frac{E_{Pred} - E_{Truth}}{E_{Truth}}$', fontsize=40)
+                axs[irow,0].set_ylabel("Count", fontsize=20)
+                E_min=E_min + width
+
+            else:
+                continue 
