@@ -36,8 +36,10 @@ class Strawman_Clusterer:
         self.sampling_fraction = sampling_fraction
         self.tree_name = tree_name
 
-        self.hit_e_min = 0
-        self.hit_t_max = 200
+        MIP_Energy = 0.0006 #GeV
+        self.hit_e_min = 0.5*MIP_Energy
+        self.hit_e_max = 1e10
+        self.hit_t_max = 150
         self.cluster_e_min = 0
 
         self.n_Z_layers=n_Z_layers
@@ -80,8 +82,9 @@ class Strawman_Clusterer:
             hits_t = ur_tree.array(f'{self.detector_name}.time', entrystop=self.num_events)
         
             #Min E and Max T Cuts on cells
-            cuts = hits_e > self.hit_e_min                                                               
+            cuts = hits_e > self.hit_e_min
             cuts = np.logical_and( cuts, hits_t <= self.hit_t_max )
+            cuts = np.logical_and( cuts, hits_e <= self.hit_e_max )
             self.hit_cuts = cuts
             self.hits_e = hits_e[cuts]
 
