@@ -13,8 +13,12 @@ from graph_nets.graphs import GraphsTuple
 import sonnet as snt
 import argparse
 import yaml
+## if HCAL or HCAL Insert
+#from generators import MPGraphDataGenerator
 
-from generators import MPGraphDataGenerator
+## If ECAL + HCAL 
+from generators_ecal import MPGraphDataGenerator
+
 import block as models
 sns.set_context('poster')
 
@@ -46,6 +50,7 @@ if __name__=="__main__":
 
     epochs = train_config['epochs']
     num_features=train_config['num_features']
+    output_dim=train_config['output_dim']
     learning_rate = train_config['learning_rate']
     save_dir = train_config['save_dir'] + '/Block_'+time.strftime("%Y%m%d_%H%M")+'_concat'+str(concat_input)
     os.makedirs(save_dir, exist_ok=True)
@@ -63,14 +68,20 @@ if __name__=="__main__":
 
     train_output_dir = None
     val_output_dir = None
-
+    
     # Get Data
     if preprocess:
         train_output_dir = output_dir + '/train/'
         val_output_dir = output_dir + '/val/'
         test_output_dir = output_dir + '/test/'
 
-
+    train_valid_test_list=[train_output_dir, val_output_dir, test_output_dir]
+    for train_valid_test in train_valid_test_list:
+        if not os.path.exists(train_valid_test):
+            os.makedirs(train_valid_test)
+            print(f"Created Directory : {train_valid_test}")
+        else:
+            print(f"Directory already exists: {dir}")
     #Generators
     data_gen_train = MPGraphDataGenerator(file_list=root_train_files,
                                           batch_size=batch_size,
@@ -81,7 +92,8 @@ if __name__=="__main__":
                                           preprocess=preprocess,
                                           already_preprocessed=already_preprocessed,
                                           output_dir=train_output_dir,
-                                          num_features=num_features)
+                                          num_features=num_features,
+                                          output_dim=output_dim)
 
     data_gen_val = MPGraphDataGenerator(file_list=root_val_files,
                                         batch_size=batch_size,
@@ -92,7 +104,8 @@ if __name__=="__main__":
                                         preprocess=preprocess,
                                         already_preprocessed=already_preprocessed,
                                         output_dir=val_output_dir,
-                                        num_features=num_features)
+                                        num_features=num_features,
+                                        output_dim=output_dim)
 
     data_gen_test = MPGraphDataGenerator(file_list=root_test_files,
                                          batch_size=batch_size,
@@ -103,11 +116,12 @@ if __name__=="__main__":
                                          preprocess=preprocess,
                                          already_preprocessed=already_preprocessed,
                                          output_dir=test_output_dir,
-                                         num_features=num_features)
+                                         num_features=num_features,
+                                         output_dim=output_dim)
 
     optimizer = tf.keras.optimizers.Adam(learning_rate)
 
-    model = models.BlockModel(global_output_size=1, model_config=model_config)
+    model = models.BlockModel(global_output_size=output_dim, model_config=model_config)
 
     training_loss_epoch = []
     val_loss_epoch = []
@@ -181,24 +195,25 @@ if __name__=="__main__":
         )
 
         return graph
-
+    ############################
     def get_batch(data_iter):
         for graphs, targets, meta in data_iter:
             graphs = convert_to_tuple(graphs)
             targets = tf.convert_to_tensor(targets, dtype=tf.float32)
-
             yield graphs, targets
 
+            
     samp_graph, samp_target = next(get_batch(data_gen_train.generator()))
+    #print('XXXXXXXXXXXXXXXXXXXXXXXx',np.shape(samp_graph))
     data_gen_train.kill_procs()
     graph_spec = utils_tf.specs_from_graphs_tuple(samp_graph, True, True, True)
 
-    mae_loss = tf.keras.losses.MeanAbsoluteError()
-
+    #mae_loss = tf.keras.losses.MeanAbsoluteError()
+    mae_loss=tf.keras.losses.MeanSquaredError()
     def loss_fn(targets, predictions):
         return mae_loss(targets, predictions) 
 
-    @tf.function(input_signature=[graph_spec, tf.TensorSpec(shape=[None,], dtype=tf.float32)])
+    #@tf.function(input_signature=[graph_spec, tf.TensorSpec(shape=[None,], dtype=tf.float32)])####
     def train_step(graphs, targets):
         with tf.GradientTape() as tape:
             predictions = model(graphs).globals
@@ -209,7 +224,7 @@ if __name__=="__main__":
 
         return loss
 
-    @tf.function(input_signature=[graph_spec, tf.TensorSpec(shape=[None,], dtype=tf.float32)])
+    #@tf.function(input_signature=[graph_spec, tf.TensorSpec(shape=[None,], dtype=tf.float32)])
     def val_step(graphs, targets):
         predictions = model(graphs).globals
         loss = loss_fn(targets, predictions)
@@ -233,6 +248,7 @@ if __name__=="__main__":
         start = time.time()
         for graph_data_tr, targets_tr in get_batch(data_gen_train.generator()):#train_iter):
             #if i==1:
+            #print('hello hello hello ',np.shape(targets_tr)) ## 
             losses_tr = train_step(graph_data_tr, targets_tr)
 
             training_loss.append(losses_tr.numpy())
