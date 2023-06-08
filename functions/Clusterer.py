@@ -16,6 +16,7 @@ import inspect
 
 #ML
 import tensorflow as tf
+from binning_utils import *
 
 
 class Strawman_Clusterer:
@@ -26,6 +27,7 @@ class Strawman_Clusterer:
                  sampling_fraction: float,
                  num_eventsMax = 100_000,
                  n_Z_layers=3, #start with 3
+                 cell_level=False,
                  tree_name = 'events',
                  take_log = False
                  ):
@@ -36,14 +38,18 @@ class Strawman_Clusterer:
         self.sampling_fraction = sampling_fraction
         self.tree_name = tree_name
 
-        MIP_Energy = 0.0006 #GeV
+        MIP_Energy = 0.0006  #GeV
         self.hit_e_min = 0.5*MIP_Energy
         self.hit_e_max = 1e10
         self.hit_t_max = 150
         self.cluster_e_min = 0
 
         self.n_Z_layers=n_Z_layers
-        
+        self.cell_level = cell_level
+
+        if (self.cell_level):
+            self.n_Z_layers = 54
+
         self.take_log = take_log
 
         self.path = "./"+label
@@ -82,6 +88,7 @@ class Strawman_Clusterer:
             hits_t = ur_tree.array(f'{self.detector_name}.time', entrystop=self.num_events)
         
             #Min E and Max T Cuts on cells
+            print("Applying Threshold cuts on Hits")
             cuts = hits_e > self.hit_e_min
             cuts = np.logical_and( cuts, hits_t <= self.hit_t_max )
             cuts = np.logical_and( cuts, hits_e <= self.hit_e_max )
@@ -89,7 +96,10 @@ class Strawman_Clusterer:
             self.hits_e = hits_e[cuts]
 
             #For QA, NOT for cluster sum!
-            self.flat_hits_e = ak.ravel(self.hits_e[:,::10]) #only take every 10th hit
+            self.flat_hits_e = ak.ravel(self.hits_e[:,::10]) #only take every 10th
+            self.flat_hits_e = np.asarray(self.flat_hits_e)
+            print("shape of flat hits E ",np.shape(self.flat_hits_e))
+            # self.flat_hits_e = self.hits_e
 
             # print(inspect.stack()[0][3]," Done") #prints current function
             return
@@ -128,9 +138,21 @@ class Strawman_Clusterer:
 
         if self.hits_z_exist():
 
-            z_layers = get_Z_segmentation(self.hits_z,self.n_Z_layers)
-            self.z_mask =  get_Z_masks(self.hits_z,z_layers) #mask for binning
+            if not self.cell_level:
 
+                z_layers = get_Z_segmentation(self.hits_z,self.n_Z_layers)
+
+            if (self.cell_level):
+                # z_layers = np.arange(3820,4991,23.4)
+                centers, edges, width = get_bin_edges(ak.ravel(self.hits_z))
+                z_layers = edges
+                print(z_layers)
+                self.n_Z_layers = len(centers)
+                # print(f"L 148: Number of Z-layers {self.n_Z_layers}")
+                # print(f"L 149: Z-layers {z_layers}")
+
+
+            self.z_mask =  get_Z_masks(self.hits_z,z_layers) #mask for binning
             segmented_cluster_sum = []
             for zbin in range(self.n_Z_layers):
                 mask = self.z_mask[zbin]
@@ -140,7 +162,7 @@ class Strawman_Clusterer:
             segmented_cluster_sum = np.swapaxes(segmented_cluster_sum,0,1)
             self.segmented_cluster_sum = np.asarray(segmented_cluster_sum)
             self.cluster_sum = np.sum(segmented_cluster_sum, axis=-1)
-            
+
             if (self.take_log):
                 self.segmented_cluster_sum = np.log10(self.segmented_cluster_sum)
                 self.cluster_sum = np.log10(self.cluster_sum)
@@ -195,7 +217,7 @@ class Strawman_Clusterer:
         if self.segmented_cluster_sum_exist():
             self.segmented_cluster_sum = self.segmented_cluster_sum/self.sampling_fraction
 
-        print(f"Applied Sampling Fraction of {self.sampling_fraction} to Cluster Sums")
+        print(f"Applied Sampling Fraction of {self.sampling_fraction} to Cluster Sum(s)")
 
     def np_save_genP_clusterE(self):
 
@@ -211,11 +233,12 @@ class Strawman_Clusterer:
 
         if self.hits_e_exist():
             self.save_npy(self.flat_hits_e, "flat_hits_e")
+            # self.save_npy(self.hits_e, "flat_hits_e")
 
         if self.hits_z_exist():
             self.save_npy(self.hits_z, "flat_hits_z")
             # self.save_npy(self.flat_hits_z, "flat_hits_z")
-       
+
         self.save_npy(self.sampling_fraction, "sampling_fraction")
 
         print(f"Files saved to {self.path}/")
@@ -244,11 +267,11 @@ class Strawman_Clusterer:
             return False
         return True
 
-        
+
     def cluster_genP_exist(self):
 
         self.hits_e_exist()
-        
+
         if not hasattr(self, 'cluster_sum'):
             print(f"Error: genP not set. get_cluster_sum() needs to be run first") 
             return False
@@ -256,7 +279,7 @@ class Strawman_Clusterer:
             print(f"Error: get_genP() needs to be run") 
             return False
         return True
-        
+
     def segmented_cluster_sum_exist(self):
 
         self.hits_e_exist()
@@ -311,4 +334,6 @@ def get_Z_masks(cell_z_array,z_layers):
         zmask.append(np.logical_and(cell_z_array >= z_layers[i], cell_z_array < z_layers[i+1]))
 
     return zmask
+
+
 
