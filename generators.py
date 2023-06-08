@@ -34,7 +34,8 @@ class MPGraphDataGenerator:
                  already_preprocessed: bool = False,
                  is_val: bool = False,
                  output_dir: str = None,
-                 num_features: int = 4):
+                 num_features: int = 4,
+                 output_dim: int =1):
         """Initialization"""
 
         self.preprocess = preprocess
@@ -55,9 +56,9 @@ class MPGraphDataGenerator:
         self.procs = []
 
 
-        #self.detector_name = "HcalEndcapPHitsReco" #'Insert' after the 'P'
-        self.detector_name = "HcalEndcapPInsertHitsReco" #'Insert' after the 'P
-        self.sampling_fraction =0.0098 #0.0224 #0.0098 for Insert
+        self.detector_name = "HcalEndcapPHitsReco" #'Insert' after the 'P'
+        #self.detector_name = "HcalEndcapPInsertHitsReco" #'Insert' after the 'P
+        self.sampling_fraction =0.0224 #0.0224 #0.0098 for Insert
 
         self.nodeFeatureNames = [".energy",".position.z", ".position.x",".position.y",]
         self.num_nodeFeatures = num_features
@@ -66,10 +67,12 @@ class MPGraphDataGenerator:
         self.nodeFeatureNames = self.nodeFeatureNames[:num_features]
         
         self.num_nodeFeatures = len(self.nodeFeatureNames)
-        self.num_targetFeatures = 1 #Regression on Energy only for now
-
-        self.scalar_keys = self.nodeFeatureNames + ["clusterE","genP"]
-
+        self.num_targetFeatures = output_dim   #Regression on Energy only (output dim =1)  Energy + theta for output_dim=2
+        if self.num_targetFeatures==2:
+            self.scalar_keys = self.nodeFeatureNames + ["clusterE","genP","theta"]
+        else:
+            self.scalar_keys = self.nodeFeatureNames + ["clusterE","genP"]
+            
         # self.edgeFeatureNames = self.cellGeo_data.keys()[9:]
         # self.num_edgeFeatures = len(self.edgeFeatureNames)
 
@@ -122,7 +125,7 @@ class MPGraphDataGenerator:
             print("MEANS = ",self.means_dict)
             print("STDVS = ",self.stdvs_dict)
             print(f"saving calc files to {self.stats_dir}/means.p\n")
-
+            
             pickle.dump(self.means_dict, open(
                         self.stats_dir + '/means.p', 'wb'), compression='gzip')
 
@@ -148,13 +151,13 @@ class MPGraphDataGenerator:
             file_stdvs = []
 
             cell_E = event_data[self.detector_name+".energy"]
-            ### Bishnu Added following 2 lines to apply time and hit energy cuts
             time=event_data[self.detector_name+".time"]
             mask = (cell_E > energy_TH) & (time<time_TH) & (cell_E<1e10)
+            
+    
 
             for feature_name in self.nodeFeatureNames:
                 feature_data = event_data[self.detector_name+feature_name][mask]
-
                 if "energy" in feature_name:  
                     feature_data = np.log10(feature_data)
 
@@ -176,7 +179,12 @@ class MPGraphDataGenerator:
 
             file_means.append(ak.mean(genP))
             file_stdvs.append(ak.std(genP))
-
+            if self.num_targetFeatures==2:
+                mom=np.sqrt(genPx*genPx + genPy*genPy + genPz*genPz)
+                theta=np.arccos(genPz/mom)*180/np.pi
+                file_means.append(ak.mean(theta))  ####
+                file_stdvs.append(ak.std(theta))   ####
+            
             means.append(file_means)
             stdvs.append(file_stdvs)
 
@@ -225,13 +233,15 @@ class MPGraphDataGenerator:
                 # graph = {'nodes': nodes.astype(np.float32), 'globals': global_node.astype(np.float32),
                 #     'senders': senders.astype(np.int32), 'receivers': receivers.astype(np.int32),
                 #     'edges': edges.astype(np.float32)}
-
-                target = self.get_GenP(event_data,event_ind)
-
+                if self.num_targetFeatures==2:
+                    target = self.get_GenP_Theta(event_data,event_ind)    
+                else:
+                    target = self.get_GenP(event_data,event_ind)
+                    
                 meta_data = [f_name]
                 meta_data.extend(self.get_meta(event_data, event_ind))
 
-                preprocessed_data.append((graph, target, meta_data))
+                preprocessed_data.append((graph, target, meta_data)) 
 
             random.shuffle(preprocessed_data) #should be done BEFORE multiple 'images' per geant event
 
@@ -260,14 +270,11 @@ class MPGraphDataGenerator:
         time=event_data[self.detector_name+".time"]
         mask = (cell_E > energy_TH) & (time<time_TH) & (cell_E<1e10)
 
-
         for feature in self.nodeFeatureNames:
 
             feature_data = event_data[self.detector_name+feature][mask]
-
             if "energy" in feature:  
                 feature_data = np.log10(feature_data)
-
             #standard scalar transform
             feature_data = (feature_data - self.means_dict[feature]) / self.stdvs_dict[feature]
 
@@ -302,10 +309,21 @@ class MPGraphDataGenerator:
 
         genP = np.log10(np.sqrt(genPx*genPx + genPy*genPy + genPz*genPz))
         genP = (genP - self.means_dict["genP"]) / self.stdvs_dict["genP"]
-
         return genP
 
+    def get_GenP_Theta(self,event_data,event_ind):
 
+        genPx = event_data['MCParticles.momentum.x'][event_ind,2]
+        genPy = event_data['MCParticles.momentum.y'][event_ind,2]
+        genPz = event_data['MCParticles.momentum.z'][event_ind,2]
+        mom=np.sqrt(genPx*genPx + genPy*genPy + genPz*genPz)
+        theta=np.arccos(genPz/mom)*180/np.pi
+        #the generation has the parent praticle always at index 2
+        
+        genP = np.log10(np.sqrt(genPx*genPx + genPy*genPy + genPz*genPz))
+        genP = (genP - self.means_dict["genP"]) / self.stdvs_dict["genP"]
+        theta = (theta - self.means_dict["theta"]) / self.stdvs_dict["theta"]
+        return genP, theta
 
     #FIXME: DELETE THIS AND TARGET SCALARS
     def get_cell_scalars(self,event_data):
@@ -345,13 +363,13 @@ class MPGraphDataGenerator:
         while file_num < self.num_files:
             file_data = pickle.load(open(self.file_list[file_num], 'rb'), compression='gzip')
 
-            # print("FILE DATA SHAPE = ",np.shape(file_data))
+            #print("FILE DATA SHAPE = ",np.shape(file_data))
 
             for i in range(len(file_data)):
                 batch_graphs.append(file_data[i][0])
                 batch_targets.append(file_data[i][1])
                 batch_meta.append(file_data[i][2])
-
+                #print('generator.py   shape of file    ',np.shape(file_data[i][1]))
                 # batch_targets = np.reshape(np.array(batch_targets), [-1,2]).astype(np.float32)
                 '''need the above line if there are more than 1 cluster per event'''
 
@@ -421,7 +439,8 @@ if __name__ == '__main__':
                                     preprocess=True,
                                     already_preprocessed=True,
                                     output_dir=out_dir,
-                                    num_features=num_features)
+                                    num_features=num_features,
+                                    output_dim=output_dim)
 
     gen = data_gen.generator()
 

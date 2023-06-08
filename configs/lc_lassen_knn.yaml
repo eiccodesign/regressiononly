@@ -1,0 +1,40 @@
+data:
+  already_preprocessed: False
+  batch_size: 512
+  calc_stats: True
+  data_dir: /usr/workspace/hip/eic/log10_Uniform_03-23/log10_pi+_Uniform_0-140Gev_17deg_1/
+  num_procs: 32
+  num_train_files: 20
+  num_val_files: 5
+  num_test_files: 5
+  output_dir: preprocessed_data/
+  particle_type: pion
+  preprocess: true
+  shuffle: false
+  num_features: 4
+  k: 5
+model:
+  block_type: graphnet
+  concat_input: true
+  edge_block_opt:
+    use_edges: true
+    use_globals: true
+    use_receiver_nodes: true
+    use_sender_nodes: true
+  global_block_opt:
+    use_edges: false
+    use_globals: true
+    use_nodes: true
+  node_block_opt:
+    use_globals: true
+    use_nodes: true
+    use_received_edges: true
+    use_sent_edges: false
+  num_blocks: 3
+  num_layers: 4
+  latent_size: 128
+  reducer: mean
+training:
+  epochs: 10
+  learning_rate: 0.001
+  save_dir: results/
