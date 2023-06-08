@@ -55,42 +55,60 @@ def ClusterSum_vs_GenP(clusterSum, genP, label, take_log = False, ylabel="Cluste
     path =label
     plt.savefig(f"{path}/ClusterSum_vs_GenP_Colormap.pdf") 
 
-def energy_QA_plots(flat_hits_e, genP, cluster_sum, label):
+def energy_QA_plots(flat_hits_e, genP, cluster_sum, label, log10E = False):
 
     print("Plotting QA Distributions...")
 
-    fig, ax = plt.subplots(nrows=1, ncols=3, figsize=(36, 10), constrained_layout=True)
+    fig, ax = plt.subplots(nrows=1, ncols=3,
+                           figsize=(36, 10),
+                           constrained_layout=True)
     axes = np.ravel(ax)
 
     max_hits_e = np.mean(flat_hits_e) + np.std(flat_hits_e)
 
-    bins_hits_e = np.linspace(np.min(flat_hits_e),max_hits_e,100)
-    axes[0].hist(flat_hits_e, bins=bins_hits_e, color="gold", alpha=0.8)
-    axes[0].set_ylabel("Counts",fontsize=22) 
-    axes[0].set_xlabel("Cell Hit Energy [GeV]",fontsize=22) 
-    axes[0].set_title("Cell Energy Distribution",fontsize=22) 
+    bins_hits_e = np.linspace(np.min(flat_hits_e), max_hits_e, 100)
+    bins_sum_e = np.linspace(0.0, 12, 20)
+    bins_genP = np.linspace(0.0, 125, 20)
+    x_scale = "linear"
 
-    axes[1].hist(np.ravel(genP),color="red",alpha=0.8,bins=100)
-    axes[1].set_ylabel("Counts",fontsize=22) 
-    axes[1].set_xlabel("Generated Momentum [GeV]",fontsize=22) 
-    axes[1].set_title("Gen. Momentum Distribution",fontsize=22) 
+    if log10E:
+
+        bins_hits_e = np.logspace(-3.8, -0.8, num=20)
+        bins_genP = np.logspace(-0.05,1.62,num=20)
+        bins_sum_e = np.logspace(-2, 1.2, num=20)
+        x_scale = "log"
+
+    axes[0].hist(flat_hits_e, bins=bins_hits_e, color="gold", alpha=0.8)
+    axes[0].set_ylabel("Counts", fontsize=22)
+    axes[0].set_xlabel("Cell Hit Energy [GeV]", fontsize=22)
+    axes[0].set_xscale(x_scale)
+    axes[0].set_title("Cell Energy Distribution", fontsize=22)
+
+    axes[1].hist(np.ravel(genP), color="red", alpha=0.8, bins=bins_genP)
+    axes[1].set_ylabel("Counts", fontsize=22)
+    axes[1].set_xlabel("Generated Momentum [GeV]", fontsize=22)
+    axes[1].set_xscale(x_scale)
+    axes[1].set_title("Gen. Momentum Distribution", fontsize=22)
 
     if len(np.shape(cluster_sum)) > 1:
         n_zbins = np.shape(cluster_sum)[1]
         print(f"N Z bins = {n_zbins}")
-        cm_subsection = np.linspace(0.0, 1.0, n_zbins) 
+        cm_subsection = np.linspace(0.0, 1.0, n_zbins)
         colors = [ cm.winter(x) for x in cm_subsection ]
 
         for zbin in range(n_zbins):
             axes[2].hist(cluster_sum[:,zbin],color=colors[zbin],
-                         label="Layer %i"%(zbin),alpha=0.8,bins=20)
+                         label="Layer %i"%(zbin),alpha=0.8,bins=bins_sum_e)
 
+        axes[2].set_xscale(x_scale)
         axes[2].set_ylabel("Counts",fontsize=22) 
         axes[2].set_xlabel("Cluster Energy [GeV]",fontsize=22) 
         axes[2].set_title("Cluster Sum Distribution (Raw)",fontsize=22) 
         axes[2].legend(fontsize=22) 
+
     else:
-        axes[2].hist(cluster_sum,color="blue",alpha=0.8)
+
+        axes[2].hist(cluster_sum, color="blue", bins=bins_sum_e, alpha=0.8)
         axes[2].set_ylabel("Counts",fontsize=22) 
         axes[2].set_xlabel("Cluster Energy [GeV]",fontsize=22) 
         axes[2].set_title("Cluster Sum Distribution (Raw)",fontsize=22) 
