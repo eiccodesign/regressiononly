@@ -98,13 +98,13 @@ def energy_QA_plots(flat_hits_e, genP, cluster_sum, label, log10E = False):
 
         for zbin in range(n_zbins):
             axes[2].hist(cluster_sum[:,zbin],color=colors[zbin],
-                         label="Layer %i"%(zbin),alpha=0.8,bins=bins_sum_e)
+                         label="L %i"%(zbin),alpha=0.8,bins=bins_sum_e)
 
         axes[2].set_xscale(x_scale)
         axes[2].set_ylabel("Counts",fontsize=22) 
         axes[2].set_xlabel("Cluster Energy [GeV]",fontsize=22) 
-        axes[2].set_title("Cluster Sum Distribution (Raw)",fontsize=22) 
-        axes[2].legend(fontsize=22) 
+        axes[2].set_title("Layer Cluster Sum Distribution (Raw)",fontsize=22) 
+        axes[2].legend(fontsize=22,ncol=4)
 
     else:
 
