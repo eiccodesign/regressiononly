@@ -83,6 +83,7 @@ def energy_QA_plots(flat_hits_e, genP, cluster_sum, label, log10E = False):
     axes[0].hist(flat_hits_e, bins=bins_hits_e, color="gold", alpha=0.8)
     axes[0].set_ylabel("Counts", fontsize=22)
     axes[0].set_xlabel("Cell Hit Energy [GeV]", fontsize=22)
+    axes[0].tick_params(axis='both', which='major', labelsize=20)
     axes[0].set_xscale(x_scale)
     axes[0].set_title("Cell Energy Distribution", fontsize=22)
 
@@ -90,6 +91,7 @@ def energy_QA_plots(flat_hits_e, genP, cluster_sum, label, log10E = False):
     axes[1].set_ylabel("Counts", fontsize=22)
     axes[1].set_xlabel("Generated Momentum [GeV]", fontsize=22)
     axes[1].set_xscale(x_scale)
+    axes[1].tick_params(axis='both', which='major', labelsize=20)
     axes[1].set_title("Gen. Momentum Distribution", fontsize=22)
 
     if len(np.shape(cluster_sum)) > 1:
@@ -105,6 +107,7 @@ def energy_QA_plots(flat_hits_e, genP, cluster_sum, label, log10E = False):
         axes[2].set_xscale(x_scale)
         axes[2].set_ylabel("Counts",fontsize=22) 
         axes[2].set_xlabel("Cluster Energy [GeV]",fontsize=22) 
+        axes[2].tick_params(axis='both', which='major', labelsize=20)
         axes[2].set_title("Layer Cluster Sum Distribution (Raw)",fontsize=22) 
         axes[2].legend(fontsize=22,ncol=4)
 
@@ -113,31 +116,32 @@ def energy_QA_plots(flat_hits_e, genP, cluster_sum, label, log10E = False):
         axes[2].hist(cluster_sum, color="blue", bins=bins_sum_e, alpha=0.8)
         axes[2].set_ylabel("Counts",fontsize=22) 
         axes[2].set_xlabel("Cluster Energy [GeV]",fontsize=22) 
+        axes[2].tick_params(axis='both', which='major', labelsize=20)
         axes[2].set_title("Cluster Sum Distribution (Raw)",fontsize=22) 
 
     path = label
     plt.savefig(f"{path}/energy_QA_plots.pdf")
 
-def Plot_Loss_Curve(loss,val_loss,label,loss_string):
+def Plot_Loss_Curve(loss, val_loss, label, loss_string):
 
-    fig,axes = plt.subplots(1,1,figsize=(14,10))
-    axes = [axes,axes] #easier to add axes later, if need be
-    axes[0].plot(loss,label="loss")
-    axes[0].plot(val_loss,label="val_loss")
-    axes[0].set_title('Model Loss vs. Epoch',fontsize=26)
+    fig, axes = plt.subplots(1, 1, figsize=(14, 10))
+    axes = [axes, axes]  # easier to add axes later, if need be
+    axes[0].plot(loss, label="loss")
+    axes[0].plot(val_loss, label="val_loss")
+    axes[0].set_title('Model Loss vs. Epoch', fontsize=26)
 
     # fig.text(1.05,1.1,label,transform=axes[0].transAxes,fontsize=10)
-    #plt.text(0.8,-0.08,label,transform=axes[0].transAxes,fontsize=10)
-    axes[0].set_ylabel(f'Loss ({loss_string})',fontsize=22)
-    #axes[0].set_yscale('log')
-    axes[0].set_xlabel('Epoch',fontsize=22)
+    plt.text(0.8, -0.08, label, transform=axes[0].transAxes, fontsize=10)
+    axes[0].set_ylabel(f'Loss ({loss_string})', fontsize=22)
+    axes[0].set_xlabel('Epoch', fontsize=22)
     plt.xticks(fontsize=30)
     plt.yticks(fontsize=30)
-    #plt.tick_params(direction='in',right=True,top=True,length=10)
-    #plt.tick_params(direction='in',right=True,top=True,which='minor')
-    axes[0].set_xlim([-1,101])
-    axes[0].set_ylim(0.02,0.15)
-    
+    # axes[0].set_yscale('log')
+    # plt.tick_params(direction='in',right=True,top=True,length=10)
+    # plt.tick_params(direction='in',right=True,top=True,which='minor')
+    axes[0].set_xlim([-1, 101])
+    # axes[0].set_ylim(0.02,0.15)
+
     axes[0].legend(['train', 'validation'], loc='upper right',fontsize=22)
     plt.savefig(f"{label}/ROOT_Correlation.png")
 
