@@ -18,6 +18,8 @@ from Clusterer import E_binning
 import pandas as pd
 from matplotlib.ticker import AutoMinorLocator
 from mpl_toolkits.axes_grid1.inset_locator import mark_inset
+import pickle
+
 star_energies = [12,16,20,25,30,50,60,70]
 star_res = [0.18, 0.16, 0.15, 0.14, 0.13, 0.098, 0.092, 0.090]
 
@@ -211,33 +213,49 @@ def Plot_Energy_Scale(NN, label, sampling_fraction, strawman=None, bin_label="tr
     plt.savefig("%s/scale_plot.pdf"%(path))
 
 
-def plot_slices(input_slices,truth,label,E_Bins,bin_label="Truth",scale=False):
+def plot_slices(input_slices, truth, label, E_Bins, bin_label="Truth", scale=False, ncol=10):
 
     # mask = ~(np.all(np.isnan(input_slices)))
     mask = []
-    for i in range(len(input_slices)):  
-        mask.append(~(np.all(np.isnan(input_slices[i])))) 
+    for i in range(len(input_slices)):
+        mask.append(~(np.all(np.isnan(input_slices[i]))))
     N_Bins = len(truth[mask])
     input_slices = input_slices[mask]
     truth = truth[mask]
-    nrows = int(N_Bins/10)
-    if (nrows < 1): 
-        nrows =1
 
-    fig,axs = plt.subplots(nrows,int(N_Bins/nrows), figsize=(32, 10),sharex=False,sharey=True,constrained_layout=True)
+    nrow = int(N_Bins/ncol)
+
+    if (N_Bins % ncol) > 0:
+        nrow += 1
+
+    x_aspect = 2/nrow  # 2 and 10 are hardcoded for what looks ok
+    y_aspect = 10/ncol
+
+    fig, axs = plt.subplots(nrow, ncol,
+                            figsize=(32*x_aspect, 10*y_aspect),
+                            sharex=False,
+                            sharey=True,
+                            constrained_layout=True)
     axs = np.asarray(axs)
+    axs = np.ravel(axs)
 
-    for i in range(N_Bins):
-        row = int(i/10)
-        col = i%10
-        if (nrows==1): ax = axs[col]
-        else: ax = axs[row,col]
-        
-        if (col==0):
-            ax.set_ylabel("Counts",fontsize=15)
-        if (np.all(np.isnan(input_slices[i]))): continue
+    # for i in range(N_Bins-1):
+    for i, ax in enumerate(axs):
 
-        ax.set_title("%1.1f $ < E_\mathrm{%s} < $%1.1f [GeV]"%(E_Bins[mask][i],bin_label,E_Bins[mask][i]+E_Bins[1]),fontsize=10)
+        if (i >= N_Bins):
+            break
+
+        if i % ncol == 0:
+            ax.set_ylabel("Counts", fontsize=15)
+
+        if (np.all(np.isnan(input_slices[i]))):
+            continue
+
+        ax.set_title(
+            "%1.1f $ < E_\mathrm{%s} < $%1.1f [GeV]"%(E_Bins[mask][i],
+                                                      bin_label,
+                                                      E_Bins[mask][i]+E_Bins[1]),
+                                                      fontsize=10)
         #^^^assums linspace
 
         ax.set_xlabel("Predicted Eenergy")
@@ -254,7 +272,7 @@ def plot_slices(input_slices,truth,label,E_Bins,bin_label="Truth",scale=False):
             ax.axvline(x=np.nanmedian(input_slices,axis=-1)[i],color='cyan',alpha=0.3,linestyle="--",
                        label="Median $E_\mathrm{Pred} = %1.2f$"%(np.nanmedian(input_slices,axis=-1)[i]))
 
-        if (nrows==1):
+        if (int(N_Bins / 10) <= 1):
             ax.legend(fontsize=15)
         else: 
             ax.legend(fontsize=7.5)
