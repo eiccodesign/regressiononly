@@ -18,6 +18,8 @@ from Clusterer import E_binning
 import pandas as pd
 from matplotlib.ticker import AutoMinorLocator
 from mpl_toolkits.axes_grid1.inset_locator import mark_inset
+import pickle
+
 star_energies = [12,16,20,25,30,50,60,70]
 star_res = [0.18, 0.16, 0.15, 0.14, 0.13, 0.098, 0.092, 0.090]
 
@@ -55,69 +57,91 @@ def ClusterSum_vs_GenP(clusterSum, genP, label, take_log = False, ylabel="Cluste
     path =label
     plt.savefig(f"{path}/ClusterSum_vs_GenP_Colormap.pdf") 
 
-def energy_QA_plots(flat_hits_e, genP, cluster_sum, label):
+def energy_QA_plots(flat_hits_e, genP, cluster_sum, label, log10E = False):
 
     print("Plotting QA Distributions...")
 
-    fig, ax = plt.subplots(nrows=1, ncols=3, figsize=(36, 10), constrained_layout=True)
+    fig, ax = plt.subplots(nrows=1, ncols=3,
+                           figsize=(36, 10),
+                           constrained_layout=True)
     axes = np.ravel(ax)
 
     max_hits_e = np.mean(flat_hits_e) + np.std(flat_hits_e)
 
-    bins_hits_e = np.linspace(np.min(flat_hits_e),max_hits_e,100)
-    axes[0].hist(flat_hits_e, bins=bins_hits_e, color="gold", alpha=0.8)
-    axes[0].set_ylabel("Counts",fontsize=22) 
-    axes[0].set_xlabel("Cell Hit Energy [GeV]",fontsize=22) 
-    axes[0].set_title("Cell Energy Distribution",fontsize=22) 
+    bins_hits_e = np.linspace(np.min(flat_hits_e), max_hits_e, 100)
+    bins_sum_e = np.linspace(0.0, 12, 20)
+    bins_genP = np.linspace(0.0, 125, 20)
+    x_scale = "linear"
 
-    axes[1].hist(np.ravel(genP),color="red",alpha=0.8,bins=100)
-    axes[1].set_ylabel("Counts",fontsize=22) 
-    axes[1].set_xlabel("Generated Momentum [GeV]",fontsize=22) 
-    axes[1].set_title("Gen. Momentum Distribution",fontsize=22) 
+    if log10E:
+
+        bins_hits_e = np.logspace(-3.8, -0.8, num=20)
+        bins_genP = np.logspace(-0.05,1.62,num=20)
+        bins_sum_e = np.logspace(-2, 1.2, num=20)
+        x_scale = "log"
+
+    axes[0].hist(flat_hits_e, bins=bins_hits_e, color="gold", alpha=0.8)
+    axes[0].set_ylabel("Counts", fontsize=22)
+    axes[0].set_xlabel("Cell Hit Energy [GeV]", fontsize=22)
+    axes[0].tick_params(axis='both', which='major', labelsize=20)
+    axes[0].set_xscale(x_scale)
+    axes[0].set_title("Cell Energy Distribution", fontsize=22)
+
+    axes[1].hist(np.ravel(genP), color="red", alpha=0.8, bins=bins_genP)
+    axes[1].set_ylabel("Counts", fontsize=22)
+    axes[1].set_xlabel("Generated Momentum [GeV]", fontsize=22)
+    axes[1].set_xscale(x_scale)
+    axes[1].tick_params(axis='both', which='major', labelsize=20)
+    axes[1].set_title("Gen. Momentum Distribution", fontsize=22)
 
     if len(np.shape(cluster_sum)) > 1:
         n_zbins = np.shape(cluster_sum)[1]
         print(f"N Z bins = {n_zbins}")
-        cm_subsection = np.linspace(0.0, 1.0, n_zbins) 
+        cm_subsection = np.linspace(0.0, 1.0, n_zbins)
         colors = [ cm.winter(x) for x in cm_subsection ]
 
         for zbin in range(n_zbins):
             axes[2].hist(cluster_sum[:,zbin],color=colors[zbin],
-                         label="Layer %i"%(zbin),alpha=0.8,bins=20)
+                         label="L %i"%(zbin),alpha=0.8,bins=bins_sum_e)
 
+        axes[2].set_xscale(x_scale)
         axes[2].set_ylabel("Counts",fontsize=22) 
         axes[2].set_xlabel("Cluster Energy [GeV]",fontsize=22) 
-        axes[2].set_title("Cluster Sum Distribution (Raw)",fontsize=22) 
-        axes[2].legend(fontsize=22) 
+        axes[2].tick_params(axis='both', which='major', labelsize=20)
+        axes[2].set_title("Layer Cluster Sum Distribution (Raw)",fontsize=22) 
+        axes[2].legend(fontsize=22,ncol=4)
+
     else:
-        axes[2].hist(cluster_sum,color="blue",alpha=0.8)
+
+        axes[2].hist(cluster_sum, color="blue", bins=bins_sum_e, alpha=0.8)
         axes[2].set_ylabel("Counts",fontsize=22) 
         axes[2].set_xlabel("Cluster Energy [GeV]",fontsize=22) 
+        axes[2].tick_params(axis='both', which='major', labelsize=20)
         axes[2].set_title("Cluster Sum Distribution (Raw)",fontsize=22) 
 
     path = label
     plt.savefig(f"{path}/energy_QA_plots.pdf")
 
-def Plot_Loss_Curve(loss,val_loss,label,loss_string):
+def Plot_Loss_Curve(loss, val_loss, label, loss_string):
 
-    fig,axes = plt.subplots(1,1,figsize=(14,10))
-    axes = [axes,axes] #easier to add axes later, if need be
-    axes[0].plot(loss,label="loss")
-    axes[0].plot(val_loss,label="val_loss")
-    axes[0].set_title('Model Loss vs. Epoch',fontsize=26)
+    fig, axes = plt.subplots(1, 1, figsize=(14, 10))
+    axes = [axes, axes]  # easier to add axes later, if need be
+    axes[0].plot(loss, label="loss")
+    axes[0].plot(val_loss, label="val_loss")
+    axes[0].set_title('Model Loss vs. Epoch', fontsize=26)
 
     # fig.text(1.05,1.1,label,transform=axes[0].transAxes,fontsize=10)
-    #plt.text(0.8,-0.08,label,transform=axes[0].transAxes,fontsize=10)
-    axes[0].set_ylabel(f'Loss ({loss_string})',fontsize=22)
-    #axes[0].set_yscale('log')
-    axes[0].set_xlabel('Epoch',fontsize=22)
+    plt.text(0.8, -0.08, label, transform=axes[0].transAxes, fontsize=10)
+    axes[0].set_ylabel(f'Loss ({loss_string})', fontsize=22)
+    axes[0].set_xlabel('Epoch', fontsize=22)
     plt.xticks(fontsize=30)
     plt.yticks(fontsize=30)
-    #plt.tick_params(direction='in',right=True,top=True,length=10)
-    #plt.tick_params(direction='in',right=True,top=True,which='minor')
-    axes[0].set_xlim([-1,101])
-    axes[0].set_ylim(0.02,0.15)
-    
+    # axes[0].set_yscale('log')
+    # plt.tick_params(direction='in',right=True,top=True,length=10)
+    # plt.tick_params(direction='in',right=True,top=True,which='minor')
+    axes[0].set_xlim([-1, 101])
+    # axes[0].set_ylim(0.02,0.15)
+
     axes[0].legend(['train', 'validation'], loc='upper right',fontsize=22)
     plt.savefig(f"{label}/ROOT_Correlation.png")
 
@@ -193,33 +217,49 @@ def Plot_Energy_Scale(NN, label, sampling_fraction, strawman=None, bin_label="tr
     plt.savefig("%s/scale_plot.pdf"%(path))
 
 
-def plot_slices(input_slices,truth,label,E_Bins,bin_label="Truth",scale=False):
+def plot_slices(input_slices, truth, label, E_Bins, bin_label="Truth", scale=False, ncol=10):
 
     # mask = ~(np.all(np.isnan(input_slices)))
     mask = []
-    for i in range(len(input_slices)):  
-        mask.append(~(np.all(np.isnan(input_slices[i])))) 
+    for i in range(len(input_slices)):
+        mask.append(~(np.all(np.isnan(input_slices[i]))))
     N_Bins = len(truth[mask])
     input_slices = input_slices[mask]
     truth = truth[mask]
-    nrows = int(N_Bins/10)
-    if (nrows < 1): 
-        nrows =1
 
-    fig,axs = plt.subplots(nrows,int(N_Bins/nrows), figsize=(32, 10),sharex=False,sharey=True,constrained_layout=True)
+    nrow = int(N_Bins/ncol)
+
+    if (N_Bins % ncol) > 0:
+        nrow += 1
+
+    x_aspect = 2/nrow  # 2 and 10 are hardcoded for what looks ok
+    y_aspect = 10/ncol
+
+    fig, axs = plt.subplots(nrow, ncol,
+                            figsize=(32*x_aspect, 10*y_aspect),
+                            sharex=False,
+                            sharey=True,
+                            constrained_layout=True)
     axs = np.asarray(axs)
+    axs = np.ravel(axs)
 
-    for i in range(N_Bins):
-        row = int(i/10)
-        col = i%10
-        if (nrows==1): ax = axs[col]
-        else: ax = axs[row,col]
-        
-        if (col==0):
-            ax.set_ylabel("Counts",fontsize=15)
-        if (np.all(np.isnan(input_slices[i]))): continue
+    # for i in range(N_Bins-1):
+    for i, ax in enumerate(axs):
 
-        ax.set_title("%1.1f $ < E_\mathrm{%s} < $%1.1f [GeV]"%(E_Bins[mask][i],bin_label,E_Bins[mask][i]+E_Bins[1]),fontsize=10)
+        if (i >= N_Bins):
+            break
+
+        if i % ncol == 0:
+            ax.set_ylabel("Counts", fontsize=15)
+
+        if (np.all(np.isnan(input_slices[i]))):
+            continue
+
+        ax.set_title(
+            "%1.1f $ < E_\mathrm{%s} < $%1.1f [GeV]"%(E_Bins[mask][i],
+                                                      bin_label,
+                                                      E_Bins[mask][i]+E_Bins[1]),
+                                                      fontsize=10)
         #^^^assums linspace
 
         ax.set_xlabel("Predicted Eenergy")
@@ -236,7 +276,7 @@ def plot_slices(input_slices,truth,label,E_Bins,bin_label="Truth",scale=False):
             ax.axvline(x=np.nanmedian(input_slices,axis=-1)[i],color='cyan',alpha=0.3,linestyle="--",
                        label="Median $E_\mathrm{Pred} = %1.2f$"%(np.nanmedian(input_slices,axis=-1)[i]))
 
-        if (nrows==1):
+        if (int(N_Bins / 10) <= 1):
             ax.legend(fontsize=15)
         else: 
             ax.legend(fontsize=7.5)

@@ -24,6 +24,8 @@ start = time.time()
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--results_dir')
+parser.add_argument('--test_dir')
+parser.add_argument('--num_test_files')
 args = parser.parse_args()
 
 if (args.results_dir is None):
@@ -47,6 +49,9 @@ data_dir = data_config['data_dir']
 num_train_files = data_config['num_train_files']
 num_val_files = data_config['num_val_files']
 num_test_files = data_config['num_test_files']
+if (args.num_test_files is not None):
+    num_test_files = int(args.num_test_files)
+
 batch_size = data_config['batch_size']
 shuffle = data_config['shuffle']
 num_procs = data_config['num_procs']
@@ -62,11 +67,9 @@ concat_input = model_config['concat_input']
 epochs = train_config['epochs']
 num_features=train_config['num_features']
 learning_rate = train_config['learning_rate']
-# save_dir = train_config['save_dir'] + '/Block_'+time.strftime("%Y%m%d_%H%M")+'_concat'+str(concat_input)
-# os.makedirs(save_dir, exist_ok=True)
+
 yaml.dump(config, open(save_dir + '/config_inference.yaml', 'w'))
 
-# print('Running training for {} with concant_input: {}\n'.format(particle_type, concat_input))
 
 root_files = np.sort(glob.glob(data_dir+'*root'))
 train_start = 0
@@ -78,7 +81,24 @@ root_train_files = root_files[train_start:train_end]
 root_val_files = root_files[train_end:val_end]
 root_test_files = root_files[val_end:test_end]
 
-print("\n\n Test Files = ",root_test_files)
+#Loads the files from test_dir if specified.
+#Note: if not specified, takes vals from CONFIG
+if (args.test_dir is not None):
+    test_dir = args.test_dir
+
+    # if not os.path.exists(test_dir+'.root'):
+    if not any(fname.endswith('.root') for fname in os.listdir(test_dir)):
+        print(f"\n\nNo ROOT files found in {test_dir}")
+        print("EXITING\n\n")
+        exit()
+
+    test_files = np.sort(glob.glob(test_dir+'*root'))
+    print("data_dir = ",data_dir)
+    print("Test Dir = ",test_dir)
+    print("Number of Test Files = ",num_test_files)
+    root_test_files = test_files[:num_test_files]
+
+print("\n\n Test Files = ",root_test_files,"\n\n")
 
 # Get Data
 if preprocess:
@@ -93,23 +113,11 @@ best_ckpt_prefix = os.path.join(save_dir, '/best_model')
 best_ckpt = tf.train.latest_checkpoint(save_dir)
 last_ckpt_path = result_dir + '/last_saved_model'
 
-
-
-# if os.path.exists(last_ckpt_path+'.index'):
-#         checkpoint.read(best_ckpt)
 if os.path.exists(best_ckpt+'.index'):
         checkpoint.read(best_ckpt)
-#print(type(checkpoint))
-
-
-
-
-root_files = np.sort(glob.glob(data_dir+'*root'))
-test_start = 0
-test_end = test_start + num_test_files
-#val_end = train_end + num_val_files
-root_test_files = root_files[test_start:test_end]
-
+else:
+    print("\nCould not load best checkpoint. EXITING\n")
+    exit()
 
 
 def get_batch(data_iter):
@@ -177,17 +185,7 @@ def convert_to_tuple(graphs):
             )
 
         return graph
-'''
-data_gen_train = MPGraphDataGenerator(file_list=root_test_files,
-                                          batch_size=batch_size,
-                                          shuffle=shuffle,
-                                          num_procs=num_procs,
-                                          calc_stats=calc_stats,
-                                          is_val=False,
-                                          preprocess=preprocess,
-                                          already_preprocessed=already_preprocessed,
-                                          output_dir=train_output_dir)
-'''
+
 data_gen_val = MPGraphDataGenerator(file_list=root_test_files,
                                         batch_size=batch_size,
                                         shuffle=shuffle,
@@ -197,7 +195,6 @@ data_gen_val = MPGraphDataGenerator(file_list=root_test_files,
                                         preprocess=preprocess,
                                         already_preprocessed=already_preprocessed,
                                         output_dir=test_output_dir)
-
 
 
 #samp_graph, samp_target = next(get_batch(data_gen_train.generator()))
