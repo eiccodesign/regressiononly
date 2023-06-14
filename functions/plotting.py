@@ -18,19 +18,25 @@ from Clusterer import E_binning
 import pandas as pd
 from matplotlib.ticker import AutoMinorLocator
 from mpl_toolkits.axes_grid1.inset_locator import mark_inset
-import pickle
-
 star_energies = [12,16,20,25,30,50,60,70]
 star_res = [0.18, 0.16, 0.15, 0.14, 0.13, 0.098, 0.092, 0.090]
 
 ECCE_res = [0.15,0.127,0.117,0.121,0.106,0.102,0.092,0.098]
 ECCE_energies = [10,20,30,40,50,60,80,100]
 
-MIP=0.0006 ## GeV                                                                                                                 
+MIP=0.0006 ## GeV    
+MIP_ECAL=0.13
 time_TH=150  ## ns                                                                                                               
-MIP_TH=0.5*MIP
+MIP_TH_HCAL=0.5*MIP
+MIP_TH_ECAL=0.5*MIP_ECAL
 def ClusterSum_vs_GenP(clusterSum, genP, label, take_log = False, ylabel="Cluster Sum", plot_offset = 5.0):
-
+    '''
+    if ylabel=="Cluster Sum"
+    title_x="Energy [GeV]"
+    title_x="Theta [Deg]"
+    title_y="Cluster Sum Energy [GeV]"
+    title_y='Predicted Theta [Deg]'
+    '''
     fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(12, 10), constrained_layout=True)
     cmap = copy(plt.cm.plasma)
     cmap.set_bad(cmap(0))
@@ -57,91 +63,69 @@ def ClusterSum_vs_GenP(clusterSum, genP, label, take_log = False, ylabel="Cluste
     path =label
     plt.savefig(f"{path}/ClusterSum_vs_GenP_Colormap.pdf") 
 
-def energy_QA_plots(flat_hits_e, genP, cluster_sum, label, log10E = False):
+def energy_QA_plots(flat_hits_e, genP, cluster_sum, label):
 
     print("Plotting QA Distributions...")
 
-    fig, ax = plt.subplots(nrows=1, ncols=3,
-                           figsize=(36, 10),
-                           constrained_layout=True)
+    fig, ax = plt.subplots(nrows=1, ncols=3, figsize=(36, 10), constrained_layout=True)
     axes = np.ravel(ax)
 
     max_hits_e = np.mean(flat_hits_e) + np.std(flat_hits_e)
 
-    bins_hits_e = np.linspace(np.min(flat_hits_e), max_hits_e, 100)
-    bins_sum_e = np.linspace(0.0, 12, 20)
-    bins_genP = np.linspace(0.0, 125, 20)
-    x_scale = "linear"
-
-    if log10E:
-
-        bins_hits_e = np.logspace(-3.8, -0.8, num=20)
-        bins_genP = np.logspace(-0.05,1.62,num=20)
-        bins_sum_e = np.logspace(-2, 1.2, num=20)
-        x_scale = "log"
-
+    bins_hits_e = np.linspace(np.min(flat_hits_e),max_hits_e,100)
     axes[0].hist(flat_hits_e, bins=bins_hits_e, color="gold", alpha=0.8)
-    axes[0].set_ylabel("Counts", fontsize=22)
-    axes[0].set_xlabel("Cell Hit Energy [GeV]", fontsize=22)
-    axes[0].tick_params(axis='both', which='major', labelsize=20)
-    axes[0].set_xscale(x_scale)
-    axes[0].set_title("Cell Energy Distribution", fontsize=22)
+    axes[0].set_ylabel("Counts",fontsize=22) 
+    axes[0].set_xlabel("Cell Hit Energy [GeV]",fontsize=22) 
+    axes[0].set_title("Cell Energy Distribution",fontsize=22) 
 
-    axes[1].hist(np.ravel(genP), color="red", alpha=0.8, bins=bins_genP)
-    axes[1].set_ylabel("Counts", fontsize=22)
-    axes[1].set_xlabel("Generated Momentum [GeV]", fontsize=22)
-    axes[1].set_xscale(x_scale)
-    axes[1].tick_params(axis='both', which='major', labelsize=20)
-    axes[1].set_title("Gen. Momentum Distribution", fontsize=22)
+    axes[1].hist(np.ravel(genP),color="red",alpha=0.8,bins=100)
+    axes[1].set_ylabel("Counts",fontsize=22) 
+    axes[1].set_xlabel("Generated Momentum [GeV]",fontsize=22) 
+    axes[1].set_title("Gen. Momentum Distribution",fontsize=22) 
 
     if len(np.shape(cluster_sum)) > 1:
         n_zbins = np.shape(cluster_sum)[1]
         print(f"N Z bins = {n_zbins}")
-        cm_subsection = np.linspace(0.0, 1.0, n_zbins)
+        cm_subsection = np.linspace(0.0, 1.0, n_zbins) 
         colors = [ cm.winter(x) for x in cm_subsection ]
 
         for zbin in range(n_zbins):
             axes[2].hist(cluster_sum[:,zbin],color=colors[zbin],
-                         label="L %i"%(zbin),alpha=0.8,bins=bins_sum_e)
+                         label="Layer %i"%(zbin),alpha=0.8,bins=20)
 
-        axes[2].set_xscale(x_scale)
         axes[2].set_ylabel("Counts",fontsize=22) 
         axes[2].set_xlabel("Cluster Energy [GeV]",fontsize=22) 
-        axes[2].tick_params(axis='both', which='major', labelsize=20)
-        axes[2].set_title("Layer Cluster Sum Distribution (Raw)",fontsize=22) 
-        axes[2].legend(fontsize=22,ncol=4)
-
+        axes[2].set_title("Cluster Sum Distribution (Raw)",fontsize=22) 
+        axes[2].legend(fontsize=22) 
     else:
-
-        axes[2].hist(cluster_sum, color="blue", bins=bins_sum_e, alpha=0.8)
+        axes[2].hist(cluster_sum,color="blue",alpha=0.8)
         axes[2].set_ylabel("Counts",fontsize=22) 
         axes[2].set_xlabel("Cluster Energy [GeV]",fontsize=22) 
-        axes[2].tick_params(axis='both', which='major', labelsize=20)
         axes[2].set_title("Cluster Sum Distribution (Raw)",fontsize=22) 
 
     path = label
     plt.savefig(f"{path}/energy_QA_plots.pdf")
 
-def Plot_Loss_Curve(loss, val_loss, label, loss_string):
+def Plot_Loss_Curve(loss,val_loss,label,loss_string):
 
-    fig, axes = plt.subplots(1, 1, figsize=(14, 10))
-    axes = [axes, axes]  # easier to add axes later, if need be
-    axes[0].plot(loss, label="loss")
-    axes[0].plot(val_loss, label="val_loss")
-    axes[0].set_title('Model Loss vs. Epoch', fontsize=26)
+    fig,axes = plt.subplots(1,1,figsize=(14,10))
+    axes = [axes,axes] #easier to add axes later, if need be
+    axes[0].plot(loss,label="loss")
+    axes[0].plot(val_loss,label="val_loss")
+    axes[0].set_title('Model Loss vs. Epoch',fontsize=26)
 
     # fig.text(1.05,1.1,label,transform=axes[0].transAxes,fontsize=10)
-    plt.text(0.8, -0.08, label, transform=axes[0].transAxes, fontsize=10)
-    axes[0].set_ylabel(f'Loss ({loss_string})', fontsize=22)
-    axes[0].set_xlabel('Epoch', fontsize=22)
+    #plt.text(0.8,-0.08,label,transform=axes[0].transAxes,fontsize=10)
+    axes[0].set_ylabel(f'Loss ({loss_string})',fontsize=22)
+    #axes[0].set_yscale('log')
+    axes[0].set_xlabel('Epoch',fontsize=22)
     plt.xticks(fontsize=30)
     plt.yticks(fontsize=30)
-    # axes[0].set_yscale('log')
-    # plt.tick_params(direction='in',right=True,top=True,length=10)
-    # plt.tick_params(direction='in',right=True,top=True,which='minor')
-    axes[0].set_xlim([-1, 101])
-    # axes[0].set_ylim(0.02,0.15)
-
+    #plt.tick_params(direction='in',right=True,top=True,length=10)
+    #plt.tick_params(direction='in',right=True,top=True,which='minor')
+    axes[0].set_xlim([-1,101])
+    axes[0].set_ylim(0.0,0.15)
+    
     axes[0].legend(['train', 'validation'], loc='upper right',fontsize=22)
     plt.savefig(f"{label}/ROOT_Correlation.png")
 
@@ -217,49 +201,33 @@ def Plot_Energy_Scale(NN, label, sampling_fraction, strawman=None, bin_label="tr
     plt.savefig("%s/scale_plot.pdf"%(path))
 
 
-def plot_slices(input_slices, truth, label, E_Bins, bin_label="Truth", scale=False, ncol=10):
+def plot_slices(input_slices,truth,label,E_Bins,bin_label="Truth",scale=False):
 
     # mask = ~(np.all(np.isnan(input_slices)))
     mask = []
-    for i in range(len(input_slices)):
-        mask.append(~(np.all(np.isnan(input_slices[i]))))
+    for i in range(len(input_slices)):  
+        mask.append(~(np.all(np.isnan(input_slices[i])))) 
     N_Bins = len(truth[mask])
     input_slices = input_slices[mask]
     truth = truth[mask]
+    nrows = int(N_Bins/10)
+    if (nrows < 1): 
+        nrows =1
 
-    nrow = int(N_Bins/ncol)
-
-    if (N_Bins % ncol) > 0:
-        nrow += 1
-
-    x_aspect = 2/nrow  # 2 and 10 are hardcoded for what looks ok
-    y_aspect = 10/ncol
-
-    fig, axs = plt.subplots(nrow, ncol,
-                            figsize=(32*x_aspect, 10*y_aspect),
-                            sharex=False,
-                            sharey=True,
-                            constrained_layout=True)
+    fig,axs = plt.subplots(nrows,int(N_Bins/nrows), figsize=(32, 10),sharex=False,sharey=True,constrained_layout=True)
     axs = np.asarray(axs)
-    axs = np.ravel(axs)
 
-    # for i in range(N_Bins-1):
-    for i, ax in enumerate(axs):
+    for i in range(N_Bins):
+        row = int(i/10)
+        col = i%10
+        if (nrows==1): ax = axs[col]
+        else: ax = axs[row,col]
+        
+        if (col==0):
+            ax.set_ylabel("Counts",fontsize=15)
+        if (np.all(np.isnan(input_slices[i]))): continue
 
-        if (i >= N_Bins):
-            break
-
-        if i % ncol == 0:
-            ax.set_ylabel("Counts", fontsize=15)
-
-        if (np.all(np.isnan(input_slices[i]))):
-            continue
-
-        ax.set_title(
-            "%1.1f $ < E_\mathrm{%s} < $%1.1f [GeV]"%(E_Bins[mask][i],
-                                                      bin_label,
-                                                      E_Bins[mask][i]+E_Bins[1]),
-                                                      fontsize=10)
+        ax.set_title("%1.1f $ < E_\mathrm{%s} < $%1.1f [GeV]"%(E_Bins[mask][i],bin_label,E_Bins[mask][i]+E_Bins[1]),fontsize=10)
         #^^^assums linspace
 
         ax.set_xlabel("Predicted Eenergy")
@@ -276,7 +244,7 @@ def plot_slices(input_slices, truth, label, E_Bins, bin_label="Truth", scale=Fal
             ax.axvline(x=np.nanmedian(input_slices,axis=-1)[i],color='cyan',alpha=0.3,linestyle="--",
                        label="Median $E_\mathrm{Pred} = %1.2f$"%(np.nanmedian(input_slices,axis=-1)[i]))
 
-        if (int(N_Bins / 10) <= 1):
+        if (nrows==1):
             ax.legend(fontsize=15)
         else: 
             ax.legend(fontsize=7.5)
@@ -452,6 +420,9 @@ def get_greek_particle(particle):
         greek_particle='$e^-$'
     elif particle=='pi+' or particle=='pp':
         greek_particle='$\pi^{+}$'    
+    elif particle=='mu-' or particle=='muon':
+        greek_particle='$\mu^{-}$'
+        
     else:
         print("You forgot to pick the particle")
     return greek_particle
@@ -502,7 +473,7 @@ def compare_loss_plots(result_paths, labels, title, particle, xlimits,ylimits):
     if col == 1:
         fig, axes = plt.subplots(num_plots, 1, figsize=(10, 8), sharex=True, sharey=True, constrained_layout=True)
     else:    
-        fig,axes = plt.subplots(row,col, figsize=(22, 10),sharex=True, sharey=True,constrained_layout=True)
+        fig,axes = plt.subplots(row,col, figsize=(22, 10),  constrained_layout=True) #sharex=True, sharey=True,
     #plt.subplots_adjust(wspace=0, hspace=0)      
     
     for index, (result_path, ilabel) in  enumerate(zip(result_paths, labels)):
@@ -515,7 +486,7 @@ def compare_loss_plots(result_paths, labels, title, particle, xlimits,ylimits):
             axes[index].plot(loss[:, -1], label="train_" + ilabel)
             axes[index].plot(val_loss[:,-1],  label="val_"+ilabel)
             axes[row-1].set_xlabel('Epoch',fontsize=30)
-            axes[row-2].set_ylabel('Loss (MAE)',fontsize=30)
+            axes[row-2].set_ylabel('Loss',fontsize=30)
             axes[index].legend(loc='upper right', fontsize=20)   
             axes[index].xaxis.set_tick_params(labelsize=30, length=10)
             axes[index].yaxis.set_tick_params(labelsize=30, length=10)
@@ -540,7 +511,7 @@ def compare_loss_plots(result_paths, labels, title, particle, xlimits,ylimits):
             #axes.title.set_position([.5, 1.05])
             #axes[irow,icol].set_yscale('log')
             axes[1,0].set_xlabel('Epoch',fontsize=30)
-            axes[1,0].set_ylabel('Loss (MAE)',fontsize=30)
+            axes[1,0].set_ylabel('Loss ',fontsize=30)
             
             axes[irow,icol].xaxis.set_tick_params(labelsize=30, length=20)
             axes[irow,icol].yaxis.set_tick_params(labelsize=30, length=20)
@@ -556,6 +527,9 @@ def compare_loss_plots(result_paths, labels, title, particle, xlimits,ylimits):
             
             axes[irow,icol].legend(loc='upper right', fontsize=30)    
         fig.suptitle(title, fontsize=30,ha="center")       
+        
+## Read ROOT FILE WITH FEW EVENTS BETWEEN START AND STOP EVENTS      
+## RETURNS HIT E
 def read_start_stop(file_path, detector, entry_start, entry_stop):
     ur_file = ur.open(file_path)
     ur_tree = ur_file['events']
@@ -566,7 +540,9 @@ def read_start_stop(file_path, detector, entry_start, entry_stop):
     #print("PRINT  DETECTOR ", detector)    
     if detector=="hcal":
         detector_name = "HcalEndcapPHitsReco"
-
+    elif detector=='ecal':
+        detector_name = "EcalEndcapPHitsReco"
+        
     elif detector=="hcal_insert":
         detector_name= "HcalEndcapPInsertHitsReco"
     else:
@@ -948,8 +924,8 @@ def compare_energy_response_E_over_pred(files_pred_truth, Gen_Energy, data_type,
 
                 
                 if(ratio_E_pred):
-                    min_range=-1
-                    max_range=1
+                    min_range=-0.5
+                    max_range=0.5
                     
                     ytitle="$E_{Truth}$"
                     xlabel_title=r'$\frac{E_{Pred} - E_{Truth}}{E_{Truth}}$'
@@ -982,7 +958,7 @@ def compare_energy_response_E_over_pred(files_pred_truth, Gen_Energy, data_type,
                 else:
                     axs[0,0].legend(loc='upper right', fontsize=20)
                 axs[0,0].legend(loc='upper left', fontsize=15)
-                #axs[irow,icol].axvline(mean_values[ii],linestyle='dashed',linewidth=3,color='b')
+                axs[irow,icol].axvline(0,linestyle='dashed',linewidth=3,color='b')
                 
                 mid_col=int(col/2)
                 mid_row=int(row/2)
@@ -1042,23 +1018,30 @@ def draw_plot_res_scale_withInset(var_X, var_Y,labels, title, xlimits,ylimits, p
     #plt.title(title_head, fontsize=20)
     for x,y,label in zip(var_X,var_Y,labels):
         axins.errorbar(x[1:], y[1:],linewidth=2.0,marker="o",alpha=0.7,  label=label) 
+        
+    
+    
 def get_cluster_sum_from_hits(detector, ur_tree):
-    cluster_sums=[]
+    gen_energy_arr=[]
+    hit_e_arr=[]
     if detector=="hcal":
         detector_name = "HcalEndcapPHitsReco"
         sampling_fraction=0.0224 
+        MIP_TH=MIP_TH_HCAL
 
     elif detector=="hcal_insert":
         detector_name= "HcalEndcapPInsertHitsReco"
         sampling_fraction=0.0089
+        MIP_TH=MIP_TH_HCAL
 
     elif detector =='ecal':
         detector_name= "EcalEndcapPHitsReco"
         sampling_fraction=1.
+        MIP_TH=MIP_TH_ECAL
     else:
         print("Please make sure you have picked right detector name")     
         print("Pick: hcal or hcal_insert for endcap calo/ hcal_insert for insert")
-        
+       
     hit_raw =ur_tree.array(f'{detector_name}.energy')
     time =ur_tree.array(f'{detector_name}.time')
     mask=(hit_raw>MIP_TH)  & (time<time_TH) & (hit_raw<1e10)
@@ -1075,8 +1058,12 @@ def get_cluster_sum_from_hits(detector, ur_tree):
     cluster_sum=np.divide(cluster_sum_temp,sampling_fraction)
     #cluster_sums.append(cluster_sum)
     return cluster_sum       
+
+## READS ROOT FILES FROM LARGE SET OF DATA
+## FOR GIVEN DATA DIRECTORY AND HADRONIC DETECTOR IT GIVES TOTAL CLUSTER SUM AND HCAL SUM
+## IF FLAG det_Ecal is True, then it also gives sum of HCAL + ECAL
         
-def read_root_files_chain(data_dir, hadronic_detector, start,total_files, det_Ecal=False):
+def read_root_files_chain(data_dir, hadronic_detector, start,total_files, ecal_hcal_both=True):
     
     #from uproot3_methods.concatenate import concatenate
     #data_dir='/media/miguel/Elements/Data_hcali/Data1/log10_Uniform_03-23/log10_pi+_100_10k_17deg_ECAL_1/'
@@ -1102,17 +1089,16 @@ def read_root_files_chain(data_dir, hadronic_detector, start,total_files, det_Ec
         root_gen_P = np.sqrt(genPx*genPx + genPy*genPy + genPz*genPz)
         gen_energy=np.sqrt(root_gen_P**2 + mass**2)
         theta = np.arccos(genPz/root_gen_P)*180/np.pi
-    
-        cluster_sum_hcal= get_cluster_sum_from_hits(hadronic_detector, ur_tree)
         
-        if det_Ecal==True:
+        cluster_sum_hcal= get_cluster_sum_from_hits(hadronic_detector, ur_tree)
+        if ecal_hcal_both:
             cluster_sum_ecal= get_cluster_sum_from_hits('ecal', ur_tree)
             total_clust_energy = cluster_sum_hcal +  cluster_sum_ecal
             cluster_sums_ecal.append(cluster_sum_ecal)
+                   
         else:
             total_clust_energy = cluster_sum_hcal
-        
-        
+            
         cluster_sums_hcal.append(cluster_sum_hcal)  
     
         genP.append(gen_energy)
@@ -1127,7 +1113,7 @@ def read_root_files_chain(data_dir, hadronic_detector, start,total_files, det_Ec
     
     combined_total_energy=np.concatenate(tot_energy)
     
-    if det_Ecal==True:
+    if ecal_hcal_both:
         combined_cluster_sums_ecal= np.concatenate(cluster_sums_ecal)
         return combined_genP, combined_thetas, combined_cluster_sums_hcal,  combined_cluster_sums_ecal, combined_total_energy 
     else:
@@ -1152,3 +1138,104 @@ def gaussian_fit_on_distribution(FIT_SIGMA, sigma_guess, mean_guess, binscenters
             std=popt[2]
             return mean, std        
         
+        
+####FOR MIP ANALYSIS SELECTS THE RIGHT FILE FOR GIVEN DETECTOR AND PARTICLE
+## IT TAKES NUMBER OF FILES FROM START TO STOP YOU WANT TO ANALYSIS
+## RETURNS HITS AND GENERATED ENERGY
+def get_hitE_genE_fromChain(detector, particle, start, stop):
+    hit_e_arr=[]
+    MIP_TH=0
+    gen_energy_arr=[]
+    if detector=="hcal":
+        detector_name = "HcalEndcapPHitsReco"
+        sampling_fraction=0.0224 
+        Mev_to_GeV=1
+
+    elif detector=="hcal_insert":
+        detector_name= "HcalEndcapPInsertHitsReco"
+        sampling_fraction=0.0089
+        Mev_to_GeV=1
+
+    elif detector =='ecal':
+        detector_name= "EcalEndcapPHitsReco"
+        sampling_fraction=1.
+        Mev_to_GeV=1 #33.33
+    else:
+        print("Please make sure you have picked right detector name")     
+        print("Pick: hcal or hcal_insert for endcap calo/ hcal_insert for insert")
+        
+        
+    conditions = {
+    ('ecal', 'mu-'): '/media/miguel/Elements/Data_hcali/Data1/log10_Uniform_03-23/log10_20GeV_mu-_Ecal_Only_10_5k_17deg/',
+    ('ecal', 'e-'): '/media/miguel/Elements/Data_hcali/Data1/log10_Uniform_03-23/log10_20GeV_e-_Ecal_Only_20_5k_17deg/',
+    ('hcal', 'mu-'): '/media/miguel/Elements/Data_hcali/Data1/log10_Uniform_03-23/log10_20GeV_mu-_Hcal_Only_10_5k_17deg/',
+    ('hcal', 'e-'): '/media/miguel/Elements/Data_hcali/Data1/log10_Uniform_03-23/log10_20GeV_e-_Hcal_Only_20_5k_17deg/',
+    # Add more conditions and corresponding file paths as needed
+    }
+
+    default_file = "default.txt"
+    rootfile_dir = conditions.get((detector, particle), default_file)
+    if rootfile_dir==default_file:
+        print('File not found')    
+        
+    root_files_total = np.sort(glob.glob(rootfile_dir+'*root'))
+    file_lists=root_files_total[start:stop]   
+    
+    
+    #trees = [ur.open(file_list)["events"] for file_list in file_lists]  # Replace "tree_name" with the actual tree name
+    #chain = ur.tree.concatenate(trees)
+    #num_entries=chain.numentries
+    #print(num_entries)
+    
+    for file_num in file_lists:
+        #print(file_num)
+        ur_tree=ur.open(file_num)['events']
+        num_entries=ur_tree.numentries
+        #print('Hello hello hello. ', num_entries)
+        
+        genPx = ur_tree.array('MCParticles.momentum.x')[:,2]
+        
+        genPy = ur_tree.array('MCParticles.momentum.y')[:,2]
+        genPz = ur_tree.array('MCParticles.momentum.z')[:,2]
+        mass = ur_tree.array("MCParticles.mass")[:,2]
+        root_gen_P = np.sqrt(genPx*genPx + genPy*genPy + genPz*genPz)
+        gen_energy=np.sqrt(root_gen_P**2 + mass**2)
+        
+        #theta = np.arccos(genPz/root_gen_P)*180/np.pi    
+        
+        hit_raw =ur_tree.array(f'{detector_name}.energy')/Mev_to_GeV
+        
+        time =ur_tree.array(f'{detector_name}.time')
+        mask=(hit_raw>MIP_TH)  & (time<time_TH) & (hit_raw<1e10)
+        hit_e=hit_raw[mask]
+        
+        
+        hit_e=hit_e.astype(float)
+        hit_e=ak.flatten(hit_e)
+        gen_energy_arr.append(gen_energy)
+        hit_e_arr.append(hit_e)
+        
+        #PosRecoX_hcal = ur_tree.array(f'{detector_name}.position.x')/10.0
+        #PosRecoY_hcal = ur_tree.array(f'{detector_name}.position.y')/10.0
+        #PosRecoZ_hcal = ur_tree.array(f'{detector_name}.position.z')/10.0
+    #hit_e_arr=np.(hit_e_arr)
+    #hit_e_arr=np.array(hit_e_arr)
+    
+    gen_energy_arr=np.concatenate(gen_energy_arr)
+    hit_e_arr=np.concatenate(hit_e_arr)
+    gen_energy_arr = gen_energy_arr.astype(int)
+    return hit_e_arr, gen_energy_arr
+
+
+def Ecal_hcal_generate_file_name_dict(input_dir,output_file, input_dims, latent_sizes,num_layers, learning_rates,labels, particles,error_types):
+    file_name_dict = {}
+    path_to_result_dir=f'/media/miguel/Elements/Data_hcali/Data1/log10_Uniform_03-23/DeepSets_output/Deepset_Models/{input_dir}'
+    
+    for dim, size, layer, lr, label, part, err in zip(input_dims, latent_sizes, num_layers, learning_rates, labels, particles,error_types):
+        result_path = f"{path_to_result_dir}/results_{dim}_size{size}_lr{lr}_{layer}Lay_{part}_{err}/{label}"
+        key = f"{dim}_{size}_{layer}_{lr}_{part}_{err}"
+        file_name_dict[key] = result_path
+        print(file_name_dict[key])
+        #print('__________________________', key)
+    with open(f'{output_file}', 'w') as f:
+        json.dump(file_name_dict, f)
