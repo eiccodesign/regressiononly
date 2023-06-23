@@ -367,11 +367,11 @@ class MPGraphDataGenerator:
             preprocessed_data = []
 
             for event_ind in range(num_events):
-                cell_E = event_data[self.detector_name+".energy"]
-                nhits=len(cell_E)
-                nhits=np.array(nhits)
-                if nhits<NHITS_MIN:
-                    continue
+                #cell_E = event_data[self.detector_name+".energy"]
+                #nhits=len(cell_E)
+                #nhits=np.array(nhits)
+                #if nhits<NHITS_MIN:
+                #    continue
                 nodes, global_node, cluster_num_nodes = self.get_nodes(event_data, event_ind)
                 senders, receivers, edges = self.get_edges(cluster_num_nodes) #returns 'None'
                 
@@ -430,9 +430,9 @@ class MPGraphDataGenerator:
             if "energy" in feature:  
                 feature_data = np.log10(feature_data)
                 
-        #standard scalar transform
-        feature_data = (feature_data - self.means_dict[feature]) / self.stdvs_dict[feature]
-        cell_data.append(feature_data)
+            #standard scalar transform
+            feature_data = (feature_data - self.means_dict[feature]) / self.stdvs_dict[feature]
+            cell_data.append(feature_data)
 
         cell_data_swaped=np.swapaxes(cell_data,0,1)
         return cell_data_swaped
