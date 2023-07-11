@@ -574,6 +574,7 @@ def read_start_stop(file_path, detector, entry_start, entry_stop):
 ## Fits the prediction distrubution 
 ## get the resolution and energy scale 
 ## using fit parameter and media
+
 def get_res_scale_fit_log10_log2(truth,pred, binning, nbins, log_base, particle, label='energy', fit='True'):    
     #get_res_scale_fit_log10_log2(truth, pred, file_name, nbins, log_base, particle):
     #N_Bins,binning=get_binning_Nbins(log_base,particle)
@@ -604,12 +605,22 @@ def get_res_scale_fit_log10_log2(truth,pred, binning, nbins, log_base, particle,
     if label=='energy':
         xtitle='Energy (GeV)'
         unit='GeV'
+        
     elif label=='theta':
         xtitle='Theta (Deg)'
         unit='Deg'
+       
+    elif label=='phi':
+        xtitle='Phi (Deg)'
+        unit='Deg'    
     elif label=='theta-energy':
-        xtitle='Energy (GeV)'
-        unit='Deg'
+        xtitle=r'$\Theta_{pred} - \Theta_{true}$' 
+        unit='GeV'
+        
+    elif label=='phi-energy':
+        xtitle=r'$\phi_{pred} - \phi_{true}$' 
+        unit='GeV'    
+       
         
     else:
         print('PLEASE PROVIDE THE VARIABLE YOU WANT TO REGRESS')
@@ -624,6 +635,8 @@ def get_res_scale_fit_log10_log2(truth,pred, binning, nbins, log_base, particle,
     
     #truth=np.rint(truth)
     indecies = np.digitize(truth,binning)-1 #Get the bin number each element belongs to.
+    indecies=np.where(indecies < 0, 0, indecies)
+    #if any(indecies<0): print(indicies)
     max_count = np.bincount(indecies).max()
     slices = np.empty((N_Bins,max_count))
     
@@ -679,25 +692,7 @@ def get_res_scale_fit_log10_log2(truth,pred, binning, nbins, log_base, particle,
         ## min and max range for histogram to be fitted to extract resolution/scale                                                                                  
         min_range=mean_guess - times*sigma_guess
         max_range=mean_guess + times*sigma_guess
-        '''
-        if(log_base!='continuous'):
-            if ii>5:
-                times=0.05
-            min_range=binning[ii] - times*binning[ii]
-            max_range=binning[ii] + times*binning[ii]
-            
-        else:
-            min_range=binning[ii]-  times*binning[ii]
-            max_range=binning[ii] + times*binning[ii]
-       
-        #print(min_range,'  Min and max range ',max_range)
-        if min_range<0:
-            min_range=0
         
-        if max_range<5:
-            max_range=10
-        
-        ''' 
         ## mean value of range within which histogram is draw                                                                                                        
         mean_here=(min_range + max_range)/2.0
 
@@ -708,6 +703,10 @@ def get_res_scale_fit_log10_log2(truth,pred, binning, nbins, log_base, particle,
             
             ax = axs[irow,icol]
             count, bins,_=ax.hist(slices[ii].ravel(),bins=nbins,alpha=0.5,range=(min_range,max_range),label='HCAL',color='b',linewidth=8)
+            
+            count=count[~np.isnan(count)]
+            bins=bins[~np.isnan(bins)]
+            
             binscenters = np.array([0.5 * (bins[i] + bins[i+1]) for i in range(len(bins)-1)])
         
             
@@ -770,7 +769,7 @@ def get_res_scale_fit_log10_log2(truth,pred, binning, nbins, log_base, particle,
 
                 res_stdev_pred_median_arr.append(res_stdev_pred_median)
                 res_sigma_median_arr.append(res_sigma_median)
-            elif label=='theta':
+            elif label=='theta' or label=='phi' or label =='theta-energy':
                 resolution=std
                 
             else:
@@ -780,7 +779,7 @@ def get_res_scale_fit_log10_log2(truth,pred, binning, nbins, log_base, particle,
         else:
             continue
             
-    if label=='energy':      
+    if label=='energy' or label=='theta-energy':      
         return resolution_arr,scale_arr,avg_truth_arr,slices_arr,resolution_cor_arr, scale_median_arr, slices_pred_truth_arr,\
         res_stdev_pred_median_arr,res_sigma_median_arr 
     else:
@@ -1239,3 +1238,30 @@ def Ecal_hcal_generate_file_name_dict(input_dir,output_file, input_dims, latent_
         #print('__________________________', key)
     with open(f'{output_file}', 'w') as f:
         json.dump(file_name_dict, f)
+        
+### THIS PART OF THE CODE FITS THE RESOLUTION CURVES AND GET THE SCHOSTASTIC, NOISE AND CONSTANT TERM  
+## WITHOUT CONSTANT TERM 
+
+def fit_resolution_curve(xx, stochastic, const):
+    return np.sqrt(stochastic**2/xx + const**2)
+
+def get_resolution_fit_terms(energies, resolutions, energy_lim, xpos, ypos, text_size, title, xlabel, ylabel):
+    energy_all=np.array(energies)
+    resolution_all=np.array(resolutions)
+    mask=np.logical_and(energy_all>energy_lim[0] , energy_all<energy_lim[1])
+    energy=energy_all[mask]
+    resolution=resolution_all[mask]
+    p0=[0.5,0.5,0.1]
+    plt.errorbar(energy, resolution , marker='o', linestyle='None')
+    plt.xlabel(xlabel,  fontsize=25)
+    plt.ylabel(ylabel, fontsize=25)
+    
+    popt, pcov = curve_fit(fit_resolution_curve, energy, resolution)
+    plt.plot(energy, fit_resolution_curve(energy, *popt), color='red', linewidth=2.5, label=r'F')
+    stochastic_term, const_term=popt
+    plt.text(xpos, ypos, f'$\sigma/E $ =  {stochastic_term:.2f}/$\sqrt{{E}} \quad \oplus$ {const_term:.2e} ', fontsize=text_size)     
+    
+    #goodness_of_fit=chi_sq #/dof
+    plt.title(title) 
+    plt.xticks(fontsize=20)
+    plt.yticks(fontsize=20)
