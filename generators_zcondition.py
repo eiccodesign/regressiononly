@@ -457,6 +457,7 @@ class MPGraphDataGenerator:
         if(not self.include_ecal):
             nodes = self.get_cell_data(event_data[event_ind])
             global_node = self.get_cluster_calib(event_data[event_ind])
+
         if(self.include_ecal):
             nodes = self.get_cell_data_with_ecal(event_data[event_ind])
             global_node = self.get_cluster_calib_with_ecal(event_data[event_ind])
@@ -470,21 +471,44 @@ class MPGraphDataGenerator:
         cell_data_ecal = []
 
         cell_E = event_data[self.detector_name+".energy"]
+        print("CellE = ",cell_E)
         time=event_data[self.detector_name+".time"]
         mask = (cell_E > energy_TH) & (time<time_TH) & (cell_E<1e10)
 
 
-        for feature in self.nodeFeatureNames:
-            feature_data = event_data[self.detector_name+feature][mask]
+        if not self.condition_z:
+            for feature in self.nodeFeatureNames:
+                feature_data = event_data[self.detector_name+feature][mask]
 
-            if "energy" in feature:  
-                feature_data = np.log10(feature_data)
+                if "energy" in feature:  
+                    feature_data = np.log10(feature_data)
 
-            #standard scalar transform
-            feature_data = (feature_data - self.means_dict[feature]) / self.stdvs_dict[feature]
-            cell_data.append(feature_data)
+                #standard scalar transform
+                feature_data = (feature_data - self.means_dict[feature]) / self.stdvs_dict[feature]
+                cell_data.append(feature_data)
+
+        else:
+            cellX = ak.ravel(event_data[self.detector_name+'.position.x'][mask])
+            cellY = ak.ravel(event_data[self.detector_name+'.position.y'][mask])
+            cellZ = ak.ravel(event_data[self.detector_name+'.position.z'][mask])
+            print("CellZ = ",cellZ)
+            centersZ, edgesZ, widthZ = get_bin_edges(cellZ)
+
+            # Get randomized layer positions
+            rand_Zs = get_random_z_pos(edgesZ, self.num_z_layers+1)
+            print("Random Z layer positions = ",rand_Zs)
+
+            #returns log10(E), Z, X, Y
+            new_features = get_newZbinned_cells(ak.ravel(cell_E[mask]),
+                                                cellX, cellY,
+                                                cellZ, rand_Zs)
+
+            for ifeat in range(len(self.nodeFeatureNames)):
+                cell_data.append(new_features[ifeat])
+
 
         cell_data_swaped=np.swapaxes(cell_data,0,1)
+        print("GetCellData :",cell_data_swaped)
         return cell_data_swaped
         #return np.swapaxes(cell_data,0,1) # returns [Events, Features]
         #alternative: cell_data = np.reshape(cell_data, (len(self.nodeFeatureNames), -1)).T
