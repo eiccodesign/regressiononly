@@ -84,7 +84,8 @@ class MPGraphDataGenerator:
         self.nodeFeatureNames_ecal =['ecal_energy','ecal_posz', 
                                      'ecal_posx', 'ecal_posy']
 
-        #hcal z edges
+
+        #hcal z edges. Annoying to run here, but need z_edges early
         self.edgesZ = self.get_original_Zedges(self.detector_name)
 
         self.detector_ecal='EcalEndcapPHitsReco'
@@ -432,7 +433,7 @@ class MPGraphDataGenerator:
                 senders, receivers, edges = self.get_edges(cluster_num_nodes) 
                 #returns 'None'
 
-                print("\n\n nodes = ",nodes)
+                # print("\n\n nodes = ",nodes)
                 if not global_node.any():
                     continue
 
@@ -477,7 +478,8 @@ class MPGraphDataGenerator:
             if (self.condition_z):
                 rand_Zs = get_random_z_pos(self.edgesZ, self.num_z_layers+1)
                 nodes = self.get_cell_data(event_data[event_ind], rand_Zs)
-                global_node = np.append(global_node,rand_Zs)
+                rand_Zs_norm = (rand_Zs - self.means_dict['.position.z']) / self.stdvs_dict['.position.z']
+                global_node = np.append(global_node,rand_Zs_norm)
 
             else:
                 nodes = self.get_cell_data(event_data[event_ind])
@@ -495,14 +497,12 @@ class MPGraphDataGenerator:
         cell_data_ecal = []
 
         cell_E = event_data[self.detector_name+".energy"]
-        # if not cell_E:
-        #     print("\n\n\nWARNING, EMPTY ARRAY of Energy, NULL EVENT\n\n\n")
-        #     sys.exit("Quiting. Bad Event")
 
         time=event_data[self.detector_name+".time"]
         mask = (cell_E > energy_TH) & (time<time_TH) & (cell_E<1e10)
 
 
+        print("\n\n get_cell_data: nodes = ", self.nodeFeatureNames)
         if not self.condition_z:
             for feature in self.nodeFeatureNames:
                 feature_data = event_data[self.detector_name+feature][mask]
