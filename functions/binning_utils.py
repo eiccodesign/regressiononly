@@ -130,22 +130,29 @@ def xyz_masks_from_counts(counts):
     nX = shape[0]
     nY = shape[1]
     nZ = shape[2]
-    
+
     x_hits = []
     y_hits = []
+    z_hits = []
+
     for zi in range(nZ):
         for yi in range(nY):
             x_hits.append(counts[:,yi,zi])
         for xi in range(nX):
             y_hits.append(counts[xi,:,zi])
+            
+    for yi in range(nY):
+        for xi in range(nX):
+            z_hits.append(counts[xi,yi,:])
     
     x_hits = np.ravel(x_hits)
     y_hits = np.ravel(y_hits)
+    z_hits = np.ravel(z_hits)
     
     x_mask = x_hits != 0
     y_mask = y_hits != 0
-    z_mask = np.ravel(counts) != 0  #standard ravel should work for z
-    
+    z_mask = z_hits != 0 
+
     return x_mask, y_mask, z_mask
 
 
