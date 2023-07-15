@@ -84,6 +84,9 @@ class MPGraphDataGenerator:
         self.nodeFeatureNames_ecal =['ecal_energy','ecal_posz', 
                                      'ecal_posx', 'ecal_posy']
 
+        #hcal z edges
+        self.edgesZ = self.get_original_Zedges(self.detector_name)
+
         self.detector_ecal='EcalEndcapPHitsReco'
         self.num_nodeFeatures = num_features
 
@@ -120,8 +123,6 @@ class MPGraphDataGenerator:
 
         # for ifeat in range(num_targetFeatures): 
         #     self.scalar_keys += cluster_features(ifeat)
-
-            
         print("\n SCALER KEYS = \n",self.scalar_keys) #for testing small refactor later
             
 
@@ -160,6 +161,19 @@ class MPGraphDataGenerator:
 
         if self.shuffle: np.random.shuffle(self.file_list)
 
+    def get_original_Zedges(self, detector):
+
+        event_tree = ur.open(self.file_list[0])['events']
+        num_events = event_tree.num_entries
+        event_data = event_tree.arrays() #need to use awkward
+
+        cell_E = event_data[detector+'.energy']
+        time = event_data[detector+".time"]
+        mask = (cell_E > energy_TH) & (time<time_TH) & (cell_E<1e10) 
+        cellZ = ak.ravel(event_data[detector+'.position.z'][mask])
+        centersZ, edgesZ, widthZ = get_bin_edges(cellZ)
+
+        return edgesZ
 
     def preprocess_scalar(self,n_calcs):
         print(f'\nCalcing Scalars and saving data to {self.stats_dir}')
@@ -265,8 +279,7 @@ class MPGraphDataGenerator:
                 cellZ = ak.ravel(event_data[self.detector_name+'.position.z'][mask])
                 # cell_E = cell_E[mask]
 
-                centersZ, edgesZ, widthZ = get_bin_edges(cellZ)
-                rand_Zs = get_random_z_pos(edgesZ,self.num_z_layers+1)
+                rand_Zs = get_random_z_pos(self.edgesZ,self.num_z_layers+1)
 
                 new_features = get_newZbinned_cells(np.ravel(cell_E[mask]),
                                                     cellX, cellY,
@@ -419,7 +432,8 @@ class MPGraphDataGenerator:
                 senders, receivers, edges = self.get_edges(cluster_num_nodes) 
                 #returns 'None'
 
-                if not global_node:
+                print("\n\n nodes = ",nodes)
+                if not global_node.any():
                     continue
 
                 graph = {'nodes': nodes.astype(np.float32), 
@@ -454,24 +468,37 @@ class MPGraphDataGenerator:
 
 
     def get_nodes(self,event_data,event_ind):
+
         if(not self.include_ecal):
-            nodes = self.get_cell_data(event_data[event_ind])
-            global_node = self.get_cluster_calib(event_data[event_ind])
+
+            global_node = np.array([self.get_cluster_calib(event_data[event_ind])])
+            #FIXME: have cluster calib return array...
+
+            if (self.condition_z):
+                rand_Zs = get_random_z_pos(self.edgesZ, self.num_z_layers+1)
+                nodes = self.get_cell_data(event_data[event_ind], rand_Zs)
+                global_node = np.append(global_node,rand_Zs)
+
+            else:
+                nodes = self.get_cell_data(event_data[event_ind])
 
         if(self.include_ecal):
             nodes = self.get_cell_data_with_ecal(event_data[event_ind])
-            global_node = self.get_cluster_calib_with_ecal(event_data[event_ind])
+            global_node = np.array([self.get_cluster_calib_with_ecal(event_data[event_ind])])
 
         cluster_num_nodes = len(nodes)
-        return nodes, np.array([global_node]), cluster_num_nodes
+        return nodes, global_node, cluster_num_nodes
 
-    def get_cell_data(self,event_data):
+    def get_cell_data(self,event_data,rand_Zs=None):
 
         cell_data = []
         cell_data_ecal = []
 
         cell_E = event_data[self.detector_name+".energy"]
-        print("CellE = ",cell_E)
+        # if not cell_E:
+        #     print("\n\n\nWARNING, EMPTY ARRAY of Energy, NULL EVENT\n\n\n")
+        #     sys.exit("Quiting. Bad Event")
+
         time=event_data[self.detector_name+".time"]
         mask = (cell_E > energy_TH) & (time<time_TH) & (cell_E<1e10)
 
@@ -487,28 +514,25 @@ class MPGraphDataGenerator:
                 feature_data = (feature_data - self.means_dict[feature]) / self.stdvs_dict[feature]
                 cell_data.append(feature_data)
 
-        else:
+        elif rand_Zs is not None:
             cellX = ak.ravel(event_data[self.detector_name+'.position.x'][mask])
             cellY = ak.ravel(event_data[self.detector_name+'.position.y'][mask])
             cellZ = ak.ravel(event_data[self.detector_name+'.position.z'][mask])
-            print("CellZ = ",cellZ)
+            print("\n\nCell E = ",cell_E)
             centersZ, edgesZ, widthZ = get_bin_edges(cellZ)
 
-            # Get randomized layer positions
-            rand_Zs = get_random_z_pos(edgesZ, self.num_z_layers+1)
-            print("Random Z layer positions = ",rand_Zs)
-
-            #returns log10(E), Z, X, Y
             new_features = get_newZbinned_cells(ak.ravel(cell_E[mask]),
                                                 cellX, cellY,
                                                 cellZ, rand_Zs)
 
             for ifeat in range(len(self.nodeFeatureNames)):
-                cell_data.append(new_features[ifeat])
+                feature = self.nodeFeatureNames[ifeat]
+                feature_data = (new_features[ifeat] - self.means_dict[feature]) / self.stdvs_dict[feature]
+                cell_data.append(feature_data)
 
 
         cell_data_swaped=np.swapaxes(cell_data,0,1)
-        print("GetCellData :",cell_data_swaped)
+        # print("GetCellData :",cell_data_swaped)
         return cell_data_swaped
         #return np.swapaxes(cell_data,0,1) # returns [Events, Features]
         #alternative: cell_data = np.reshape(cell_data, (len(self.nodeFeatureNames), -1)).T

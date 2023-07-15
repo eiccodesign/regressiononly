@@ -15,7 +15,6 @@ def get_bin_width(centers):
 
 def get_bin_edges(g4_cell_data):
 
-    print("BINNING UTILS LEN G4 data",np.shape(g4_cell_data))
     centers = np.unique(g4_cell_data)
 
     width = get_bin_width(centers) 
@@ -29,7 +28,7 @@ def get_bin_edges(g4_cell_data):
 
 
 
-def get_bin_dict(geant4_name, nevts = 100_000):
+def get_bin_dict(geant4_name, nevts = 100_000, dataset = 'hcal_cells'):
 
     bin_dict = {}
 
@@ -37,11 +36,12 @@ def get_bin_dict(geant4_name, nevts = 100_000):
 
         for var in range(1,4): #Skips E, should be cont.
 
-            g4_data = g4['hcal_cells'][:nevts,:,var]
+            g4_data = g4[dataset][:nevts,:,var]
 
             centers, edges, width = get_bin_edges(g4_data)
 
             # The MASK of 0 should not be included for Z
+            # XY however, naturally go through 0, and can have real 0 values
             if var_str[var] == "Z":
                 if centers[0] == 0:
                     centers = np.delete(centers,0)
@@ -60,6 +60,8 @@ def get_bin_dict(geant4_name, nevts = 100_000):
 
 
 def get_digits_dict(continuous_file, dset_name, bin_dict):
+    #function to get the bin number each float would belong to
+    #very useful for masking and assigning data to bins w/o loops
 
     digit_dict = {}
 
@@ -70,3 +72,100 @@ def get_digits_dict(continuous_file, dset_name, bin_dict):
         digit_dict[f"digits{var_str[var]}"] = digits - 1  # -1 for 0th index
 
     return digit_dict
+
+
+def get_random_z_pos(full_z_edges,n_seg):
+    nZ = len(full_z_edges)
+    rand_Ls = []
+    
+    assert(nZ > n_seg)  # avoid infinite loops
+
+    while len(rand_Ls) < n_seg:
+        zi = np.random.randint(0,nZ-1)
+        randZ = full_z_edges[zi]
+        
+        if randZ not in rand_Ls:
+            rand_Ls.append(randZ)
+            
+    return np.round(np.sort(rand_Ls),2)
+
+
+
+def get_newZbinned_cells(cellE,cellX,cellY,cellZ,zbins):
+    #currently assumes only varrying Z.
+    #generalize by passing in bins for XY
+    
+    centersX, edgesX, widthX = get_bin_edges(cellX)
+    centersY, edgesY, widthY = get_bin_edges(cellY)
+    centersZ = (zbins[0:-1] + zbins[1:])/2
+    
+    nX = len(centersX)
+    nY = len(centersY)
+    nZ = len(zbins)-1
+    
+    assert(len(centersZ) == nZ)
+    
+    # this sums cells in the same XYZ range
+    # XY are cell-width, and Z is nZ layers
+    counts, bins = np.histogramdd(
+                      (cellX,cellY,cellZ),
+                      bins=(edgesX,edgesY,zbins),
+                      weights = cellE)
+    
+    # Now that we have cell-sums along Z,
+    # Transorm back into coordinates
+    newX, newY, newZ = xyz_coordinates_from_counts(counts, centersX, 
+                                                   centersY, centersZ)
+    
+    count_mask = counts != 0
+    cellE_log10 = np.log10(counts[count_mask])
+    
+    return(cellE_log10,newX,newY,newZ)
+
+
+def xyz_masks_from_counts(counts):
+    
+    shape = np.shape(counts)
+    assert(len(shape) == 3)
+    nX = shape[0]
+    nY = shape[1]
+    nZ = shape[2]
+    
+    x_hits = []
+    y_hits = []
+    for zi in range(nZ):
+        for yi in range(nY):
+            x_hits.append(counts[:,yi,zi])
+        for xi in range(nX):
+            y_hits.append(counts[xi,:,zi])
+    
+    x_hits = np.ravel(x_hits)
+    y_hits = np.ravel(y_hits)
+    
+    x_mask = x_hits != 0
+    y_mask = y_hits != 0
+    z_mask = np.ravel(counts) != 0  #standard ravel should work for z
+    
+    return x_mask, y_mask, z_mask
+
+
+def xyz_coordinates_from_counts(counts, centersX, centersY, centersZ):
+    
+    shape = np.shape(counts)
+    assert(len(shape) == 3)
+    
+    x_mask, y_mask, z_mask = xyz_masks_from_counts(counts)
+    
+    nX = shape[0]
+    nY = shape[1]
+    nZ = shape[2]
+    
+    x_coords = np.tile(centersX,nY*nZ)
+    y_coords = np.tile(centersY,nX*nZ)
+    z_coords = np.tile(centersZ,nX*nY)
+    
+    newX = x_coords[x_mask]
+    newY = y_coords[y_mask]
+    newZ = z_coords[z_mask]
+    
+    return newZ, newX, newY  #generators expect this order
