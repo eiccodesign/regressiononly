@@ -743,7 +743,7 @@ def get_res_scale_fit_log10_log2(truth,pred, binning, nbins, log_base, particle,
            
             scale_median=scale_median_comp[ii]
             scale=mean/avg_truth[ii]
-            scale_arr.append(scale)
+            #scale_arr.append(scale)
             mean_arr.append(mean)
             avg_truth_arr.append(avg_truth[ii])
             if label=='energy':
@@ -1027,6 +1027,11 @@ def get_cluster_sum_from_hits(detector, ur_tree):
         detector_name = "HcalEndcapPHitsReco"
         sampling_fraction=0.0224 
         MIP_TH=MIP_TH_HCAL
+        
+    elif detector=="zdc":
+        detector_name= "ZDCHcalHitsReco"
+        sampling_fraction=0.0224
+        MIP_TH=MIP_TH_HCAL    
 
     elif detector=="hcal_insert":
         detector_name= "HcalEndcapPInsertHitsReco"
