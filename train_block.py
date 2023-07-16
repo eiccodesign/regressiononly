@@ -260,6 +260,7 @@ if __name__=="__main__":
         for graph_data_tr, targets_tr in get_batch(data_gen_train.generator()):#train_iter):
             #if i==1:
             #print('hello hello hello ',np.shape(targets_tr)) ## 
+            print("Graph Data: ",graph_data_tr)
             losses_tr = train_step(graph_data_tr, targets_tr)
 
             training_loss.append(losses_tr.numpy())

@@ -1,12 +1,15 @@
 data:
   data_dir: /pscratch/sd/f/fernando/data_dir/
   particle_type: pion
-  num_train_files: 100
-  num_val_files: 30
+  # num_train_files: 100
+  # num_val_files: 30
+  # num_test_files: 50
+  num_train_files: 10
+  num_val_files: 3
   num_test_files: 50
   batch_size: 2048
   shuffle: False
-  num_procs: 2
+  num_procs: 4
   preprocess: True
   output_dir: /pscratch/sd/f/fernando/regressiononly/preprocessed
   already_preprocessed: False

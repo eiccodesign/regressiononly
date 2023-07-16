@@ -449,6 +449,10 @@ class MPGraphDataGenerator:
                 # print("\n\n nodes = ",nodes)
                 if not global_node.any():
                     continue
+                if None in global_node:
+                    continue
+
+                # print("global node = ", global_node)
 
                 graph = {'nodes': nodes.astype(np.float32), 
                          'globals': global_node.astype(np.float32),
@@ -486,6 +490,7 @@ class MPGraphDataGenerator:
         if(not self.include_ecal):
 
             global_node = np.array([self.get_cluster_calib(event_data[event_ind])])
+            # global_node = np.nan_to_num(global_node)
             #FIXME: have cluster calib return array...
 
             if (self.condition_z):
@@ -542,6 +547,7 @@ class MPGraphDataGenerator:
             for ifeat in range(len(self.nodeFeatureNames)):
                 feature = self.nodeFeatureNames[ifeat]
                 feature_data = (new_features[ifeat] - self.means_dict[feature]) / self.stdvs_dict[feature]
+                feature_data = np.nan_to_num(feature_data)
                 cell_data.append(feature_data)
 
 
@@ -603,7 +609,9 @@ class MPGraphDataGenerator:
         """ Calibrate Clusters Energy """
 
         cell_E = event_data[self.detector_name+".energy"]
-        cluster_sum_E = np.sum(cell_E,axis=-1) #global node feature later
+        time = event_data[self.detector_name+".time"]
+        mask = (cell_E > energy_TH) & (time<time_TH) & (cell_E<1e10) 
+        cluster_sum_E = np.sum(cell_E[mask],axis=-1) #global node feature later
         if cluster_sum_E <= 0:
             return None
         #cell_data_total=np.vstack((cell_data_hcal_label, cell_data_ecal_label))
