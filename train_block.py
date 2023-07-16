@@ -17,7 +17,7 @@ import yaml
 #from generators import MPGraphDataGenerator
 
 ## If ECAL + HCAL 
-from generators_ecal import MPGraphDataGenerator
+from generators_zcondition import MPGraphDataGenerator
 
 import block as models
 sns.set_context('poster')
@@ -80,8 +80,9 @@ if __name__=="__main__":
         if not os.path.exists(train_valid_test):
             os.makedirs(train_valid_test)
             print(f"Created Directory : {train_valid_test}")
-        else:
-            print(f"Directory already exists: {dir}")
+        # else:
+        #     print(f"Directory already exists: {dir}")
+
     #Generators
     data_gen_train = MPGraphDataGenerator(file_list=root_train_files,
                                           batch_size=batch_size,
