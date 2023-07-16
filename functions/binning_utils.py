@@ -9,6 +9,7 @@ def get_bin_width(centers):
 
     # Assumes fixed-width binning, 
     # Can be changed to centers[1:] - centers[:-1]
+    print("\n\n get_bin_width: centers = ", centers)
     width = np.round(centers[2] - centers[1], 2)  # avoids [0] edgecase
     
     return width
@@ -91,12 +92,15 @@ def get_random_z_pos(full_z_edges,n_seg):
 
 
 
-def get_newZbinned_cells(cellE,cellX,cellY,cellZ,zbins):
+def get_newZbinned_cells(cellE, cellX, cellY, cellZ,
+                         edgesX, edgesY, zbins):
     #currently assumes only varrying Z.
     #generalize by passing in bins for XY
     
-    centersX, edgesX, widthX = get_bin_edges(cellX)
-    centersY, edgesY, widthY = get_bin_edges(cellY)
+    # centersX, edgesX, widthX = get_bin_edges(cellX)
+    # centersY, edgesY, widthY = get_bin_edges(cellY)
+    centersX = (edgesX[0:-1] + edgesX[1:])/2
+    centersY = (edgesY[0:-1] + edgesY[1:])/2
     centersZ = (zbins[0:-1] + zbins[1:])/2
     
     nX = len(centersX)
@@ -120,7 +124,7 @@ def get_newZbinned_cells(cellE,cellX,cellY,cellZ,zbins):
     count_mask = counts != 0
     cellE_log10 = np.log10(counts[count_mask])
     
-    return(cellE_log10,newX,newY,newZ)
+    return(cellE_log10, newX, newY, newZ)
 
 
 def xyz_masks_from_counts(counts):

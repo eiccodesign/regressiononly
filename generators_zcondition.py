@@ -42,7 +42,7 @@ class MPGraphDataGenerator:
                  num_features: int = 4,
                  output_dim: int =1,
                  hadronic_detector: str =None,
-                 include_ecal: bool = True,
+                 include_ecal: bool = False,
                  condition_z = True,
                  num_z_layers = 5):
         """Initialization"""
@@ -70,6 +70,9 @@ class MPGraphDataGenerator:
         self.procs = []
 
 
+        self.detector_name = "HcalEndcapPHitsReco"
+        self.sampling_fraction =0.0224
+
         if(self.hadronic_detector=='hcal'):
             self.detector_name = "HcalEndcapPHitsReco"
             self.sampling_fraction =0.0224
@@ -86,7 +89,8 @@ class MPGraphDataGenerator:
 
 
         #hcal z edges. Annoying to run here, but need z_edges early
-        self.edgesZ = self.get_original_Zedges(self.detector_name)
+        # self.edgesZ = self.get_original_Zedges(self.detector_name)
+        self.edgesX, self.edgesY, self.edgesZ = self.get_original_edges('HcalEndcapPHitsReco')
 
         self.detector_ecal='EcalEndcapPHitsReco'
         self.num_nodeFeatures = num_features
@@ -162,7 +166,7 @@ class MPGraphDataGenerator:
 
         if self.shuffle: np.random.shuffle(self.file_list)
 
-    def get_original_Zedges(self, detector):
+    def get_original_edges(self, detector):
 
         event_tree = ur.open(self.file_list[0])['events']
         num_events = event_tree.num_entries
@@ -171,10 +175,16 @@ class MPGraphDataGenerator:
         cell_E = event_data[detector+'.energy']
         time = event_data[detector+".time"]
         mask = (cell_E > energy_TH) & (time<time_TH) & (cell_E<1e10) 
+
+        cellX = ak.ravel(event_data[detector+'.position.x'][mask])
+        cellY = ak.ravel(event_data[detector+'.position.y'][mask])
         cellZ = ak.ravel(event_data[detector+'.position.z'][mask])
+
+        centersX, edgesX, widthX = get_bin_edges(cellX)
+        centersY, edgesY, widthY = get_bin_edges(cellY)
         centersZ, edgesZ, widthZ = get_bin_edges(cellZ)
 
-        return edgesZ
+        return edgesX, edgesY, edgesZ
 
     def preprocess_scalar(self,n_calcs):
         print(f'\nCalcing Scalars and saving data to {self.stats_dir}')
@@ -184,7 +194,8 @@ class MPGraphDataGenerator:
             means = manager.list()
             stdvs = manager.list()
             for i in range(self.n_calcs):
-                p = Process(target=self.scalar_processor, args=(i,means,stdvs), daemon=True)
+                p = Process(target=self.scalar_processor, 
+                            args=(i,means,stdvs), daemon=True)
                 p.start()
                 self.procs.append(p)
 
@@ -216,7 +227,8 @@ class MPGraphDataGenerator:
             means = manager.list()
             stdvs = manager.list()
             for i in range(self.n_calcs):
-                p = Process(target=self.scalar_processor_with_ecal, args=(i,means,stdvs), daemon=True)
+                p = Process(target=self.scalar_processor_with_ecal, 
+                            args=(i,means,stdvs), daemon=True)
                 p.start()
                 self.procs.append(p)
                 
@@ -283,8 +295,9 @@ class MPGraphDataGenerator:
                 rand_Zs = get_random_z_pos(self.edgesZ,self.num_z_layers+1)
 
                 new_features = get_newZbinned_cells(np.ravel(cell_E[mask]),
-                                                    cellX, cellY,
-                                                    cellZ, rand_Zs)
+                                                    cellX, cellY, cellZ, 
+                                                    self.edgesX, self.edgesY,
+                                                    rand_Zs)
 
 
                 for ifeat in range(len(self.nodeFeatureNames)):
@@ -502,7 +515,7 @@ class MPGraphDataGenerator:
         mask = (cell_E > energy_TH) & (time<time_TH) & (cell_E<1e10)
 
 
-        print("\n\n get_cell_data: nodes = ", self.nodeFeatureNames)
+        # print("\n\n get_cell_data: nodes = ", self.nodeFeatureNames)
         if not self.condition_z:
             for feature in self.nodeFeatureNames:
                 feature_data = event_data[self.detector_name+feature][mask]
@@ -518,12 +531,13 @@ class MPGraphDataGenerator:
             cellX = ak.ravel(event_data[self.detector_name+'.position.x'][mask])
             cellY = ak.ravel(event_data[self.detector_name+'.position.y'][mask])
             cellZ = ak.ravel(event_data[self.detector_name+'.position.z'][mask])
-            print("\n\nCell E = ",cell_E)
-            centersZ, edgesZ, widthZ = get_bin_edges(cellZ)
+            # print("\n\nCell E = ",cell_E)
 
-            new_features = get_newZbinned_cells(ak.ravel(cell_E[mask]),
-                                                cellX, cellY,
-                                                cellZ, rand_Zs)
+
+            new_features = get_newZbinned_cells(np.ravel(cell_E[mask]),
+                                                cellX, cellY, cellZ, 
+                                                self.edgesX, self.edgesY,
+                                                rand_Zs)
 
             for ifeat in range(len(self.nodeFeatureNames)):
                 feature = self.nodeFeatureNames[ifeat]
