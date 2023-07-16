@@ -1,0 +1,49 @@
+data:
+  data_dir: /media/miguel/Elements/Data_hcali/Data1/log10_Uniform_03-23/log10_pi+_Uniform_0-140Gev_17deg_1/ # 200, 99, 100
+  #data_dir: /media/miguel/Elements/Data_hcali/Data1/log10_Uniform_03-23/log10_pi+_100_10k_10-30deg_1/ # 108, 40, 50
+  #data_dir: /media/miguel/Elements/Data_hcali/Data1/log10_Uniform_03-23/log10_pi+_uniform_2.83deg_100_6k_1/  
+  #data_dir: /media/miguel/Elements/Data_hcali/Data1/log10_Uniform_03-23/log10_e-_Uniform_0-95GeV_17deg_1/
+  #data_dir: /media/miguel/Elements/Data_hcali/Data1/log10_Uniform_03-23/log10_pi+_100_10k_17deg_ECAL_1/   # 80, 36, 36
+  #data_dir: /media/miguel/Elements/Data_hcali/Data1/log10_Uniform_03-23/log10_e-_150_10k_17deg_ECAL_updated_1/   ## 88 44   44
+  #data_dir: /media/miguel/Elements/Data_hcali/Data1/log10_Uniform_03-23/log10_pi+_100_10k_10-30-deg_ECAL_updated_1/  ## 85 30 49
+  particle_type: pion
+  num_train_files: 1
+  num_val_files:  1
+  num_test_files: 1
+  batch_size: 2048
+  shuffle: False
+  num_procs: 2
+  preprocess: True
+  output_dir: /media/miguel/Elements/Data_hcali/Data1/log10_Uniform_03-23/DeepSets_output/z_segmentation/preprocessed_data_pp_1Z_seg_test
+  already_preprocessed: False
+  calc_stats: True
+model:
+  block_type: deepsets
+  num_blocks: 1
+  num_layers: 4
+  latent_size: 64
+  concat_input: True
+  reducer: mean
+  edge_block_opt:
+    use_edges: True
+    use_receiver_nodes: True
+    use_sender_nodes: True
+    use_globals: True
+  node_block_opt:
+    use_received_edges: True
+    use_sent_edges: False
+    use_nodes: True
+    use_globals: True
+  global_block_opt:
+    use_edges: False
+    use_nodes: True
+    use_globals: True
+training:
+  epochs: 1
+  num_features: 4
+  output_dim: 1
+  include_ecal: False
+  hadronic_detector: hcal
+  n_Z_layers: 1
+  learning_rate: 1.e-3
+  save_dir: /media/miguel/Elements/Data_hcali/Data1/log10_Uniform_03-23/DeepSets_output/z_segmentation/results_1Z_seg_size64_lre3_4Lay_pp_mse_test
