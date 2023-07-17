@@ -13,7 +13,9 @@ from graph_nets.graphs import GraphsTuple
 import sonnet as snt
 import argparse
 import yaml
-from generators import MPGraphDataGenerator
+
+from generators_zcondition import MPGraphDataGenerator
+#from generators import MPGraphDataGenerator
 
 import block as models
 sns.set_context('poster')
@@ -78,8 +80,9 @@ if __name__=="__main__":
         if not os.path.exists(train_valid_test):
             os.makedirs(train_valid_test)
             print(f"Created Directory : {train_valid_test}")
-        else:
-            print(f"Directory already exists: {dir}")
+        # else:
+        #     print(f"Directory already exists: {dir}")
+
     #Generators
     
     data_gen_train = MPGraphDataGenerator(file_list=root_train_files,
@@ -257,6 +260,7 @@ if __name__=="__main__":
         for graph_data_tr, targets_tr in get_batch(data_gen_train.generator()):#train_iter):
             #if i==1:
             #print('hello hello hello ',np.shape(targets_tr)) ## 
+            print("Graph Data: ",graph_data_tr)
             losses_tr = train_step(graph_data_tr, targets_tr)
 
             training_loss.append(losses_tr.numpy())
