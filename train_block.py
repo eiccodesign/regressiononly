@@ -14,7 +14,8 @@ import sonnet as snt
 import argparse
 import yaml
 
-from generators_zcondition import MPGraphDataGenerator
+#from generators_zcondition import MPGraphDataGenerator
+from generators import MPGraphDataGenerator
 #from generators import MPGraphDataGenerator
 
 import block as models
