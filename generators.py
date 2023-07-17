@@ -16,7 +16,7 @@ MIP_ECAL=0.13
 time_TH=150  ## ns
 energy_TH=0.5*MIP
 energy_TH_ECAL=0.5*MIP_ECAL
-NHITS_MIN=0
+NHITS_MIN=1
 #Change these for your usecase!
 # data_dir = '/clusterfs/ml4hep_nvme2/ftoralesacosta/regressiononly/data/'
 # out_dir = '/clusterfs/ml4hep_nvme2/ftoralesacosta/regressiononly/preprocessed_data/'
@@ -71,6 +71,9 @@ class MPGraphDataGenerator:
         elif(self.hadronic_detector=='hcal_insert'):    #'Insert' after the 'P'
             self.detector_name = "HcalEndcapPInsertHitsReco"
             self.sampling_fraction =0.0089
+        elif(self.hadronic_detector=='zdc'):  ##added by smoran
+            self.detector_name = "ZDCHcalHitsReco"
+            self.sampling_fraction =0.0224  ## CHANGE THIS NUMBER?    
             
         
         self.nodeFeatureNames = [".energy",".position.z", ".position.x",".position.y",]
@@ -87,6 +90,12 @@ class MPGraphDataGenerator:
         self.num_nodeFeatures = len(self.nodeFeatureNames)
         self.num_targetFeatures = output_dim   #Regression on Energy only (output dim =1)  Energy + theta for output_dim=2
         
+        if ((self.num_targetFeatures==3) & (not self.include_ecal)):
+            self.scalar_keys = self.nodeFeatureNames + ["clusterE","genP","theta", "phi"]
+
+        elif ((self.num_targetFeatures==3) & (self.include_ecal)):
+            self.scalar_keys = self.nodeFeatureNames + self.nodeFeatureNames_ecal+["clusterE","genP","theta","phi"]
+            
         if ((self.num_targetFeatures==2) & (not self.include_ecal)):
             self.scalar_keys = self.nodeFeatureNames + ["clusterE","genP","theta"]
             
@@ -250,8 +259,19 @@ class MPGraphDataGenerator:
             if self.num_targetFeatures==2:
                 mom=np.sqrt(genPx*genPx + genPy*genPy + genPz*genPz)
                 theta=np.arccos(genPz/mom)*180/np.pi
+		#gen_phi=(np.arctan2(genPy,genPx))*180/np.pi
                 file_means.append(ak.mean(theta))  ####
                 file_stdvs.append(ak.std(theta))   ####
+                
+            if self.num_targetFeatures==3:
+                mom=np.sqrt(genPx*genPx + genPy*genPy + genPz*genPz)
+                theta=np.arccos(genPz/mom)*180/np.pi
+                gen_phi=(np.arctan2(genPy,genPx))*180/np.pi
+                file_means.append(ak.mean(theta))  ####
+                file_stdvs.append(ak.std(theta))   ####
+
+                file_means.append(ak.mean(gen_phi))  ####
+                file_stdvs.append(ak.std(gen_phi))   ####
             
             means.append(file_means)
             stdvs.append(file_stdvs)
@@ -329,9 +349,19 @@ class MPGraphDataGenerator:
             if self.num_targetFeatures==2:
                 mom=np.sqrt(genPx*genPx + genPy*genPy + genPz*genPz)
                 theta=np.arccos(genPz/mom)*180/np.pi
+		#gen_phi=(np.arctan2(genPy,genPx))*180/np.pi
+                file_means.append(ak.mean(theta))  ####
+                file_stdvs.append(ak.std(theta))   ####
+                
+            if self.num_targetFeatures==3:
+                mom=np.sqrt(genPx*genPx + genPy*genPy + genPz*genPz)
+                theta=np.arccos(genPz/mom)*180/np.pi
+                gen_phi=(np.arctan2(genPy,genPx))*180/np.pi
                 file_means.append(ak.mean(theta))  ####
                 file_stdvs.append(ak.std(theta))   ####
 
+                file_means.append(ak.mean(gen_phi))  ####
+                file_stdvs.append(ak.std(gen_phi))   ####
             means.append(file_means)
             stdvs.append(file_stdvs)
 
@@ -367,15 +397,14 @@ class MPGraphDataGenerator:
             preprocessed_data = []
 
             for event_ind in range(num_events):
-                #cell_E = event_data[self.detector_name+".energy"]
-                #nhits=len(cell_E)
-                #nhits=np.array(nhits)
-                #if nhits<NHITS_MIN:
-                #    continue
+                
                 nodes, global_node, cluster_num_nodes = self.get_nodes(event_data, event_ind)
                 senders, receivers, edges = self.get_edges(cluster_num_nodes) #returns 'None'
-                
-                if not global_node:
+
+                nhits_hcal = np.sum(nodes[:, -1] == 1)
+                #print(nhits_hcal, '     events    ', event_ind)
+                if (not global_node):# or (nhits_hcal<NHITS_MIN):
+                    
                     continue
 
                 graph = {'nodes': nodes.astype(np.float32), 'globals': global_node.astype(np.float32),
@@ -384,7 +413,9 @@ class MPGraphDataGenerator:
                 # graph = {'nodes': nodes.astype(np.float32), 'globals': global_node.astype(np.float32),
                 #     'senders': senders.astype(np.int32), 'receivers': receivers.astype(np.int32),
                 #     'edges': edges.astype(np.float32)}
-                if self.num_targetFeatures==2:
+                if self.num_targetFeatures==3:
+                    target = self.get_GenP_Theta_Phi(event_data,event_ind)
+                elif self.num_targetFeatures==2:
                     target = self.get_GenP_Theta(event_data,event_ind)    
                 else:
                     target = self.get_GenP(event_data,event_ind)
@@ -477,6 +508,7 @@ class MPGraphDataGenerator:
         cell_data_swaped=np.swapaxes(cell_data,0,1)
 
         cell_data_ecal_swaped=np.swapaxes(cell_data_ecal,0,1)
+        #cell_data_total=np.vstack((cell_data_swaped,cell_data_ecal_swaped)) 
         col_with_zero_ecal=np.zeros((cell_data_ecal_swaped.shape[0],1))
         cell_data_ecal_label=np.hstack((cell_data_ecal_swaped, col_with_zero_ecal))
 
@@ -484,6 +516,8 @@ class MPGraphDataGenerator:
         cell_data_hcal_label=np.hstack((cell_data_swaped, col_with_one_hcal))
 
         cell_data_total=np.vstack((cell_data_hcal_label, cell_data_ecal_label))
+
+        
 
         return cell_data_total
 
@@ -554,12 +588,28 @@ class MPGraphDataGenerator:
         genPz = event_data['MCParticles.momentum.z'][event_ind,2]
         mom=np.sqrt(genPx*genPx + genPy*genPy + genPz*genPz)
         theta=np.arccos(genPz/mom)*180/np.pi
+        gen_phi=(np.arctan2(genPy,genPx))*180/np.pi
         #the generation has the parent praticle always at index 2
         
         genP = np.log10(np.sqrt(genPx*genPx + genPy*genPy + genPz*genPz))
         genP = (genP - self.means_dict["genP"]) / self.stdvs_dict["genP"]
         theta = (theta - self.means_dict["theta"]) / self.stdvs_dict["theta"]
-        return genP, theta
+        gen_phi = (gen_phi - self.means_dict["phi"]) / self.stdvs_dict["phi"]
+        return genP, theta  #, gen_phi
+    
+    def get_GenP_Theta_Phi(self,event_data,event_ind):
+        genPx = event_data['MCParticles.momentum.x'][event_ind,2]
+        genPy = event_data['MCParticles.momentum.y'][event_ind,2]
+        genPz = event_data['MCParticles.momentum.z'][event_ind,2]
+        mom=np.sqrt(genPx*genPx + genPy*genPy + genPz*genPz)
+        theta=np.arccos(genPz/mom)*180/np.pi
+        gen_phi=(np.arctan2(genPy,genPx))*180/np.pi
+        #the generation has the parent praticle always at index 2
+        genP = np.log10(np.sqrt(genPx*genPx + genPy*genPy + genPz*genPz))
+        genP = (genP - self.means_dict["genP"]) / self.stdvs_dict["genP"]
+        theta = (theta - self.means_dict["theta"]) / self.stdvs_dict["theta"]
+        gen_phi = (gen_phi - self.means_dict["phi"]) / self.stdvs_dict["phi"]
+        return genP, theta , gen_phi
 
     #FIXME: DELETE THIS AND TARGET SCALARS
     def get_cell_scalars(self,event_data):
