@@ -91,19 +91,6 @@ def get_random_z_pos(full_z_edges,n_seg):
     return np.round(np.sort(rand_Ls),2)
 
 
-def get_5back_z_pos(full_z_edges,n_seg):
-    nZ = len(full_z_edges)-1
-    rand_Ls = []
-    
-    rand_int = np.random.randint(0,nZ-(n_seg-1))
-    rand_Ls.append(full_z_edges[rand_int])
-
-    for zedge in full_z_edges[-n_seg:]:
-        rand_Ls.append(zedge)
-            
-    return np.round(np.sort(rand_Ls),2)
-
-
 def get_nrand_z_pos(full_z_edges, n_seg, nrand=1):
     # sets n random Zs, and sets rest to back of calorimeter
 

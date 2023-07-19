@@ -23,8 +23,8 @@ energy_TH=0.5*MIP
 energy_TH_ECAL=0.5*MIP_ECAL
 NHITS_MIN=0
 
-data_dir = '/pscratch/sd/f/fernando/data_dir/'
-out_dir = './'
+#data_dir = '/pscratch/sd/f/fernando/data_dir/'
+#out_dir = './'
 
 
 class MPGraphDataGenerator:
