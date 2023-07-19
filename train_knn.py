@@ -18,13 +18,19 @@ from generators_knn import MPGraphDataGenerator
 import block as models
 sns.set_context('poster')
 
+# include HCAL and ECAL as in training_block.py
+
 if __name__=="__main__":
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config', default='configs/lc_lassen_knn.yaml')
+    parser.add_argument('--config', default='configs/config_base.yaml')
     args = parser.parse_args()
 
     config = yaml.safe_load(open(args.config))
+    config_file_name = args.config
+
+    config_file_name = config_file_name.split('.yaml')[0]
+    config_file_name = config_file_name.split('_')[-1]
 
     data_config = config['data']
     model_config = config['model']
@@ -48,7 +54,8 @@ if __name__=="__main__":
 
     epochs = train_config['epochs']
     learning_rate = train_config['learning_rate']
-    save_dir = train_config['save_dir'] + '/Block_'+time.strftime("%Y%m%d_%H%M")+'_concat'+str(concat_input)
+
+    save_dir = train_config['save_dir'] + '/Block_'+time.strftime("%Y%m%d_")+config_file_name+'_k_'+str(k)
     os.makedirs(save_dir, exist_ok=True)
     yaml.dump(config, open(save_dir + '/config.yaml', 'w'))
 
@@ -77,7 +84,7 @@ if __name__=="__main__":
                                           batch_size=batch_size,
                                           shuffle=shuffle,
                                           num_procs=num_procs,
-                                          calc_stats=calc_stats,
+                                          calc_stats=calc_stats, #calc_stats
                                           is_val=False,
                                           preprocess=preprocess,
                                           already_preprocessed=already_preprocessed,
@@ -118,9 +125,11 @@ if __name__=="__main__":
 
     ## Checkpointing 
     checkpoint = tf.train.Checkpoint(module=model)
-    best_ckpt_prefix = os.path.join(save_dir, 'best_model')
+    best_ckpt_prefix = os.path.join(save_dir, 'best_model') # prefix.
+
     best_ckpt = tf.train.latest_checkpoint(save_dir)
     last_ckpt_path = save_dir + '/last_saved_model'
+
     if best_ckpt is not None:
         checkpoint.restore(best_ckpt)
     if os.path.exists(last_ckpt_path+'.index'):
@@ -129,13 +138,17 @@ if __name__=="__main__":
         checkpoint.write(last_ckpt_path)
 
     def convert_to_tuple(graphs):
+
         nodes = []
         edges = []
-        globals = []
+        globals = [] # may collide.
+
         senders = []
         receivers = []
+
         n_node = []
         n_edge = []
+
         offset = 0
 
         for graph in graphs:
@@ -197,7 +210,7 @@ if __name__=="__main__":
     data_gen_train.kill_procs()
     graph_spec = utils_tf.specs_from_graphs_tuple(samp_graph, True, True, True)
 
-    mae_loss = tf.keras.losses.MeanAbsoluteError()
+    mae_loss = tf.keras.losses.MeanAbsoluteError() # Check 
 
     def loss_fn(targets, predictions):
         return mae_loss(targets, predictions) 
@@ -233,7 +246,7 @@ if __name__=="__main__":
 
         # Train
         print('Training...')
-        i = 1
+        i = 0 # 1 change
         start = time.time()
         for graph_data_tr, targets_tr in get_batch(data_gen_train.generator()):#train_iter):
             #if i==1:
@@ -336,6 +349,7 @@ if __name__=="__main__":
     start = time.time()
 
     checkpoint.restore(best_ckpt)
+
     if best_ckpt is not None:
         checkpoint.restore(best_ckpt)
     elif os.path.exists(last_ckpt_path+'.index'):
@@ -353,7 +367,6 @@ if __name__=="__main__":
         test_loss.append(losses_test.numpy())
         all_targets.append(targets_test)
         all_outputs.append(output_tests)
-
 
         if not (i)%50:
             end = time.time()
