@@ -104,44 +104,66 @@ def get_5back_z_pos(full_z_edges,n_seg):
     return np.round(np.sort(rand_Ls),2)
 
 
+def get_nrand_z_pos(full_z_edges, n_seg, nrand=1):
+    # sets n random Zs, and sets rest to back of calorimeter
+
+    nZ = len(full_z_edges)-1
+    assert nrand < n_seg
+    assert (nZ > n_seg)  # avoid infinite loops
+
+    rand_Ls = []
+
+    while (len(rand_Ls) < nrand):
+        rand_int = np.random.randint(0, nZ-(n_seg-nrand))
+        randZ = full_z_edges[rand_int]
+        if randZ not in rand_Ls:
+            rand_Ls.append(full_z_edges[rand_int])
+
+    for zedge in full_z_edges[-(n_seg-nrand):]:
+        rand_Ls.append(zedge)
+
+    assert (np.max(rand_Ls) == np.max(full_z_edges))
+    return np.round(np.sort(rand_Ls), 2)
+
+
 
 def get_newZbinned_cells(cellE, cellX, cellY, cellZ,
                          edgesX, edgesY, zbins):
     #currently assumes only varrying Z.
     #generalize by passing in bins for XY
-    
+
     # centersX, edgesX, widthX = get_bin_edges(cellX)
     # centersY, edgesY, widthY = get_bin_edges(cellY)
     centersX = (edgesX[0:-1] + edgesX[1:])/2
     centersY = (edgesY[0:-1] + edgesY[1:])/2
     centersZ = (zbins[0:-1] + zbins[1:])/2
-    
+
     nX = len(centersX)
     nY = len(centersY)
     nZ = len(zbins)-1
-    
+
     assert(len(centersZ) == nZ)
-    
+
     # this sums cells in the same XYZ range
     # XY are cell-width, and Z is nZ layers
     counts, bins = np.histogramdd(
-                      (cellX,cellY,cellZ),
-                      bins=(edgesX,edgesY,zbins),
-                      weights = cellE)
-    
+        (cellX,cellY,cellZ),
+        bins=(edgesX,edgesY,zbins),
+        weights = cellE)
+
     # Now that we have cell-sums along Z,
     # Transorm back into coordinates
     newX, newY, newZ = xyz_coordinates_from_counts(counts, centersX, 
                                                    centersY, centersZ)
-    
+
     count_mask = counts != 0
     cellE_log10 = np.log10(counts[count_mask])
-    
+
     return(cellE_log10, newX, newY, newZ)
 
 
 def xyz_masks_from_counts(counts):
-    
+
     shape = np.shape(counts)
     assert(len(shape) == 3)
     nX = shape[0]
@@ -157,15 +179,15 @@ def xyz_masks_from_counts(counts):
             x_hits.append(counts[:,yi,zi])
         for xi in range(nX):
             y_hits.append(counts[xi,:,zi])
-            
+
     for yi in range(nY):
         for xi in range(nX):
             z_hits.append(counts[xi,yi,:])
-    
+
     x_hits = np.ravel(x_hits)
     y_hits = np.ravel(y_hits)
     z_hits = np.ravel(z_hits)
-    
+
     x_mask = x_hits != 0
     y_mask = y_hits != 0
     z_mask = z_hits != 0 
@@ -174,22 +196,22 @@ def xyz_masks_from_counts(counts):
 
 
 def xyz_coordinates_from_counts(counts, centersX, centersY, centersZ):
-    
+
     shape = np.shape(counts)
     assert(len(shape) == 3)
-    
+
     x_mask, y_mask, z_mask = xyz_masks_from_counts(counts)
-    
+
     nX = shape[0]
     nY = shape[1]
     nZ = shape[2]
-    
+
     x_coords = np.tile(centersX,nY*nZ)
     y_coords = np.tile(centersY,nX*nZ)
     z_coords = np.tile(centersZ,nX*nY)
-    
+
     newX = x_coords[x_mask]
     newY = y_coords[y_mask]
     newZ = z_coords[z_mask]
-    
+
     return newZ, newX, newY  #generators expect this order

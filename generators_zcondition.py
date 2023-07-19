@@ -90,6 +90,7 @@ class MPGraphDataGenerator:
 
         #hcal z edges. Annoying to run here, but need z_edges early
         # self.edgesZ = self.get_original_Zedges(self.detector_name)
+        # FIXME: change name to Segments?
         self.edgesX, self.edgesY, self.edgesZ = self.get_original_edges('HcalEndcapPHitsReco')
 
         self.detector_ecal='EcalEndcapPHitsReco'
@@ -497,7 +498,7 @@ class MPGraphDataGenerator:
                 rand_Zs = get_random_z_pos(self.edgesZ, self.num_z_layers+1)
                 nodes = self.get_cell_data(event_data[event_ind], rand_Zs)
                 rand_Zs_norm = (rand_Zs - self.means_dict['.position.z']) / self.stdvs_dict['.position.z']
-                global_node = np.append(global_node,rand_Zs_norm)
+                global_node = np.append(global_node, rand_Zs_norm)
 
             else:
                 nodes = self.get_cell_data(event_data[event_ind])
