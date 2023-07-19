@@ -78,15 +78,19 @@ def get_digits_dict(continuous_file, dset_name, bin_dict):
 def get_random_z_pos(full_z_edges,n_seg):
     nZ = len(full_z_edges)
     rand_Ls = []
-    
+
+    rand_Ls.append(full_z_edges[0])  #Beginning of Calo
+
     assert(nZ > n_seg)  # avoid infinite loops
 
-    while len(rand_Ls) < n_seg:
-        zi = np.random.randint(0,nZ-1)
+    while len(rand_Ls) < (n_seg - 1):  #Fill to second-to-last
+        zi = np.random.randint(0,nZ-2)  #-1 fencepost, -1 again avoid end of calo
         randZ = full_z_edges[zi]
         
         if randZ not in rand_Ls:
             rand_Ls.append(randZ)
+
+    rand_Ls.append(full_z_edges[-1])  #Add end of calo
             
     return np.round(np.sort(rand_Ls),2)
 
