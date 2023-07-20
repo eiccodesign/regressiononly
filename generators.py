@@ -16,7 +16,7 @@ MIP_ECAL=0.13
 time_TH=150  ## ns
 energy_TH=0.5*MIP
 energy_TH_ECAL=0.5*MIP_ECAL
-NHITS_MIN=1
+NHITS_MIN=2
 #Change these for your usecase!
 # data_dir = '/clusterfs/ml4hep_nvme2/ftoralesacosta/regressiononly/data/'
 # out_dir = '/clusterfs/ml4hep_nvme2/ftoralesacosta/regressiononly/preprocessed_data/'
