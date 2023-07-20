@@ -25,7 +25,6 @@ NHITS_MIN=2
 #out_dir = '/usr/WS2/karande1/eic/gitrepos/regressiononly/preprocessed_data/'
 
 
-
 class MPGraphDataGenerator:
     def __init__(self,
                  file_list: list,
@@ -53,13 +52,15 @@ class MPGraphDataGenerator:
         self.include_ecal=include_ecal
         self.output_dir = output_dir
         self.stats_dir = os.path.realpath(self.output_dir)
-        # self.stats_dir = os.path.realpath(self.output_dir+'../')
         self.val_stat_dir = os.path.dirname(self.stats_dir)
         self.file_list = file_list
         self.num_files = len(self.file_list)
         self.output_dim=output_dim
         self.batch_size = batch_size
         self.shuffle = shuffle
+
+        self.z_conditioning = True
+        self.n_maxZ = 55 #May depend on dataset.
         
         self.num_procs = num_procs
         self.procs = []
@@ -76,20 +77,26 @@ class MPGraphDataGenerator:
             self.sampling_fraction =0.0224  ## CHANGE THIS NUMBER?    
             
         
-        self.nodeFeatureNames = [".energy",".position.z", ".position.x",".position.y",]
-        self.nodeFeatureNames_ecal =['ecal_energy','ecal_posz', 'ecal_posx', 'ecal_posy']
+        self.nodeFeatureNames = [".energy",".position.z", 
+                                 ".position.x",".position.y",]
+
+        self.nodeFeatureNames_ecal =['ecal_energy','ecal_posz', 
+                                     'ecal_posx', 'ecal_posy']
+
         self.detector_ecal='EcalEndcapPHitsReco'
         self.num_nodeFeatures = num_features
 
-        # Slice the nodeFeatureNames list to only include the first 'num_features' elements
-        ## SET UP FOR ONE/TWO DIMENSION OUTPUT AND WITH/WITHOUT ECAL
+        # Slice features for 1-4D cell info
         self.nodeFeatureNames = self.nodeFeatureNames[:num_features]
         self.nodeFeatureNames_ecal = self.nodeFeatureNames_ecal[:num_features]
-
-                
         self.num_nodeFeatures = len(self.nodeFeatureNames)
-        self.num_targetFeatures = output_dim   #Regression on Energy only (output dim =1)  Energy + theta for output_dim=2
+
+        # Number of Predictions. E only if 1. Theta then Phi
+        self.num_targetFeatures = output_dim 
         
+        # Add conditional information to input features
+        # MOVE TO CONFIG. The config should have the array of strings
+        # Then we just slice the array here
         if ((self.num_targetFeatures==3) & (not self.include_ecal)):
             self.scalar_keys = self.nodeFeatureNames + ["clusterE","genP","theta", "phi"]
 
@@ -113,19 +120,25 @@ class MPGraphDataGenerator:
         if self.data_set!='val':
             # if not self.is_val and self.calc_stats:
             if (self.calc_stats):
-                n_scalar_files = 8 #num files to use for scaler calculation
+                n_scalar_files = 8 # num files to use for scaler calculation
                 if(not self.include_ecal):
-                    self.preprocess_scalar(n_scalar_files)    ### 1st potential place
+                    self.preprocess_scalar(n_scalar_files)  # 1st potential place
 
                 elif (self.include_ecal):
-                    self.preprocess_scalar_with_ecal(n_scalar_files)    ### 1st potential place    
+                    self.preprocess_scalar_with_ecal(n_scalar_files)  # 1st potential place    
             else:
-                self.means_dict = pickle.load(open(f"{self.stats_dir}/means.p", 'rb'), compression='gzip')
-                self.stdvs_dict = pickle.load(open(f"{self.stats_dir}/stdvs.p", 'rb'), compression='gzip')
+                self.means_dict = pickle.load(
+                    open(f"{self.stats_dir}/means.p", 'rb'), compression='gzip')
+
+                self.stdvs_dict = pickle.load(
+                    open(f"{self.stats_dir}/stdvs.p", 'rb'), compression='gzip')
                 
         elif self.data_set=='val':
-            self.means_dict = pickle.load(open(f"{self.val_stat_dir}/train/means.p", 'rb'), compression='gzip')
-            self.stdvs_dict = pickle.load(open(f"{self.val_stat_dir}/train/stdvs.p", 'rb'), compression='gzip')
+            self.means_dict = pickle.load(
+                open(f"{self.val_stat_dir}/train/means.p", 'rb'), compression='gzip')
+
+            self.stdvs_dict = pickle.load(
+                open(f"{self.val_stat_dir}/train/stdvs.p", 'rb'), compression='gzip')
             
         
         if self.already_preprocessed and os.path.isdir(self.output_dir):
@@ -136,12 +149,7 @@ class MPGraphDataGenerator:
         else:
             print('Check preprocessing config!!')
 
-
-
         if self.shuffle: np.random.shuffle(self.file_list)
-
-
-
 
 
     def preprocess_scalar(self,n_calcs):
