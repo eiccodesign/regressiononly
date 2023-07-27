@@ -14,7 +14,7 @@ import sonnet as snt
 import argparse
 import yaml
 
-from generators_knn import MPGraphDataGenerator
+from generator_common import MPGraphDataGenerator
 import block as models
 sns.set_context('poster')
 
@@ -49,13 +49,15 @@ if __name__=="__main__":
     calc_stats = data_config['calc_stats']
     num_features = data_config['num_features']
     k = data_config['k']
+    hadronic_detector = data_config['hadronic_detector']
+    include_ecal = data_config['include_ecal']
 
     concat_input = model_config['concat_input']
 
     epochs = train_config['epochs']
     learning_rate = train_config['learning_rate']
 
-    save_dir = train_config['save_dir'] + '/Block_'+time.strftime("%Y%m%d_")+config_file_name+'_k_'+str(k)
+    save_dir = train_config['save_dir'] + '/Block_'+time.strftime("%Y%m%d-%H%M_")+config_file_name+'_k_'+str(k)
     os.makedirs(save_dir, exist_ok=True)
     yaml.dump(config, open(save_dir + '/config.yaml', 'w'))
 
@@ -89,6 +91,8 @@ if __name__=="__main__":
                                           preprocess=preprocess,
                                           already_preprocessed=already_preprocessed,
                                           output_dir=train_output_dir,
+                                          hadronic_detector=hadronic_detector,
+                                          include_ecal=include_ecal,
                                           num_features=num_features,
                                           k=k)
 
@@ -101,6 +105,8 @@ if __name__=="__main__":
                                         preprocess=preprocess,
                                         already_preprocessed=already_preprocessed,
                                         output_dir=val_output_dir,
+                                        hadronic_detector=hadronic_detector,
+                                        include_ecal=include_ecal,
                                         num_features=num_features,
                                         k=k)
 
@@ -114,6 +120,8 @@ if __name__=="__main__":
                                          already_preprocessed=already_preprocessed,
                                          output_dir=test_output_dir,
                                          num_features=num_features,
+                                         hadronic_detector=hadronic_detector,
+                                         include_ecal=include_ecal,
                                          k=k)
 
     optimizer = tf.keras.optimizers.Adam(learning_rate)
@@ -130,11 +138,14 @@ if __name__=="__main__":
     best_ckpt = tf.train.latest_checkpoint(save_dir)
     last_ckpt_path = save_dir + '/last_saved_model'
 
-    if best_ckpt is not None:
-        checkpoint.restore(best_ckpt)
+    # if best_ckpt is not None:
+    #     print(f'Restoring {best_ckpt}')
+    #     checkpoint.restore(best_ckpt)
     if os.path.exists(last_ckpt_path+'.index'):
+        print(f'Restoring {last_ckpt_path}')
         checkpoint.read(last_ckpt_path)
     else:
+        print(f'Writing {last_ckpt_path}')
         checkpoint.write(last_ckpt_path)
 
     def convert_to_tuple(graphs):
@@ -348,12 +359,9 @@ if __name__=="__main__":
     all_etas = []
     start = time.time()
 
+    best_ckpt = tf.train.latest_checkpoint(save_dir)
+    print(f'Restoring {best_ckpt}')
     checkpoint.restore(best_ckpt)
-
-    if best_ckpt is not None:
-        checkpoint.restore(best_ckpt)
-    elif os.path.exists(last_ckpt_path+'.index'):
-        checkpoint.read(last_ckpt_path)
 
     for graph_data_test, targets_test in get_batch(data_gen_test.generator()):#test_iter):
         losses_test, output_tests = val_step(graph_data_test, targets_test) 

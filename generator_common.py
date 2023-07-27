@@ -14,15 +14,18 @@ from sklearn.neighbors import NearestNeighbors
 import random
 
 MIP=0.0006 ## GeV
+MIP_ECAL=0.13
 time_TH=150  ## ns
 energy_TH=0.5*MIP
+energy_TH_ECAL=0.5*MIP_ECAL
+NHITS_MIN=2
 
 #Change these for your usecase!
 
 # data_dir = '/clusterfs/ml4hep_nvme2/ftoralesacosta/regressiononly/data/'
 # out_dir = '/clusterfs/ml4hep_nvme2/ftoralesacosta/regressiononly/preprocessed_data/'
 
-data_dir = '/usr/workspace/hip/eic/log10_Uniform_03-23/log10_pi+_Uniform_0-140Gev_17deg_1/'
+data_dir = '/usr/workspace/hip/eic/log10_Uniform_03-23/ECCE_HCAL_Files/hcal_pi+_log10discrete_1GeV-150GeV_10deg-30deg_07-23-23/'
 out_dir = '/usr/WS2/karande1/eic/gitrepos/regressiononly/preprocessed_data/train/'
 
 
@@ -38,9 +41,9 @@ class MPGraphDataGenerator:
                  is_val: bool = False,
                  output_dir: str = None,
                  num_features: int = 4,
-                 output_dim: int =1,
-                 hadronic_detector: str =None,
-                 include_ecal: bool = True
+                 output_dim: int = 1,
+                 hadronic_detector: str = None,
+                 include_ecal: bool = True,
                  k: int = 5):
         """Initialization"""
 
@@ -52,6 +55,9 @@ class MPGraphDataGenerator:
         # self.stats_dir = os.path.realpath(self.output_dir)
         self.stats_dir = os.path.realpath(self.output_dir+'../')
         self.output_dim= output_dim
+
+        self.hadronic_detector = hadronic_detector
+        self.include_ecal = include_ecal
 
         self.file_list = file_list
         self.num_files = len(self.file_list)
@@ -72,20 +78,22 @@ class MPGraphDataGenerator:
             self.detector_name = "ZDCHcalHitsReco"
             self.sampling_fraction =0.0224  ## CHANGE THIS NUMBER?    
 
-        self.nodeFeatureNames = [".energy",".position.z", ".position.x",".position.y",]
-        self.nodeFeatureNames_ecal =['ecal_energy','ecal_posz', 'ecal_posx', 'ecal_posy']
+        self.detector_ecal='EcalEndcapPHitsReco'
+        self.nodeFeatureNames = [".energy", ".position.z", ".position.x", ".position.y",]
+        # self.nodeFeatureNames_ecal =['ecal_energy', 'ecal_posz', 'ecal_posx', 'ecal_posy']
 
         # Slice the nodeFeatureNames list to only include the first 'num_features' elements
         self.nodeFeatureNames = self.nodeFeatureNames[:num_features]
-        self.nodeFeatureNames_ecal = self.nodeFeatureNames_ecal[:num_features]
+        # self.nodeFeatureNames_ecal = self.nodeFeatureNames_ecal[:num_features]
         
         self.num_nodeFeatures = len(self.nodeFeatureNames)
         self.num_targetFeatures = 1 #Regression on Energy only for now
 
-        #self.scalar_keys = self.nodeFeatureNames + ["clusterE","genP"]
-        self.scalar_keys = self.nodeFeatureNames + ["clusterE","genP"]    
-        if (self.include_ecal):
-            self.scalar_keys = self.nodeFeatureNames + self.nodeFeatureNames_ecal+ ["clusterE","genP"]     
+        self.scalar_keys = [self.detector_name+self.nodeFeatureNames[0]] + \
+                           self.nodeFeatureNames[1:] + \
+                           ["clusterE","genP"]    
+        if self.include_ecal:
+            self.scalar_keys = self.scalar_keys + [self.detector_ecal+self.nodeFeatureNames[0]]
 
         self.edgeCreationFeatures = [".position.x", ".position.y", ".position.z", ]
         self.k = k
@@ -99,18 +107,15 @@ class MPGraphDataGenerator:
             self.means_dict = pickle.load(open(f"{self.stats_dir}/means.p", 'rb'), compression='gzip')
             self.stdvs_dict = pickle.load(open(f"{self.stats_dir}/stdvs.p", 'rb'), compression='gzip')
 
-
         if self.already_preprocessed and os.path.isdir(self.output_dir):
-            self.file_list = [self.output_dir + f'data_{i:03d}.p' for i in range(self.num_files)]
+            self.processed_file_list = [self.output_dir + f'data_{i:03d}.p' for i in range(self.num_files)]
         elif self.preprocess and self.output_dir is not None:
             os.makedirs(self.output_dir, exist_ok=True)
             self.preprocess_data()
         else:
             print('Check preprocessing config!!')
 
-
-
-        if self.shuffle: np.random.shuffle(self.file_list)
+        if self.shuffle: np.random.shuffle(self.processed_file_list)
 
 
     def preprocess_scalar(self,n_calcs):
@@ -120,23 +125,30 @@ class MPGraphDataGenerator:
         self.n_calcs = min(n_calcs,self.num_files)
 
         with Manager() as manager:
-            means = manager.list()
-            stdvs = manager.list()
+            means = manager.list()  # dict({k:[] for k in self.scalar_keys})
+            stdvs = manager.list()  # dict({k:[] for k in self.scalar_keys})
 
             for i in range(self.n_calcs):
                 p = Process(target=self.scalar_processor,
-                            args=(i,means,stdvs), daemon=True)
+                            args=(i, means, stdvs), daemon=True)
                 p.start()
                 self.procs.append(p)
 
             for p in self.procs:
                 p.join()
 
-            means = np.mean(means,axis=0) #avg means along file dimension
-            stdvs = np.mean(stdvs,axis=0) #avg stdvs from files
+            # means = np.mean(means,axis=0) #avg means along file dimension
+            # stdvs = np.mean(stdvs,axis=0) #avg stdvs from files
 
-            self.means_dict = dict(zip(self.scalar_keys,means))
-            self.stdvs_dict = dict(zip(self.scalar_keys,stdvs))
+            means_dict = dict({k:[] for k in self.scalar_keys})
+            stdvs_dict = dict({k:[] for k in self.scalar_keys})
+            for m, s in zip(means, stdvs):
+                for k in self.scalar_keys:
+                    means_dict[k].append(m[k])
+                    stdvs_dict[k].append(s[k])
+            
+            self.means_dict = {k: np.mean(v) for k, v in means_dict.items()}
+            self.stdvs_dict = {k: np.mean(v) for k, v in stdvs_dict.items()}
             print("MEANS = ",self.means_dict)
             print("STDVS = ",self.stdvs_dict)
             print(f"saving calc files to {self.stats_dir}/means.p\n")
@@ -150,56 +162,77 @@ class MPGraphDataGenerator:
         print(f"Finished Mean and Standard Deviation Calculation using { n_calcs } Files")
 
 
-    def scalar_processor(self,worker_id,means,stdvs):
+    def scalar_processor(self, worker_id, means, stdvs):
 
         file_num = worker_id
 
-        while file_num < self.num_files:
-            print(f"Mean + Stdev Calc. file number {file_num}")
-            f_name = self.file_list[file_num]
+        # while file_num < self.n_calcs:
+        print(f"Mean + Stdev Calc. file number {file_num}")
+        f_name = self.file_list[file_num]
 
-            event_tree = ur.open(f_name)['events']
-            num_events = event_tree.num_entries
-            event_data = event_tree.arrays() #need to use awkward
+        event_tree = ur.open(f_name)['events']
+        num_events = event_tree.num_entries
+        event_data = event_tree.arrays() #need to use awkward
 
-            file_means = []
-            file_stdvs = []
+        file_means = {k:[] for k in self.scalar_keys}
+        file_stdvs = {k:[] for k in self.scalar_keys}
 
-            cell_E = event_data[self.detector_name+".energy"]
-            ### Bishnu Added following 2 lines to apply time and hit energy cuts
-            time=event_data[self.detector_name+".time"]
-            mask = (cell_E > energy_TH) & (time<time_TH) & (cell_E<1e10)
+        cell_E = event_data[self.detector_name+".energy"]
+        time=event_data[self.detector_name+".time"]
+        mask = (cell_E > energy_TH) & (time<time_TH) & (cell_E<1e10)
 
-            for feature_name in self.nodeFeatureNames:
-                feature_data = event_data[self.detector_name+feature_name][mask]
+        if self.include_ecal:
+            cell_E_ecal = event_data[self.detector_ecal+".energy"]
+            time_ecal   = event_data[self.detector_ecal+".time"]
+            mask_ecal = (cell_E_ecal > energy_TH_ECAL) & (time_ecal<time_TH) & (cell_E_ecal<1e10) 
 
-                if "energy" in feature_name:  
-                    feature_data = np.log10(feature_data)
+        for k in self.scalar_keys:
+            # print(k)
+            if 'position' in k:
+                feature_data = event_data[self.detector_name+k][mask]
+                if self.include_ecal:
+                    feature_data_ecal = event_data[self.detector_ecal+k][mask_ecal]
+                    feature_data = ak.concatenate([feature_data, feature_data_ecal])
 
-                file_means.append(ak.mean(feature_data))
-                file_stdvs.append(ak.std(feature_data))
-                #unfortunatley, there's a version error so we can't use ak.nanmean...
-
-            cluster_sum_E = ak.sum(cell_E,axis=-1) #global node feature later
-            mask = cluster_sum_E > 0.0
-            cluster_calib_E  = np.log10(cluster_sum_E[mask] / self.sampling_fraction)
-            file_means.append(np.mean(cluster_calib_E))
-            file_stdvs.append(np.std(cluster_calib_E))
+                file_means[k].append(np.mean(feature_data))
+                file_stdvs[k].append(np.std(feature_data))
             
-            genPx = event_data['MCParticles.momentum.x'][:,2]
-            genPy = event_data['MCParticles.momentum.y'][:,2]
-            genPz = event_data['MCParticles.momentum.z'][:,2]
-            genP = np.log10(np.sqrt(genPx*genPx + genPy*genPy + genPz*genPz))
-            #generation has the parent particle at index 2
+            elif 'energy' in k:
+                if 'Ecal' in k:  
+                    feature_data = np.log10(event_data[k][mask_ecal])
+                else:
+                    feature_data = np.log10(event_data[k][mask])
 
-            file_means.append(ak.mean(genP))
-            file_stdvs.append(ak.std(genP))
+                file_means[k].append(np.mean(feature_data))
+                file_stdvs[k].append(np.std(feature_data))
+            else:
+                continue
 
-            means.append(file_means)
-            stdvs.append(file_stdvs)
+        cluster_sum_E_hcal = ak.sum(cell_E[mask],axis=-1) #global node feature later
+        total_calib_E = cluster_sum_E_hcal / self.sampling_fraction
+        
+        if self.include_ecal:
+            cluster_sum_E_ecal = ak.sum(cell_E_ecal[mask_ecal],axis=-1)
+            total_calib_E = total_calib_E + cluster_sum_E_ecal ## sampling fractionn crrrection is already done
 
-            file_num += self.num_procs
+        mask = total_calib_E > 0.0
+        cluster_calib_E = np.log10(total_calib_E[mask])
 
+        file_means['clusterE'].append(np.mean(cluster_calib_E))
+        file_stdvs['clusterE'].append(np.std(cluster_calib_E))
+        
+        genPx = event_data['MCParticles.momentum.x'][:,2]
+        genPy = event_data['MCParticles.momentum.y'][:,2]
+        genPz = event_data['MCParticles.momentum.z'][:,2]
+        genP = np.log10(np.sqrt(genPx*genPx + genPy*genPy + genPz*genPz))
+
+        file_means['genP'].append(ak.mean(genP))
+        file_stdvs['genP'].append(ak.std(genP))
+
+        means.append(file_means)
+        stdvs.append(file_stdvs)
+        # print(f'\nMeans: {means}')
+        # print(f'Stds: {stdvs}')
 
     def preprocess_data(self):
         print(f'\nPreprocessing and saving data to {os.path.realpath(self.output_dir)}')
@@ -212,7 +245,7 @@ class MPGraphDataGenerator:
         for p in self.procs:
             p.join()
 
-        self.file_list = [self.output_dir + f'data_{i:03d}.p' for i in range(self.num_files)]
+        self.processed_file_list = [self.output_dir + f'data_{i:03d}.p' for i in range(self.num_files)]
 
 
     def preprocessor(self, worker_id):
@@ -233,7 +266,8 @@ class MPGraphDataGenerator:
 
                 nodes, global_node, cluster_num_nodes = self.get_nodes(event_data, event_ind)
                 if cluster_num_nodes<2:
-                    senders, receivers, edges = None, None, None
+                    # senders, receivers, edges = None, None, None
+                    continue
                 else:
                     senders, receivers, edges = self.get_edges(event_data, event_ind, cluster_num_nodes)
                 
@@ -241,14 +275,10 @@ class MPGraphDataGenerator:
                     continue
 
                 graph = {'nodes': nodes.astype(np.float32), 
-                        'globals': global_node.astype(np.float32),
-                        'senders': senders, 
-                        'receivers': receivers, 
-                        'edges': edges} 
-
-                # graph = {'nodes': nodes.astype(np.float32), 'globals': global_node.astype(np.float32),
-                #     'senders': senders.astype(np.int32), 'receivers': receivers.astype(np.int32),
-                #     'edges': edges.astype(np.float32)}
+                         'globals': global_node.astype(np.float32),
+                         'senders': senders, 
+                         'receivers': receivers, 
+                         'edges': edges} 
 
                 target = self.get_GenP(event_data,event_ind)
 
@@ -265,13 +295,11 @@ class MPGraphDataGenerator:
             file_num += self.num_procs
 
 
-
-    def get_nodes(self,event_data,event_ind):
+    def get_nodes(self, event_data, event_ind):
 
         nodes = self.get_cell_data(event_data[event_ind])
         cluster_num_nodes = len(nodes)
         global_node = self.get_cluster_calib(event_data[event_ind])
-        # print("NODES = ",nodes)
 
         return nodes, np.array([global_node]), cluster_num_nodes
 
@@ -280,54 +308,90 @@ class MPGraphDataGenerator:
         cell_data = []
 
         cell_E = event_data[self.detector_name+".energy"]
-        ### Bishnu Added following 2 lines to apply time and hit energy cuts
         time=event_data[self.detector_name+".time"]
         mask = (cell_E > energy_TH) & (time<time_TH) & (cell_E<1e10)
 
+        if self.include_ecal:
+            cell_data_ecal = []
+            cell_E_ecal = event_data[self.detector_ecal+".energy"]
+            time_ecal   = event_data[self.detector_ecal+".time"]
+            mask_ecal = (cell_E_ecal > energy_TH_ECAL) & (time_ecal<time_TH) & (cell_E_ecal<1e10) 
 
         for feature in self.nodeFeatureNames:
 
             feature_data = event_data[self.detector_name+feature][mask]
-
             if "energy" in feature:  
                 feature_data = np.log10(feature_data)
-
-            #standard scalar transform
-            feature_data = (feature_data - self.means_dict[feature]) / self.stdvs_dict[feature]
-
+                feature_data = (feature_data - self.means_dict[self.detector_name+feature])/self.stdvs_dict[self.detector_name+feature]
+            else:
+                feature_data = (feature_data - self.means_dict[feature]) / self.stdvs_dict[feature]
             cell_data.append(feature_data)
 
+            if self.include_ecal:
+                feature_data_ecal = event_data[self.detector_ecal+feature][mask_ecal]
+                if "energy" in feature:
+                    feature_data_ecal = np.log10(feature_data_ecal)
+                    feature_data_ecal = (feature_data_ecal - self.means_dict[self.detector_ecal+feature])/self.stdvs_dict[self.detector_ecal+feature]
+                else:
+                    feature_data_ecal = (feature_data_ecal- self.means_dict[feature]) / self.stdvs_dict[feature]
+                cell_data_ecal.append(feature_data_ecal)
 
-        return np.swapaxes(cell_data,0,1) # returns [Events, Features]
-        #alternative: cell_data = np.reshape(cell_data, (len(self.nodeFeatureNames), -1)).T
+
+        cell_data = np.swapaxes(cell_data, 0, 1)
+        
+        if self.include_ecal:
+            cell_data_ecal = np.swapaxes(cell_data_ecal, 0, 1)
+            col_with_zero_ecal = np.zeros((cell_data_ecal.shape[0],1))
+            cell_data_ecal = np.hstack((cell_data_ecal, col_with_zero_ecal))
+
+            col_with_one_hcal = np.ones((cell_data.shape[0],1))
+            cell_data = np.hstack((cell_data, col_with_one_hcal))
+
+            cell_data = np.vstack((cell_data, cell_data_ecal))
+
+        return cell_data # returns [Events, Features]
 
 
     def get_cluster_calib(self, event_data):
         """ Calibrate Clusters Energy """
 
         cell_E = event_data[self.detector_name+".energy"]
-        cluster_sum_E = np.sum(cell_E,axis=-1) #global node feature later
-        if cluster_sum_E <= 0:
+        cluster_calib_E = np.sum(cell_E,axis=-1)/self.sampling_fraction #global node feature later
+        
+        if self.include_ecal:
+            cell_E_ecal = event_data[self.detector_name+".energy"]
+            cluster_calib_E_ecal = np.sum(cell_E_ecal,axis=-1)
+            cluster_calib_E += cluster_calib_E_ecal
+
+        if cluster_calib_E <= 0:
             return None
 
-        cluster_calib_E  = np.log10(cluster_sum_E/self.sampling_fraction)
+        cluster_calib_E  = np.log10(cluster_calib_E)
         cluster_calib_E = (cluster_calib_E - self.means_dict["clusterE"])/self.stdvs_dict["clusterE"]
-        return(cluster_calib_E)
+        return cluster_calib_E
 
     def get_edges(self, event_data, event_ind, num_nodes):
         
         cell_E = event_data[event_ind][self.detector_name+".energy"]
-        ### Bishnu Added following 2 lines to apply time and hit energy cuts
-        time=event_data[event_ind][self.detector_name+".time"]
+        time = event_data[event_ind][self.detector_name+".time"]
         mask = (cell_E > energy_TH) & (time<time_TH) & (cell_E<1e10)
 
+        if self.include_ecal:
+            cell_E_ecal = event_data[event_ind][self.detector_ecal+".energy"]
+            time_ecal = event_data[event_ind][self.detector_ecal+".time"]
+            mask_ecal = (cell_E_ecal > energy_TH_ECAL) & (time_ecal<time_TH) & (cell_E_ecal<1e10) 
+
         nodes_NN_feats = []
-        for feature in self.nodeFeatureNames:
-
+        for feature in self.edgeCreationFeatures:
             feature_data = event_data[event_ind][self.detector_name+feature][mask]
-
-            #standard scalar transform
             feature_data = (feature_data - self.means_dict[feature]) / self.stdvs_dict[feature]
+
+            if self.include_ecal:
+                feature_data_ecal = event_data[event_ind][self.detector_ecal+feature][mask_ecal]
+                feature_data_ecal = (feature_data_ecal - self.means_dict[feature]) / self.stdvs_dict[feature]
+
+                feature_data = np.concatenate((feature_data, feature_data_ecal))
+
 
             nodes_NN_feats.append(feature_data)
         
@@ -358,25 +422,6 @@ class MPGraphDataGenerator:
         return genP
 
 
-
-    #FIXME: DELETE THIS AND TARGET SCALARS
-    def get_cell_scalars(self,event_data):
-
-        means = []
-        stdvs = []
-
-        for feature in nodeFeatureNames:
-            means.append(np.nanmean(event_data[feature]))
-            stdvs.append(np.nanstd( event_data[feature]))
-
-        return means, stdvs
-
-
-    def get_target_scalars(self,target):
-
-        return np.nanmean(target), np.nanstd(target)
-
-
     def get_meta(self, event_data, event_ind):
         """ 
         Reading meta data
@@ -395,7 +440,7 @@ class MPGraphDataGenerator:
 
         file_num = worker_id
         while file_num < self.num_files:
-            file_data = pickle.load(open(self.file_list[file_num], 'rb'), compression='gzip')
+            file_data = pickle.load(open(self.processed_file_list[file_num], 'rb'), compression='gzip')
 
             # print("FILE DATA SHAPE = ",np.shape(file_data))
 
@@ -463,16 +508,19 @@ class MPGraphDataGenerator:
 
 if __name__ == '__main__':
     pion_files = np.sort(glob.glob(data_dir+'*.root')) #dirs L14
-    pion_files = pion_files[:4]
+    pion_files = pion_files[2:10]
     # print("Pion Files = ",pion_files)
 
     data_gen = MPGraphDataGenerator(file_list=pion_files, 
                                     batch_size=32,
                                     shuffle=False,
-                                    num_procs=4,
+                                    num_procs=16,
+                                    # calc_stats=True,
                                     preprocess=True,
                                     already_preprocessed=False,
                                     output_dir=out_dir,
+                                    hadronic_detector="hcal",
+                                    include_ecal=True,
                                     num_features=4)
 
     gen = data_gen.generator()
