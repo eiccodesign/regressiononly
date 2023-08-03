@@ -1,6 +1,6 @@
 # Regression Only Repo
 ### TO DOs
-An example plotting notebook, based on functions defined in `plotting.py` that loads data (not in plain text).
+An example plotting notebook, based on functions defined in `plotting.py` that loads the model, does inference (saving to .npy), and plots.
 
 Conversion of train_block.py to a class structure, so we can instantiate the class for standalone inference.
 
