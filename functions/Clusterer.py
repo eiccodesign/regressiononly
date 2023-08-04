@@ -43,6 +43,7 @@ class Strawman_Clusterer:
         self.hit_e_max = 1e10
         self.hit_t_max = 150
         self.cluster_e_min = 0
+        self.get_angles=True
 
         self.n_Z_layers=n_Z_layers
         self.cell_level = cell_level
@@ -64,20 +65,28 @@ class Strawman_Clusterer:
     def run_clusterer(self):
             self.get_genP()
             self.get_hits_e() #Ignor DeprecationWarning: `np.str`
+            self.get_hits_x()
+            self.get_hits_y()
+            self.get_hits_z()
             self.get_cluster_sum()
             self.apply_cluster_cuts() #applies to cluster and genP
             self.apply_sampling_fraction()
+            self.get_cluster_angles()
             self.np_save_genP_clusterE()
 
 
     def run_segmentation_clusterer(self):
             self.get_genP()
             self.get_hits_e()
+            self.get_hits_x()
+            self.get_hits_y()
             self.get_hits_z()
+            #self.get_cluster_angles()
             self.get_segmented_cluster_sum()
             self.apply_cluster_cuts() #applies to cluster and genP
             self.apply_sampling_fraction()
             self.np_save_genP_clusterE()
+            
 
 
     def get_hits_e(self):
@@ -103,6 +112,40 @@ class Strawman_Clusterer:
 
             # print(inspect.stack()[0][3]," Done") #prints current function
             return
+
+    def get_hits_x(self):
+
+        if self.hits_e_exist():
+            print("Getting Cell X information")
+
+            with ur.open(self.file) as ur_file:
+                ur_tree = ur_file[self.tree_name]
+                hits_x = ur_tree.array(f'{self.detector_name}.position.x', entrystop=self.num_events)
+            
+                #Min E and Max T Cuts on cells, obtained from get_hits_e()
+                self.hits_x = hits_x[self.hit_cuts]
+    
+                #For QA
+                self.flat_hits_x = ak.ravel(self.hits_x[:,::10]) #only take every 10th hit
+
+        return
+
+    def get_hits_y(self):
+
+        if self.hits_e_exist():
+            print("Getting Cell Y information")
+
+            with ur.open(self.file) as ur_file:
+                ur_tree = ur_file[self.tree_name]
+                hits_y = ur_tree.array(f'{self.detector_name}.position.y', entrystop=self.num_events)
+            
+                #Min E and Max T Cuts on cells, obtained from get_hits_e()
+                self.hits_y = hits_y[self.hit_cuts]
+    
+                #For QA
+                self.flat_hits_y = ak.ravel(self.hits_y[:,::10]) #only take every 10th hit
+
+        return
 
     def get_hits_z(self):
 
@@ -133,6 +176,29 @@ class Strawman_Clusterer:
             print("Cluster Sum Done!")
 
         return
+
+    def get_cluster_angles(self):
+
+        #get angles from enegy-weighted XYZ-coordinates
+        if (self.get_angles and self.n_Z_layers > 1):
+            print("Calculating energy-weighted angles: theta and phi...")
+            x_pos=ak.sum(self.flat_hits_x*self.flat_hits_e,axis=-1)/ak.sum(self.flat_hits_e,axis=-1)
+            y_pos=ak.sum(self.flat_hits_y*self.flat_hits_e,axis=-1)/ak.sum(self.flat_hits_e,axis=-1)
+            z_pos=ak.sum(self.flat_hits_z*self.flat_hits_e,axis=-1)/ak.sum(self.flat_hits_e,axis=-1)
+            
+            #calculate energy-weighted R
+            self.r_pos = np.sqrt(x_pos*x_pos + y_pos*y_pos + z_pos*z_pos)
+            
+            #calculate theta in rad only:
+            radTheta = np.arccos(z_pos/self.r_pos)
+            radPhi = np.arccos(x_pos/(self.r_pos*np.sin(radTheta)))
+            
+            #Convert theta and phi from rad to deg
+            self.thetaClust=radTheta*180/np.pi
+            self.phiClust=radPhi*180/np.pi
+
+        return
+
 
     def get_segmented_cluster_sum(self):
 
@@ -238,6 +304,10 @@ class Strawman_Clusterer:
         if self.hits_z_exist():
             self.save_npy(self.hits_z, "flat_hits_z")
             # self.save_npy(self.flat_hits_z, "flat_hits_z")
+            
+        if self.cluster_angles_exist():
+            self.save_npy(self.thetaClust,"theta_cluster")
+            self.save_npy(self.phiClust,"phi_cluster")
 
         self.save_npy(self.sampling_fraction, "sampling_fraction")
 
@@ -260,10 +330,36 @@ class Strawman_Clusterer:
             return False
         return True
 
+    def hits_x_exist(self):
+
+        if not hasattr(self, 'hits_x'):
+            print(f"hits_x does not exist. May need to run get_hits_x()")
+            return False
+        return True
+
+    def hits_y_exist(self):
+
+        if not hasattr(self, 'hits_y'):
+            print(f"hits_y does not exist. May need to run get_hits_y()")
+            return False
+        return True
+
     def hits_z_exist(self):
 
         if not hasattr(self, 'hits_z'):
             print(f"hits_z does not exist. May need to run get_hits_z()")
+            return False
+        return True
+
+    def cluster_angles_exist(self):
+
+        self.hits_e_exist()
+
+        if not hasattr(self, 'thetaClust'):
+            print(f"Error: thetaClust not set. get_cluster_angles() needs to be run first") 
+            return False
+        if not hasattr(self, 'phiClust'):
+            print(f"Error: get_cluster_angles() needs to be run") 
             return False
         return True
 
