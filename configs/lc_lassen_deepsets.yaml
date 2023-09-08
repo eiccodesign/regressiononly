@@ -1,12 +1,12 @@
 data:
-  already_preprocessed: False
+  already_preprocessed: True
   batch_size: 256
-  calc_stats: True
+  calc_stats: False
   data_dir: /usr/workspace/hip/eic/log10_Uniform_03-23/ECCE_HCAL_Files/hcal_pi+_log10continuous_1GeV-150GeV_10deg-30deg_07-21-23/
-  num_procs: 32
-  num_train_files: 10
-  num_val_files: 5
-  num_test_files: 5
+  num_procs: 64
+  num_train_files: 200
+  num_val_files: 46
+  # num_test_files: 6
   output_dir: preprocessed_data/
   particle_type: pion
   preprocess: true
@@ -23,6 +23,6 @@ model:
   concat_input: True
   reducer: mean
 training:
-  epochs: 10
+  epochs: 100
   learning_rate: 0.001
   save_dir: results/

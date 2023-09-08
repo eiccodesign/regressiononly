@@ -27,10 +27,6 @@ if __name__=="__main__":
     args = parser.parse_args()
 
     config = yaml.safe_load(open(args.config))
-    config_file_name = args.config
-
-    config_file_name = config_file_name.split('.yaml')[0]
-    config_file_name = config_file_name.split('_')[-1]
 
     data_config = config['data']
     model_config = config['model']
@@ -39,7 +35,7 @@ if __name__=="__main__":
     data_dir = data_config['data_dir']
     num_train_files = data_config['num_train_files']
     num_val_files = data_config['num_val_files']
-    num_test_files = data_config['num_test_files']
+    # num_test_files = data_config['num_test_files']
     batch_size = data_config['batch_size']
     shuffle = data_config['shuffle']
     num_procs = data_config['num_procs']
@@ -52,12 +48,12 @@ if __name__=="__main__":
     hadronic_detector = data_config['hadronic_detector']
     include_ecal = data_config['include_ecal']
 
-    concat_input = model_config['concat_input']
+    block_type = model_config['block_type']
 
     epochs = train_config['epochs']
     learning_rate = train_config['learning_rate']
 
-    save_dir = train_config['save_dir'] + '/Block_'+time.strftime("%Y%m%d-%H%M_")+config_file_name+'_k_'+str(k)
+    save_dir = train_config['save_dir'] + '/ECCE_'+time.strftime("%Y%m%d-%H%M_")+block_type+f'_{num_features:d}D'
     os.makedirs(save_dir, exist_ok=True)
     yaml.dump(config, open(save_dir + '/config.yaml', 'w'))
 
@@ -65,11 +61,11 @@ if __name__=="__main__":
     train_start = 0
     train_end = train_start + num_train_files
     val_end = train_end + num_val_files
-    test_end = val_end + num_test_files
+    # test_end = val_end + num_test_files
 
     root_train_files = root_files[train_start:train_end]
     root_val_files = root_files[train_end:val_end]
-    root_test_files = root_files[val_end:test_end]
+    # root_test_files = root_files[val_end:test_end]
 
     train_output_dir = None
     val_output_dir = None
@@ -78,7 +74,7 @@ if __name__=="__main__":
     if preprocess:
         train_output_dir = output_dir + '/train/'
         val_output_dir = output_dir + '/val/'
-        test_output_dir = output_dir + '/test/'
+        # test_output_dir = output_dir + '/test/'
 
 
     #Generators
@@ -110,19 +106,19 @@ if __name__=="__main__":
                                         num_features=num_features,
                                         k=k)
 
-    data_gen_test = MPGraphDataGenerator(file_list=root_test_files,
-                                         batch_size=batch_size,
-                                         shuffle=shuffle,
-                                         num_procs=num_procs,
-                                         calc_stats=False,
-                                         is_val=True, #decides to save mean and std
-                                         preprocess=preprocess,
-                                         already_preprocessed=already_preprocessed,
-                                         output_dir=test_output_dir,
-                                         num_features=num_features,
-                                         hadronic_detector=hadronic_detector,
-                                         include_ecal=include_ecal,
-                                         k=k)
+    # data_gen_test = MPGraphDataGenerator(file_list=root_test_files,
+    #                                      batch_size=batch_size,
+    #                                      shuffle=shuffle,
+    #                                      num_procs=num_procs,
+    #                                      calc_stats=False,
+    #                                      is_val=True, #decides to save mean and std
+    #                                      preprocess=preprocess,
+    #                                      already_preprocessed=already_preprocessed,
+    #                                      output_dir=test_output_dir,
+    #                                      num_features=num_features,
+    #                                      hadronic_detector=hadronic_detector,
+    #                                      include_ecal=include_ecal,
+    #                                      k=k)
 
     optimizer = tf.keras.optimizers.Adam(learning_rate)
 
@@ -265,10 +261,10 @@ if __name__=="__main__":
 
             training_loss.append(losses_tr.numpy())
 
-            if not (i)%50:
+            if not (i)%100:
                 end = time.time()
                 print('Iter: {:03d}, Tr_loss_curr: {:.4f}, Tr_loss_mean: {:.4f}'. \
-                      format(i, training_loss[-1], np.mean(training_loss)), end='\t')
+                      format(i, training_loss[-1], np.mean(training_loss)), end='  ')
                 print('Took {:.3f} secs'.format(end-start))
                 start = time.time()
 
@@ -276,7 +272,7 @@ if __name__=="__main__":
 
         end = time.time()
         print('Iter: {:03d}, Tr_loss_curr: {:.4f}, Tr_loss_mean: {:.4f}'. \
-              format(i, training_loss[-1], np.mean(training_loss)), end='\t')
+              format(i, training_loss[-1], np.mean(training_loss)), end='  ')
         print('Took {:.3f} secs'.format(end-start))
 
         training_loss_epoch.append(training_loss)
@@ -299,10 +295,10 @@ if __name__=="__main__":
             all_targets.append(targets_val)
             all_outputs.append(output_vals)
 
-            if not (i)%50:
+            if not (i)%100:
                 end = time.time()
                 print('Iter: {:03d}, Val_loss_curr: {:.4f}, Val_loss_mean: {:.4f}'. \
-                      format(i, val_loss[-1], np.mean(val_loss)), end='\t')
+                      format(i, val_loss[-1], np.mean(val_loss)), end='  ')
                 print('Took {:.3f} secs'.format(end-start))
                 start = time.time()
 
@@ -310,7 +306,7 @@ if __name__=="__main__":
 
         end = time.time()
         print('Iter: {:03d}, Val_loss_curr: {:.4f}, Val_loss_mean: {:.4f}'. \
-              format(i, val_loss[-1], np.mean(val_loss)), end='\t')
+              format(i, val_loss[-1], np.mean(val_loss)), end='  ')
         print('Took {:.3f} secs'.format(end-start))
 
         epoch_end = time.time()
@@ -341,7 +337,7 @@ if __name__=="__main__":
         else:
             print('\nLoss did not decrease from {:.6f}'.format(curr_loss))
 
-        if not (e+1)%4:
+        if not (e+1)%5:
             optimizer.learning_rate = optimizer.learning_rate/2
             if optimizer.learning_rate<1e-6:
                 optimizer.learning_rate = 1e-6 
@@ -350,54 +346,54 @@ if __name__=="__main__":
                 print('\nLearning rate decreased to: {:.5e}'.format(optimizer.learning_rate.value()))
 
 
-    #Inference over Test Dataset
-    print('\nTest Predictions...')
-    i = 1
-    test_loss = []
-    all_targets = []
-    all_outputs = []
-    all_etas = []
-    start = time.time()
+    # #Inference over Test Dataset
+    # print('\nTest Predictions...')
+    # i = 1
+    # test_loss = []
+    # all_targets = []
+    # all_outputs = []
+    # all_etas = []
+    # start = time.time()
 
-    best_ckpt = tf.train.latest_checkpoint(save_dir)
-    print(f'Restoring {best_ckpt}')
-    checkpoint.restore(best_ckpt)
+    # best_ckpt = tf.train.latest_checkpoint(save_dir)
+    # print(f'Restoring {best_ckpt}')
+    # checkpoint.restore(best_ckpt)
 
-    for graph_data_test, targets_test in get_batch(data_gen_test.generator()):#test_iter):
-        losses_test, output_tests = val_step(graph_data_test, targets_test) 
-        # val_step above simply evaluates the model with the inputs as the first argument. Returns predictions.
-        # This function is used for validation, but since THIS use block is outside of the training loop, 
-        # the resulting loss and set of predictions are not used in the training at all.
+    # for graph_data_test, targets_test in get_batch(data_gen_test.generator()):#test_iter):
+    #     losses_test, output_tests = val_step(graph_data_test, targets_test) 
+    #     # val_step above simply evaluates the model with the inputs as the first argument. Returns predictions.
+    #     # This function is used for validation, but since THIS use block is outside of the training loop, 
+    #     # the resulting loss and set of predictions are not used in the training at all.
 
-        targets_test = targets_test.numpy()
-        output_tests = output_tests.numpy().squeeze()
+    #     targets_test = targets_test.numpy()
+    #     output_tests = output_tests.numpy().squeeze()
 
-        test_loss.append(losses_test.numpy())
-        all_targets.append(targets_test)
-        all_outputs.append(output_tests)
+    #     test_loss.append(losses_test.numpy())
+    #     all_targets.append(targets_test)
+    #     all_outputs.append(output_tests)
 
-        if not (i)%50:
-            end = time.time()
-            print('Iter: {:03d}, Test_loss_curr: {:.4f}, Test_loss_mean: {:.4f}'. \
-                  format(i, test_loss[-1], np.mean(test_loss)), end='\t')
-            print('Took {:.3f} secs'.format(end-start))
-            start = time.time()
+    #     if not (i)%100:
+    #         end = time.time()
+    #         print('Iter: {:03d}, Test_loss_curr: {:.4f}, Test_loss_mean: {:.4f}'. \
+    #               format(i, test_loss[-1], np.mean(test_loss)), end='  ')
+    #         print('Took {:.3f} secs'.format(end-start))
+    #         start = time.time()
 
-        i += 1 
+    #     i += 1 
 
-    end = time.time()
-    print('Iter: {:03d}, Test_loss_curr: {:.4f}, Test_loss_mean: {:.4f}'. \
-          format(i, test_loss[-1], np.mean(test_loss)), end='\t')
-    print('Took {:.3f} secs'.format(end-start))
+    # end = time.time()
+    # print('Iter: {:03d}, Test_loss_curr: {:.4f}, Test_loss_mean: {:.4f}'. \
+    #       format(i, test_loss[-1], np.mean(test_loss)), end='  ')
+    # print('Took {:.3f} secs'.format(end-start))
 
-    epoch_end = time.time()
+    # epoch_end = time.time()
 
-    all_targets = np.concatenate(all_targets)
-    all_outputs = np.concatenate(all_outputs)
+    # all_targets = np.concatenate(all_targets)
+    # all_outputs = np.concatenate(all_outputs)
 
-    np.savez(save_dir+'/test_predictions', 
-             targets=all_targets, 
-             outputs=all_outputs)
-    np.savez(save_dir+'/test_loss', test=test_loss)
+    # np.savez(save_dir+'/test_predictions', 
+    #          targets=all_targets, 
+    #          outputs=all_outputs)
+    # np.savez(save_dir+'/test_loss', test=test_loss)
 
 

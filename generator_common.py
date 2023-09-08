@@ -52,9 +52,10 @@ class MPGraphDataGenerator:
         self.calc_stats = calc_stats
         self.is_val = is_val
         self.output_dir = output_dir
-        # self.stats_dir = os.path.realpath(self.output_dir)
         self.stats_dir = os.path.realpath(self.output_dir+'../')
         self.output_dim= output_dim
+
+        os.makedirs(self.output_dir, exist_ok=True)
 
         self.hadronic_detector = hadronic_detector
         self.include_ecal = include_ecal
@@ -80,20 +81,20 @@ class MPGraphDataGenerator:
 
         self.detector_ecal='EcalEndcapPHitsReco'
         self.nodeFeatureNames = [".energy", ".position.z", ".position.x", ".position.y",]
-        # self.nodeFeatureNames_ecal =['ecal_energy', 'ecal_posz', 'ecal_posx', 'ecal_posy']
-
-        # Slice the nodeFeatureNames list to only include the first 'num_features' elements
-        self.nodeFeatureNames = self.nodeFeatureNames[:num_features]
-        # self.nodeFeatureNames_ecal = self.nodeFeatureNames_ecal[:num_features]
-        
-        self.num_nodeFeatures = len(self.nodeFeatureNames)
-        self.num_targetFeatures = 1 #Regression on Energy only for now
-
         self.scalar_keys = [self.detector_name+self.nodeFeatureNames[0]] + \
                            self.nodeFeatureNames[1:] + \
                            ["clusterE","genP"]    
         if self.include_ecal:
             self.scalar_keys = self.scalar_keys + [self.detector_ecal+self.nodeFeatureNames[0]]
+
+
+        # Slice the nodeFeatureNames list to only include the first 'num_features' elements
+        self.nodeFeatureNames = self.nodeFeatureNames[:num_features]
+        print(f'\n\n######################################')
+        print(f'Using features: {self.nodeFeatureNames}') 
+        print(f'######################################\n')
+        self.num_nodeFeatures = len(self.nodeFeatureNames)
+        self.num_targetFeatures = 1 #Regression on Energy only for now
 
         self.edgeCreationFeatures = [".position.x", ".position.y", ".position.z", ]
         self.k = k

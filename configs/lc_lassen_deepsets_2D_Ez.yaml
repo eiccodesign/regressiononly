@@ -7,35 +7,21 @@ data:
   num_train_files: 200
   num_val_files: 46
   # num_test_files: 6
-  output_dir: preprocessed_data/
+  output_dir: /p/vast1/karande1/eic/preprocessed_data/2D_Ez/
   particle_type: pion
   preprocess: true
   shuffle: True
-  num_features: 4
+  num_features: 2
   k: 10
   hadronic_detector: hcal
   include_ecal: true
 model:
-  block_type: graphnet
+  block_type: deepsets
   num_blocks: 1
   num_layers: 4
   latent_size: 64
-  concat_input: true
+  concat_input: True
   reducer: mean
-  edge_block_opt:
-    use_edges: true
-    use_globals: true
-    use_receiver_nodes: true
-    use_sender_nodes: true
-  global_block_opt:
-    use_edges: false
-    use_globals: true
-    use_nodes: true
-  node_block_opt:
-    use_globals: true
-    use_nodes: true
-    use_received_edges: true
-    use_sent_edges: false
 training:
   epochs: 100
   learning_rate: 0.001
