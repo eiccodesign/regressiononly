@@ -7,6 +7,7 @@ import awkward as ak
 import glob
 import math
 import json
+import compress_pickle as pickle
 from scipy.optimize import curve_fit
 import uproot3 as ur
 def gaussian(x, amp, mean, sigma):
@@ -24,11 +25,19 @@ star_res = [0.18, 0.16, 0.15, 0.14, 0.13, 0.098, 0.092, 0.090]
 ECCE_res = [0.15,0.127,0.117,0.121,0.106,0.102,0.092,0.098]
 ECCE_energies = [10,20,30,40,50,60,80,100]
 
-MIP=0.0006 ## GeV                                                                                                                 
+MIP=0.0006 ## GeV    
+MIP_ECAL=0.13
 time_TH=150  ## ns                                                                                                               
-MIP_TH=0.5*MIP
+MIP_TH_HCAL=0.5*MIP
+MIP_TH_ECAL=0.5*MIP_ECAL
 def ClusterSum_vs_GenP(clusterSum, genP, label, take_log = False, ylabel="Cluster Sum", plot_offset = 5.0):
-
+    '''
+    if ylabel=="Cluster Sum"
+    title_x="Energy [GeV]"
+    title_x="Theta [Deg]"
+    title_y="Cluster Sum Energy [GeV]"
+    title_y='Predicted Theta [Deg]'
+    '''
     fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(12, 10), constrained_layout=True)
     cmap = copy(plt.cm.plasma)
     cmap.set_bad(cmap(0))
@@ -116,7 +125,7 @@ def Plot_Loss_Curve(loss,val_loss,label,loss_string):
     #plt.tick_params(direction='in',right=True,top=True,length=10)
     #plt.tick_params(direction='in',right=True,top=True,which='minor')
     axes[0].set_xlim([-1,101])
-    axes[0].set_ylim(0.02,0.15)
+    axes[0].set_ylim(0.0,0.15)
     
     axes[0].legend(['train', 'validation'], loc='upper right',fontsize=22)
     plt.savefig(f"{label}/ROOT_Correlation.png")
@@ -412,6 +421,11 @@ def get_greek_particle(particle):
         greek_particle='$e^-$'
     elif particle=='pi+' or particle=='pp':
         greek_particle='$\pi^{+}$'    
+    elif particle=='mu-' or particle=='muon':
+        greek_particle='$\mu^{-}$'
+    elif particle=='neutron' or particle=='n':
+        greek_particle='neutron'
+        
     else:
         print("You forgot to pick the particle")
     return greek_particle
@@ -462,7 +476,7 @@ def compare_loss_plots(result_paths, labels, title, particle, xlimits,ylimits):
     if col == 1:
         fig, axes = plt.subplots(num_plots, 1, figsize=(10, 8), sharex=True, sharey=True, constrained_layout=True)
     else:    
-        fig,axes = plt.subplots(row,col, figsize=(22, 10),sharex=True, sharey=True,constrained_layout=True)
+        fig,axes = plt.subplots(row,col, figsize=(22, 10),  constrained_layout=True) #sharex=True, sharey=True,
     #plt.subplots_adjust(wspace=0, hspace=0)      
     
     for index, (result_path, ilabel) in  enumerate(zip(result_paths, labels)):
@@ -475,7 +489,7 @@ def compare_loss_plots(result_paths, labels, title, particle, xlimits,ylimits):
             axes[index].plot(loss[:, -1], label="train_" + ilabel)
             axes[index].plot(val_loss[:,-1],  label="val_"+ilabel)
             axes[row-1].set_xlabel('Epoch',fontsize=30)
-            axes[row-2].set_ylabel('Loss (MAE)',fontsize=30)
+            axes[row-2].set_ylabel('Loss',fontsize=30)
             axes[index].legend(loc='upper right', fontsize=20)   
             axes[index].xaxis.set_tick_params(labelsize=30, length=10)
             axes[index].yaxis.set_tick_params(labelsize=30, length=10)
@@ -500,7 +514,7 @@ def compare_loss_plots(result_paths, labels, title, particle, xlimits,ylimits):
             #axes.title.set_position([.5, 1.05])
             #axes[irow,icol].set_yscale('log')
             axes[1,0].set_xlabel('Epoch',fontsize=30)
-            axes[1,0].set_ylabel('Loss (MAE)',fontsize=30)
+            axes[1,0].set_ylabel('Loss ',fontsize=30)
             
             axes[irow,icol].xaxis.set_tick_params(labelsize=30, length=20)
             axes[irow,icol].yaxis.set_tick_params(labelsize=30, length=20)
@@ -516,6 +530,9 @@ def compare_loss_plots(result_paths, labels, title, particle, xlimits,ylimits):
             
             axes[irow,icol].legend(loc='upper right', fontsize=30)    
         fig.suptitle(title, fontsize=30,ha="center")       
+        
+## Read ROOT FILE WITH FEW EVENTS BETWEEN START AND STOP EVENTS      
+## RETURNS HIT E
 def read_start_stop(file_path, detector, entry_start, entry_stop):
     ur_file = ur.open(file_path)
     ur_tree = ur_file['events']
@@ -526,7 +543,9 @@ def read_start_stop(file_path, detector, entry_start, entry_stop):
     #print("PRINT  DETECTOR ", detector)    
     if detector=="hcal":
         detector_name = "HcalEndcapPHitsReco"
-
+    elif detector=='ecal':
+        detector_name = "EcalEndcapPHitsReco"
+        
     elif detector=="hcal_insert":
         detector_name= "HcalEndcapPInsertHitsReco"
     else:
@@ -558,14 +577,11 @@ def read_start_stop(file_path, detector, entry_start, entry_stop):
 ## Fits the prediction distrubution 
 ## get the resolution and energy scale 
 ## using fit parameter and media
-def get_res_scale_fit_log10_log2(truth,pred, binning, nbins, log_base, particle, label='energy', fit='True'):    
-    #get_res_scale_fit_log10_log2(truth, pred, file_name, nbins, log_base, particle):
-    #N_Bins,binning=get_binning_Nbins(log_base,particle)
+
+def get_res_scale_fit_log10_log2(truth,pred, binning, nbins, data_type, particle, label='energy', fit='True', plot_range=3):   
     N_Bins=len(binning)
-    times=5
-    FIT_SIGMA=3 ## fit within +- 3 sigma                                                                                                                             
-      ## draw histogram within +- times sigma                                                                                                              
-    bin_width=1 ## bin width of the histogram to be fitted                                                                                                           
+    plot_range=3
+    FIT_SIGMA=3 ## fit within +- 3 sigma                                                                                                                                                                                                             
     row=math.ceil(np.sqrt(N_Bins-1))
     if (row**2-N_Bins)>1:
         col=row-1
@@ -586,14 +602,24 @@ def get_res_scale_fit_log10_log2(truth,pred, binning, nbins, log_base, particle,
     res_sigma_median_arr=[]
     
     if label=='energy':
-        xtitle='Energy (GeV)'
+        xtitle='$E_{Pred}$'
         unit='GeV'
+        
     elif label=='theta':
         xtitle='Theta (Deg)'
         unit='Deg'
+       
+    elif label=='phi':
+        xtitle='Phi (Deg)'
+        unit='Deg'    
     elif label=='theta-energy':
-        xtitle='Energy (GeV)'
-        unit='Deg'
+        xtitle=r'$\Theta_{pred} - \Theta_{true}$' 
+        unit='GeV'
+        
+    elif label=='phi-energy':
+        xtitle=r'$\phi_{pred} - \phi_{true}$' 
+        unit='GeV'    
+       
         
     else:
         print('PLEASE PROVIDE THE VARIABLE YOU WANT TO REGRESS')
@@ -605,9 +631,11 @@ def get_res_scale_fit_log10_log2(truth,pred, binning, nbins, log_base, particle,
     if (len(truth) != len(pred)):
         print("truth and prediction arrays must be same length")
         #return
-    
-    #truth=np.rint(truth)
+    if data_type=='discrete':
+        truth=np.rint(truth)
     indecies = np.digitize(truth,binning)-1 #Get the bin number each element belongs to.
+    indecies=np.where(indecies < 0, 0, indecies)
+    #if any(indecies<0): print(indicies)
     max_count = np.bincount(indecies).max()
     slices = np.empty((N_Bins,max_count))
     
@@ -636,18 +664,23 @@ def get_res_scale_fit_log10_log2(truth,pred, binning, nbins, log_base, particle,
         if (bin>=N_Bins): continue
         slices[bin][counter[bin]] = pred[i] #slice_array[bin number][element number inside bin] = pred[i]                                                            
         slices_truth[bin][counter[bin]] = truth[i]
-        counter[bin]+=1
+        
         avg_truth[bin]+=truth[i]
-        if truth[i]<=0:
-            truth[i]=999
+        #if truth[i]<=0:
+        #    truth[i]=999
         pred_over_truth[bin] += pred[i]/truth[i]
         scale_array[bin][counter[bin]] = pred[i]/truth[i]
-
+        counter[bin]+=1
     counter[counter == 0] = 1
+    
     avg_truth = avg_truth/counter
 
-    stdev_pred = np.nanstd(slices,axis=1)
-    avg_pred   = np.nanmean(slices,axis=1)
+    #stdev_pred = np.nanstd(slices,axis=1)
+    #avg_pred   = np.nanmean(slices,axis=1)
+    
+    stdev_pred = np.nanstd(scale_array,axis=1)
+    avg_pred   = np.nanmean(scale_array,axis=1)
+    
     stdev_truth = np.nanstd(slices_truth,axis=1)
     scale_median_comp=np.nanmedian(scale_array,axis=-1)
     median_pred=np.nanmedian(slices,axis=-1)
@@ -661,29 +694,16 @@ def get_res_scale_fit_log10_log2(truth,pred, binning, nbins, log_base, particle,
         #print(ii,'   mean guess.  ', mean_guess,'  binning ',binning[ii], ' - ', binning[ii+1])
         
         ## min and max range for histogram to be fitted to extract resolution/scale                                                                                  
-        min_range=mean_guess - times*sigma_guess
-        max_range=mean_guess + times*sigma_guess
-        '''
-        if(log_base!='continuous'):
-            if ii>5:
-                times=0.05
-            min_range=binning[ii] - times*binning[ii]
-            max_range=binning[ii] + times*binning[ii]
-            
-        else:
-            min_range=binning[ii]-  times*binning[ii]
-            max_range=binning[ii] + times*binning[ii]
-       
-        #print(min_range,'  Min and max range ',max_range)
-        if min_range<0:
-            min_range=0
+        min_range=mean_guess - plot_range*sigma_guess
+        max_range=mean_guess + plot_range*sigma_guess
         
-        if max_range<5:
-            max_range=10
+        if label=='energy':
+            if min_range<0:
+                min_range=0.2
         
-        ''' 
-        ## mean value of range within which histogram is draw                                                                                                        
-        mean_here=(min_range + max_range)/2.0
+        #print(min_range, '      min and max.  ',  max_range)
+        ## mean value of range within which histogram is draw                                                                           print(                              
+        #mean_here=(min_range + max_range)/2.0
 
         irow=int(ii/col)
         icol=int(ii%col)
@@ -691,11 +711,13 @@ def get_res_scale_fit_log10_log2(truth,pred, binning, nbins, log_base, particle,
         if irow<row:
             
             ax = axs[irow,icol]
-            count, bins,_=ax.hist(slices[ii].ravel(),bins=nbins,alpha=0.5,range=(min_range,max_range),label='HCAL',color='b',linewidth=8)
-            binscenters = np.array([0.5 * (bins[i] + bins[i+1]) for i in range(len(bins)-1)])
-        
+            #count, bins,_=ax.hist(slices[ii].ravel(),bins=nbins,alpha=0.5,range=(min_range,max_range),label='HCAL',color='b',linewidth=8)
+            count, bins,_=ax.hist(scale_array[ii].ravel(),bins=nbins,alpha=0.5,range=(min_range,max_range),label='HCAL',color='b',linewidth=8)
             
-        
+            count=count[~np.isnan(count)]
+            bins=bins[~np.isnan(bins)]
+            
+            binscenters = np.array([0.5 * (bins[i] + bins[i+1]) for i in range(len(bins)-1)])
             
           
             # PARAMETER BOUNDS ARE NOT USED FOR NOW
@@ -708,65 +730,69 @@ def get_res_scale_fit_log10_log2(truth,pred, binning, nbins, log_base, particle,
         
             for_plot=round(avg_truth[ii])
             y_text_val=int(np.max(count))*0.7
-            #ax.text(50,y_text_val,"$E_{True}$" + "= {0:.0f} GeV".format(for_plot),fontsize=15)
-            #ax.text(binning[ii]*1.2,y_text_val,"$E_{True}$" + "= {0:.0f} GeV".format(for_plot),fontsize=22)
-        
-            if log_base=='continuous':
+            
+            if data_type=='continuous':
                 ax.set_title("{0:.1f} - {1:.1f} {2} ".format(binning[ii],  binning[ii+1], unit ) , fontsize=15)
             else: 
                 ax.set_title("{0} {1}".format(binning[ii], unit), fontsize=15)
         
             
             if ((irow==row-1) & (icol==int(col/2))):
-                ax.set_xlabel('Predicted {0}'.format(xtitle),fontsize=15) 
+                ax.set_xlabel('{0}'.format(xtitle),fontsize=25) 
     
             if icol==0:
                 ax.set_ylabel("Entries",fontsize=15)
 
 
             #plt.savefig(file_name)
-           
-            scale_median=scale_median_comp[ii]
-            scale=mean/avg_truth[ii]
-            scale_arr.append(scale)
+            #ax.set_xticks(fonstsize=20)
+            ax.tick_params(axis='x', labelsize=20)
+            ax.tick_params(axis='y', labelsize=14)
+            
+            #scale_median=scale_median_comp[ii]
+            #scale=mean/avg_truth[ii]
+            scale=mean
+            
             mean_arr.append(mean)
             avg_truth_arr.append(avg_truth[ii])
+            #resolution=std
+            
             if label=='energy':
-                resolution=(std/avg_truth[ii])/scale  ## This is fit sigma and fit mean
-                resolution_scale_corr=(stdev_pred[ii]/avg_truth[ii])/scale_median  ## this is std vs median
-                resolution_scale_corrected=np.nan_to_num(resolution_scale_corr)
+                resolution=(std/mean)/scale    #Scale corrected Strawman
+                
+                #resolution_scale_corr=(stdev_pred[ii]/avg_truth[ii])/scale_median  ## this is std vs median
+                #resolution_scale_corrected=np.nan_to_num(resolution_scale_corr)
 
-                res_stdev_pred_median=stdev_pred[ii]/median_pred[ii]
+                #res_stdev_pred_median=stdev_pred[ii]/median_pred[ii]
 
-                res_sigma_median=std/avg_truth[ii]
-                slices_pred_truth=(slices[ii] - slices_truth[ii])/slices_truth[ii]
+                #res_sigma_median=std/avg_truth[ii]
+                slices_pred_truth=  (slices[ii] - slices_truth[ii])/slices_truth[ii]
 
                 
                 
-                resolution_cor_arr.append(resolution_scale_corrected)
+                #resolution_cor_arr.append(resolution_scale_corrected)
                 scale_arr.append(scale)
                 slices_arr.append(slices[ii])
                 
-                scale_median_arr.append(scale_median)
+                #scale_median_arr.append(scale_median)
 
 
                 slices_pred_truth_arr.append(slices_pred_truth)
 
-                res_stdev_pred_median_arr.append(res_stdev_pred_median)
-                res_sigma_median_arr.append(res_sigma_median)
-            elif label=='theta':
-                resolution=std
+                #res_stdev_pred_median_arr.append(res_stdev_pred_median)
+                #res_sigma_median_arr.append(res_sigma_median)
+            elif label=='theta' or label=='phi' or label =='theta-energy' or label =='phi-energy':
+                 resolution=std
                 
             else:
-                resolution=std/mean
+                print("Please provide the right label like energy or theta")
             resolution_arr.append(resolution)
             
         else:
             continue
             
-    if label=='energy':      
-        return resolution_arr,scale_arr,avg_truth_arr,slices_arr,resolution_cor_arr, scale_median_arr, slices_pred_truth_arr,\
-        res_stdev_pred_median_arr,res_sigma_median_arr 
+    if label=='energy' or label=='theta-energy' or label=='phi-energy':      
+        return resolution_arr, scale_arr, avg_truth_arr, slices_arr, slices_pred_truth_arr
     else:
         return avg_truth_arr, resolution_arr, scale_arr, mean_arr
     
@@ -785,7 +811,7 @@ def generate_file_name_dict(input_dims, latent_sizes,num_layers, learning_rates,
         
         
         
-def get_fit_parameters_strawman(root_file, detector, binning, particle, total_events, data_type, output_path, nbins, time_TH, MIP_TH):
+def get_fit_parameters_strawman(root_file, detector, binning, particle, total_events, data_type, output_path, nbins, time_TH, MIP_TH_HCAL):
     if detector=='hcal': 
         sampling_fraction=0.0224 
     elif detector=='hcal_insert':
@@ -817,7 +843,8 @@ def get_fit_parameters_strawman(root_file, detector, binning, particle, total_ev
     
     hit_e_raw, time, gen_energy=read_start_stop(root_file, detector, entry_begin, stop)
     
-    mask=(hit_e_raw>MIP_TH)  & (time<time_TH) & (hit_e_raw<1e10)
+   
+    mask = (hit_e_raw > MIP_TH_HCAL) & (time < time_TH) & (hit_e_raw < 1e10)
     hit_e=hit_e_raw[mask]
     
     root_cluster_hcali_raw = ak.sum(hit_e, axis=-1)
@@ -827,7 +854,8 @@ def get_fit_parameters_strawman(root_file, detector, binning, particle, total_ev
     #NN = get_res_scale(gen_energy, cluster_sum,Energy_Bins,path)
     resolution_fit, pred_over_truth_fit, true_fit,slices_fit,resolution_scale_corr_median, median_scale_fit,slices_pred_truth,\
     res_std_median, res_sigma_median =get_res_scale_fit_log10_log2(gen_energy,cluster_sum, binning, nbins, data_type, particle)
-   
+    #get_res_scale_fit_log10_log2(target_ene,pred_ene, binning,
+    #            nbins, data_type, particle, 'energy', fit=True, plot_range=0.1)
     #truth, prediction= get_res_scale_fit_log10_log2(gen_energy,cluster_sum, nbins, data_type, particle)
     #return truth, prediction 
    
@@ -908,8 +936,8 @@ def compare_energy_response_E_over_pred(files_pred_truth, Gen_Energy, data_type,
 
                 
                 if(ratio_E_pred):
-                    min_range=-1
-                    max_range=1
+                    min_range=-0.5
+                    max_range=0.5
                     
                     ytitle="$E_{Truth}$"
                     xlabel_title=r'$\frac{E_{Pred} - E_{Truth}}{E_{Truth}}$'
@@ -942,7 +970,11 @@ def compare_energy_response_E_over_pred(files_pred_truth, Gen_Energy, data_type,
                 else:
                     axs[0,0].legend(loc='upper right', fontsize=20)
                 axs[0,0].legend(loc='upper left', fontsize=15)
-                #axs[irow,icol].axvline(mean_values[ii],linestyle='dashed',linewidth=3,color='b')
+                if ratio_E_pred:
+                    axs[irow,icol].axvline(0,linestyle='dashed',linewidth=3,color='b')
+                else:
+                    axs[irow,icol].axvline(Gen_Energy[ii],linestyle='dashed',linewidth=3,color='b')
+                    
                 
                 mid_col=int(col/2)
                 mid_row=int(row/2)
@@ -1002,26 +1034,39 @@ def draw_plot_res_scale_withInset(var_X, var_Y,labels, title, xlimits,ylimits, p
     #plt.title(title_head, fontsize=20)
     for x,y,label in zip(var_X,var_Y,labels):
         axins.errorbar(x[1:], y[1:],linewidth=2.0,marker="o",alpha=0.7,  label=label) 
+        
+    
+    
 def get_cluster_sum_from_hits(detector, ur_tree):
-    cluster_sums=[]
+    gen_energy_arr=[]
+    hit_e_arr=[]
     if detector=="hcal":
         detector_name = "HcalEndcapPHitsReco"
         sampling_fraction=0.0224 
+        MIP_TH=MIP_TH_HCAL
+        
+    elif detector=="zdc":
+        detector_name= "ZDCHcalHitsReco"
+        sampling_fraction=0.0224
+        MIP_TH=MIP_TH_HCAL    
 
     elif detector=="hcal_insert":
         detector_name= "HcalEndcapPInsertHitsReco"
         sampling_fraction=0.0089
+        MIP_TH=MIP_TH_HCAL
 
     elif detector =='ecal':
         detector_name= "EcalEndcapPHitsReco"
         sampling_fraction=1.
+        MIP_TH=MIP_TH_ECAL
     else:
         print("Please make sure you have picked right detector name")     
         print("Pick: hcal or hcal_insert for endcap calo/ hcal_insert for insert")
-        
+       
     hit_raw =ur_tree.array(f'{detector_name}.energy')
     time =ur_tree.array(f'{detector_name}.time')
-    mask=(hit_raw>MIP_TH)  & (time<time_TH) & (hit_raw<1e10)
+
+    mask = (hit_raw > MIP_TH) & (time < time_TH) & (hit_raw < 1e10)
     hit_e=hit_raw[mask]
         
     #PosRecoX_hcal = ur_tree.array(f'{detector_name}.position.x')/10.0
@@ -1035,11 +1080,13 @@ def get_cluster_sum_from_hits(detector, ur_tree):
     cluster_sum=np.divide(cluster_sum_temp,sampling_fraction)
     #cluster_sums.append(cluster_sum)
     return cluster_sum       
+
+## READS ROOT FILES FROM LARGE SET OF DATA
+## FOR GIVEN DATA DIRECTORY AND HADRONIC DETECTOR IT GIVES TOTAL CLUSTER SUM AND HCAL SUM
+## IF FLAG det_Ecal is True, then it also gives sum of HCAL + ECAL
         
-def read_root_files_chain(data_dir, hadronic_detector, start,total_files, det_Ecal=False):
-    
-    #from uproot3_methods.concatenate import concatenate
-    #data_dir='/media/miguel/Elements/Data_hcali/Data1/log10_Uniform_03-23/log10_pi+_100_10k_17deg_ECAL_1/'
+def read_root_files_chain(data_dir, hadronic_detector, start,total_files, ecal_hcal_both=True):
+   
     root_files_total = np.sort(glob.glob(data_dir+'*root'))
     file_list=root_files_total[start:total_files]
         
@@ -1052,27 +1099,25 @@ def read_root_files_chain(data_dir, hadronic_detector, start,total_files, det_Ec
         #print(file_num)
         ur_tree=ur.open(file_num)['events']
         num_entries=ur_tree.numentries
-        #print(num_entries)
+        print("Total Entries. == ", num_entries)
         
         genPx = ur_tree.array('MCParticles.momentum.x')[:,2]
-        
         genPy = ur_tree.array('MCParticles.momentum.y')[:,2]
         genPz = ur_tree.array('MCParticles.momentum.z')[:,2]
         mass = ur_tree.array("MCParticles.mass")[:,2]
         root_gen_P = np.sqrt(genPx*genPx + genPy*genPy + genPz*genPz)
         gen_energy=np.sqrt(root_gen_P**2 + mass**2)
         theta = np.arccos(genPz/root_gen_P)*180/np.pi
-    
-        cluster_sum_hcal= get_cluster_sum_from_hits(hadronic_detector, ur_tree)
         
-        if det_Ecal==True:
+        cluster_sum_hcal= get_cluster_sum_from_hits(hadronic_detector, ur_tree)
+        if ecal_hcal_both:
             cluster_sum_ecal= get_cluster_sum_from_hits('ecal', ur_tree)
             total_clust_energy = cluster_sum_hcal +  cluster_sum_ecal
             cluster_sums_ecal.append(cluster_sum_ecal)
+                   
         else:
             total_clust_energy = cluster_sum_hcal
-        
-        
+            
         cluster_sums_hcal.append(cluster_sum_hcal)  
     
         genP.append(gen_energy)
@@ -1087,7 +1132,7 @@ def read_root_files_chain(data_dir, hadronic_detector, start,total_files, det_Ec
     
     combined_total_energy=np.concatenate(tot_energy)
     
-    if det_Ecal==True:
+    if ecal_hcal_both:
         combined_cluster_sums_ecal= np.concatenate(cluster_sums_ecal)
         return combined_genP, combined_thetas, combined_cluster_sums_hcal,  combined_cluster_sums_ecal, combined_total_energy 
     else:
@@ -1107,8 +1152,253 @@ def gaussian_fit_on_distribution(FIT_SIGMA, sigma_guess, mean_guess, binscenters
 
             ax.plot(binscenters[mask], gaussian(binscenters[mask], *popt), color='red', linewidth=2.5, label=r'F')
             
-            ax.set_xlim(math.floor(min_range),math.ceil(max_range))
+            #ax.set_xlim(math.floor(min_range),math.ceil(max_range))
             mean=popt[1]
             std=popt[2]
             return mean, std        
         
+        
+####FOR MIP ANALYSIS SELECTS THE RIGHT FILE FOR GIVEN DETECTOR AND PARTICLE
+## IT TAKES NUMBER OF FILES FROM START TO STOP YOU WANT TO ANALYSIS
+## RETURNS HITS AND GENERATED ENERGY
+def get_hitE_genE_fromChain(detector, particle, start, stop):
+    hit_e_arr=[]
+    MIP_TH=0
+    gen_energy_arr=[]
+    if detector=="hcal":
+        detector_name = "HcalEndcapPHitsReco"
+        sampling_fraction=0.0224 
+        Mev_to_GeV=1
+
+    elif detector=="hcal_insert":
+        detector_name= "HcalEndcapPInsertHitsReco"
+        sampling_fraction=0.0089
+        Mev_to_GeV=1
+
+    elif detector =='ecal':
+        detector_name= "EcalEndcapPHitsReco"
+        sampling_fraction=1.
+        Mev_to_GeV=1 #33.33
+    else:
+        print("Please make sure you have picked right detector name")     
+        print("Pick: hcal or hcal_insert for endcap calo/ hcal_insert for insert")
+        
+        
+    conditions = {
+    ('ecal', 'mu-'): '/media/miguel/Elements/Data_hcali/Data1/log10_Uniform_03-23/log10_20GeV_mu-_Ecal_Only_10_5k_17deg/',
+    ('ecal', 'e-'): '/media/miguel/Elements/Data_hcali/Data1/log10_Uniform_03-23/log10_20GeV_e-_Ecal_Only_20_5k_17deg/',
+    ('hcal', 'mu-'): '/media/miguel/Elements/Data_hcali/Data1/log10_Uniform_03-23/log10_20GeV_mu-_Hcal_Only_10_5k_17deg/',
+    ('hcal', 'e-'): '/media/miguel/Elements/Data_hcali/Data1/log10_Uniform_03-23/log10_20GeV_e-_Hcal_Only_20_5k_17deg/',
+    # Add more conditions and corresponding file paths as needed
+    }
+
+    default_file = "default.txt"
+    rootfile_dir = conditions.get((detector, particle), default_file)
+    if rootfile_dir==default_file:
+        print('File not found')    
+        
+    root_files_total = np.sort(glob.glob(rootfile_dir+'*root'))
+    file_lists=root_files_total[start:stop]   
+    
+    
+    #trees = [ur.open(file_list)["events"] for file_list in file_lists]  # Replace "tree_name" with the actual tree name
+    #chain = ur.tree.concatenate(trees)
+    #num_entries=chain.numentries
+    #print(num_entries)
+    
+    for file_num in file_lists:
+        #print(file_num)
+        ur_tree=ur.open(file_num)['events']
+        num_entries=ur_tree.numentries
+        #print('Hello hello hello. ', num_entries)
+        
+        genPx = ur_tree.array('MCParticles.momentum.x')[:,2]
+        
+        genPy = ur_tree.array('MCParticles.momentum.y')[:,2]
+        genPz = ur_tree.array('MCParticles.momentum.z')[:,2]
+        mass = ur_tree.array("MCParticles.mass")[:,2]
+        root_gen_P = np.sqrt(genPx*genPx + genPy*genPy + genPz*genPz)
+        gen_energy=np.sqrt(root_gen_P**2 + mass**2)
+        
+        #theta = np.arccos(genPz/root_gen_P)*180/np.pi    
+        
+        hit_raw =ur_tree.array(f'{detector_name}.energy')/Mev_to_GeV
+        
+        time =ur_tree.array(f'{detector_name}.time')
+  
+        mask = (hit_raw > MIP_TH_HCAL) & (time < time_TH) & (hit_raw < 1e10)
+        hit_e=hit_raw[mask]
+        
+        
+        hit_e=hit_e.astype(float)
+        hit_e=ak.flatten(hit_e)
+        gen_energy_arr.append(gen_energy)
+        hit_e_arr.append(hit_e)
+        
+        #PosRecoX_hcal = ur_tree.array(f'{detector_name}.position.x')/10.0
+        #PosRecoY_hcal = ur_tree.array(f'{detector_name}.position.y')/10.0
+        #PosRecoZ_hcal = ur_tree.array(f'{detector_name}.position.z')/10.0
+    #hit_e_arr=np.(hit_e_arr)
+    #hit_e_arr=np.array(hit_e_arr)
+    
+    gen_energy_arr=np.concatenate(gen_energy_arr)
+    hit_e_arr=np.concatenate(hit_e_arr)
+    gen_energy_arr = gen_energy_arr.astype(int)
+    return hit_e_arr, gen_energy_arr
+
+
+def Ecal_hcal_generate_file_name_dict(input_dir,output_file, input_dims, latent_sizes,num_layers, learning_rates,labels, particles,error_types):
+    file_name_dict = {}
+    path_to_result_dir=f'/media/miguel/Elements/Data_hcali/Data1/log10_Uniform_03-23/DeepSets_output/Deepset_Models/{input_dir}'
+    
+    for dim, size, layer, lr, label, part, err in zip(input_dims, latent_sizes, num_layers, learning_rates, labels, particles,error_types):
+        result_path = f"{path_to_result_dir}/results_{dim}_size{size}_lr{lr}_{layer}Lay_{part}_{err}/{label}"
+        key = f"{dim}_{size}_{layer}_{lr}_{part}_{err}"
+        file_name_dict[key] = result_path
+        print(file_name_dict[key])
+        #print('__________________________', key)
+    with open(f'{output_file}', 'w') as f:
+        json.dump(file_name_dict, f)
+        
+### THIS PART OF THE CODE FITS THE RESOLUTION CURVES AND GET THE SCHOSTASTIC, NOISE AND CONSTANT TERM  
+## WITHOUT CONSTANT TERM 
+
+def fit_resolution_curve(xx, stochastic, const):
+    return np.sqrt(stochastic**2/xx + const**2)
+
+def get_resolution_fit_terms(energies, resolutions,  xpos, ypos, text_size, title, xlabel, ylabel):
+    #energy_all=np.array(energies)
+    #resolution_all=np.array(resolutions)
+    #mask=np.logical_and(energy_all>energy_lim[0] , energy_all<energy_lim[1])
+    #energy=energy_all[mask]
+    #resolution=resolution_all[mask]
+    p0=[0.5,0.5,0.1]
+    plt.errorbar(energies, resolutions , marker='o', linestyle='None')
+    plt.xlabel(xlabel,  fontsize=25)
+    plt.ylabel(ylabel, fontsize=25)
+    
+    popt, pcov = curve_fit(fit_resolution_curve, energies, resolutions)
+    plt.plot(energies, fit_resolution_curve(energies, *popt), color='red', linewidth=2.5, label=r'F')
+    stochastic_term, const_term=popt
+    plt.text(xpos, ypos, f'$\sigma/E $ =  {stochastic_term:.2f}/$\sqrt{{E}} \quad \oplus$ {const_term:.2e} ', fontsize=text_size)     
+    
+    #goodness_of_fit=chi_sq #/dof
+    plt.title(title) 
+    plt.xticks(fontsize=20)
+    plt.yticks(fontsize=20)
+    
+    
+def get_3D_inference_from_discrete_data(path_to_result, path_to_stat, file="test_predictions.npz"):
+
+    npz_unpacked = np.load(f'{path_to_result}/{file}')
+
+    predictions_arr = npz_unpacked['outputs']
+    targets_arr = npz_unpacked['targets']
+
+    #means = pickle.load(f"preprocessed_data/means.p")
+
+    means = pickle.load(open(f"{path_to_stat}/means.p", 'rb'), compression='gzip')
+    stdvs = pickle.load(open(f"{path_to_stat}/stdvs.p", 'rb'), compression='gzip')
+    
+    ### True ENERGY
+    targets_ene = targets_arr[:,0]*stdvs['genP'] + means['genP']
+    targets_ene_plt = 10**targets_ene
+
+    ### PREDICTED ENERGY
+    prediction_ene=predictions_arr[:,0]*stdvs['genP'] + means['genP']
+    prediction_ene_plt=10**prediction_ene
+
+
+    ### True Theta
+    targets_theta= targets_arr[:,1]*stdvs['theta'] + means['theta']
+
+
+    ### PREDICTED THETA
+    predictions_theta=predictions_arr[:,1]*stdvs['theta'] + means['theta']
+    #prediction_theta_plt=predictions_theta
+
+
+    ### True phi
+    targets_phi= targets_arr[:,2]*stdvs['phi'] + means['phi']
+
+    ### PREDICTED PHI
+    predictions_phi=predictions_arr[:,2]*stdvs['phi'] + means['phi']
+
+    return targets_ene_plt, prediction_ene_plt, targets_theta, predictions_theta, targets_phi, predictions_phi
+
+
+def get_1D_inference_from_discrete_data(granularity, path_to_result, path_to_stat, file="test_predictions.npz"):
+
+    npz_unpacked = np.load(f'{path_to_result}/{file}')
+    print("path_to_result", path_to_result,'     c ', file)
+
+    predictions_arr = npz_unpacked['outputs']
+    targets_arr = npz_unpacked['targets']
+
+    #means = pickle.load(f"preprocessed_data/means.p")
+
+    means = pickle.load(open(f"{path_to_stat}/means.p", 'rb'), compression='gzip')
+    stdvs = pickle.load(open(f"{path_to_stat}/stdvs.p", 'rb'), compression='gzip')
+    targets_ene = targets_arr*stdvs['genP'] + means['genP']
+    
+
+    ### PREDICTED ENERGY
+    prediction_ene=predictions_arr*stdvs['genP'] + means['genP']
+    
+    if granularity=='full_cell_hits':
+        targets_ene = 10**targets_ene
+        prediction_ene=10**prediction_ene
+        
+    return targets_ene, prediction_ene
+   
+        
+### Get the model for loss curve validation and traning loss function  from continuous        
+def get_loss_curve_from_training_hcal(path_to_deepset_models, granularity, output_dim, input_features, \
+                             incident_angle, hadronic_detector, num_z_layers, include_ecal):
+    if include_ecal:
+        ecal_status='ecal'
+    else:
+        ecal_status='Noecal'
+    model_dir=f'Output{output_dim}D_{incident_angle}_{ecal_status}_{hadronic_detector}_{granularity}'
+    
+    if granularity=='full_cell_hits':
+        result_dir=f'results_{input_features}D_size64_lre3_4Lay_pp_mse'
+        
+    elif granularity=='z_sections':
+        result_dir=f'results_{num_z_layers}Z_size64_lre3_4Lay_pp_mse'
+        input_features=num_z_layers
+        
+        
+    print(model_dir)
+    print(result_dir)
+    conditions = {
+    ('full_cell_hits', 3, 4, 'hcal', True): 'Block_20230714_1113_concatTrue',
+        
+    ('full_cell_hits', 1, 4, 'hcal', True): 'Block_20230714_1536_concatTrue',
+        
+    ('full_cell_hits', 1, 3, 'hcal', True): 'Block_20230714_2002_concatTrue',
+        
+    ('full_cell_hits', 1, 2, 'hcal', True): 'Block_20230714_2313_concatTrue',
+        
+    ('full_cell_hits', 1, 1, 'hcal', True): 'Block_20230715_0707_concatTrue',  
+        
+    ('z_sections',     1, 1, 'hcal', False): 'Block_20230711_1822_concatTrue', 
+        
+    ('z_sections',     1, 5, 'hcal', False): 'Block_20230629_1535_concatTrue',
+        
+    ('z_sections',     1, 15, 'hcal', False): 'Block_20230630_0125_concatTrue',
+        
+    ('z_sections',     1, 25, 'hcal', False): 'Block_20230630_0758_concatTrue',    
+        
+    }
+    print(granularity, '   ', output_dim, '   ',  input_features,  '   ', hadronic_detector, '   ', include_ecal)
+    default_file = "default"
+    block_name = conditions.get((granularity, output_dim, input_features, hadronic_detector, include_ecal), default_file)
+    if block_name==default_file:
+        print('File not found') 
+        return None
+    else:
+        final_model_path= f'{path_to_deepset_models}/{model_dir}/{result_dir}/{block_name}'
+        
+    return final_model_path    
+     

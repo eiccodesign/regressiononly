@@ -1,4 +1,5 @@
 import sys  
+            # self.flat_hits_e = ak.flatten(self.hits_e[:4*self.num_events]) #only take every 10th hit
 sys.path.insert(0, 'functions')
 sys.path.insert(0, 'training')
 
@@ -18,6 +19,32 @@ n_calo_layers = 54
 take_log10 = False
 if (take_log10):
     Energy_Bins = np.logspace()
+# label ="TwoHundred16_Segmentation_17deg"
+# label ="CellLevel_50_Segmentation_17deg"
+# label ="Nine_Segmentation_17deg"
+label ="CellLevel_55_Segmentation_17deg"
+# label ="Three_Segmentation_17deg"
+# label ="One_Segmentation_17deg"
+# n_calo_layers = 216
+# n_calo_layers = 50
+n_calo_layers = 9
+# n_calo_layers = 3
+# n_calo_layers = 1
+detector_name = "HcalEndcapPHitsReco" #or "HcalEndcapPInsertHitsReco"
+# sampling_fraction = 0.02 #or 0.0098
+sampling_fraction = 0.0224
+# NEvents_Max = 1000000 #OK if tree has less events than this
+NEvents_Max = 10_000  # OK if tree has less events than this
+Energy_Bins = binning=np.linspace(0.1,100,21) #Plotting
+
+cell_level = True
+if cell_level:
+        n_calo_layers = 55
+
+take_log10 = False
+if (take_log10):
+    Energy_Bins = np.logspace(-3, 1, num=20)
+>>>>>>> origin/main
 
 Do_Processing = True
 Do_Training = True
@@ -30,8 +57,9 @@ if Do_Processing:
                                    label, 
                                    detector_name, 
                                    sampling_fraction, 
-                                   NEvents_Max, 
+                                   NEvents_Max,
                                    n_calo_layers,
+                                   cell_level,
                                    take_log=take_log10)
 
     Clusterer.run_segmentation_clusterer()
@@ -42,8 +70,8 @@ ClusterSum = load_ClusterSum(label)
 segmented_ClusterSum = load_segmented_ClusterSum(label)
 GenP = load_GenP(label)
 
-flat_hits_e = load_flat_hits_e(label)
-energy_QA_plots(flat_hits_e, GenP, segmented_ClusterSum, label)
+# flat_hits_e = load_flat_hits_e(label)
+# energy_QA_plots(flat_hits_e, GenP, segmented_ClusterSum, label)
 
 ClusterSum_vs_GenP(ClusterSum, GenP, label)
 

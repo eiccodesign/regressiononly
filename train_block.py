@@ -13,11 +13,10 @@ from graph_nets.graphs import GraphsTuple
 import sonnet as snt
 import argparse
 import yaml
-## if HCAL or HCAL Insert
-#from generators import MPGraphDataGenerator
 
-## If ECAL + HCAL 
-from generators_ecal import MPGraphDataGenerator
+#from generators_zcondition import MPGraphDataGenerator
+from generators import MPGraphDataGenerator
+#from generators import MPGraphDataGenerator
 
 import block as models
 sns.set_context('poster')
@@ -53,6 +52,8 @@ if __name__=="__main__":
     epochs = train_config['epochs']
     num_features=train_config['num_features']
     output_dim=train_config['output_dim']
+    include_ecal=train_config['include_ecal']
+    hadronic_detector=train_config['hadronic_detector']
     learning_rate = train_config['learning_rate']
     save_dir = train_config['save_dir'] + '/Block_'+time.strftime("%Y%m%d_%H%M")+'_concat'+str(concat_input)
     os.makedirs(save_dir, exist_ok=True)
@@ -82,32 +83,40 @@ if __name__=="__main__":
         if not os.path.exists(train_valid_test):
             os.makedirs(train_valid_test)
             print(f"Created Directory : {train_valid_test}")
-        else:
-            print(f"Directory already exists: {dir}")
+        # else:
+        #     print(f"Directory already exists: {dir}")
+
     #Generators
+    
     data_gen_train = MPGraphDataGenerator(file_list=root_train_files,
                                           batch_size=batch_size,
                                           shuffle=shuffle,
                                           num_procs=num_procs,
                                           calc_stats=calc_stats,
                                           is_val=False,
+                                          data_set='train',
                                           preprocess=preprocess,
                                           already_preprocessed=already_preprocessed,
                                           output_dir=train_output_dir,
                                           num_features=num_features,
-                                          output_dim=output_dim)
-
+                                          output_dim=output_dim,
+                                          hadronic_detector=hadronic_detector,
+                                          include_ecal= include_ecal)
+    
     data_gen_val = MPGraphDataGenerator(file_list=root_val_files,
                                         batch_size=batch_size,
                                         shuffle=shuffle,
                                         num_procs=num_procs,
                                         calc_stats=calc_stats,
                                         is_val=True,
+                                        data_set='val',
                                         preprocess=preprocess,
                                         already_preprocessed=already_preprocessed,
                                         output_dir=val_output_dir,
                                         num_features=num_features,
-                                        output_dim=output_dim)
+                                        output_dim=output_dim,
+                                        hadronic_detector=hadronic_detector,
+                                        include_ecal= include_ecal)
 
     data_gen_test = MPGraphDataGenerator(file_list=root_test_files,
                                          batch_size=batch_size,
@@ -115,12 +124,15 @@ if __name__=="__main__":
                                          num_procs=num_procs,
                                          calc_stats=calc_stats,
                                          is_val=True, #decides to save mean and std
+                                         data_set='test',
                                          preprocess=preprocess,
                                          already_preprocessed=already_preprocessed,
                                          output_dir=test_output_dir,
                                          num_features=num_features,
-                                         output_dim=output_dim)
-
+                                         output_dim=output_dim,
+                                         hadronic_detector=hadronic_detector,
+                                         include_ecal= include_ecal)
+    
     optimizer = tf.keras.optimizers.Adam(learning_rate)
 
     model = models.BlockModel(global_output_size=output_dim, model_config=model_config)
@@ -257,7 +269,7 @@ if __name__=="__main__":
         start = time.time()
         for graph_data_tr, targets_tr in get_batch(data_gen_train.generator()):#train_iter):
             #if i==1:
-            #print('hello hello hello ',np.shape(targets_tr)) ## 
+            # print("Graph Data: ",graph_data_tr)
             losses_tr = train_step(graph_data_tr, targets_tr)
 
             training_loss.append(losses_tr.numpy())
@@ -403,4 +415,4 @@ if __name__=="__main__":
              outputs=all_outputs)
     np.savez(save_dir+'/test_loss', test=test_loss)
 
-
+    

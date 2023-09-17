@@ -10,8 +10,8 @@ def get_bin_width(centers):
 
     # Assumes fixed-width binning, 
     # Can be changed to centers[1:] - centers[:-1]
-    width = np.round(centers[2] - centers[1], 2)  # avoids [0] edgecase
     # print("\n\n get_bin_width: centers = ", centers)
+    width = np.round(centers[2] - centers[1], 2)  # avoids [0] edgecase
     
     return width
 
@@ -52,7 +52,6 @@ def get_equidistant_layers(full_z_edges, n_segments):
         z_layers.append(full_z_edges[-1])
 
     return z_layers
-
 
 
 def get_bin_dict(geant4_name, nevts = 100_000, dataset = 'hcal_cells'):
@@ -100,6 +99,25 @@ def get_digits_dict(continuous_file, dset_name, bin_dict):
 
     return digit_dict
 
+
+def get_random_z_pos(full_z_edges,n_seg):
+    nZ = len(full_z_edges)
+    rand_Ls = []
+
+    rand_Ls.append(full_z_edges[0])  #Beginning of Calo
+
+    assert(nZ > n_seg)  # avoid infinite loops
+
+    while len(rand_Ls) < (n_seg - 1):  #Fill to second-to-last
+        zi = np.random.randint(0,nZ-2)  #-1 fencepost, -1 again avoid end of calo
+        randZ = full_z_edges[zi]
+        
+        if randZ not in rand_Ls:
+            rand_Ls.append(randZ)
+
+    rand_Ls.append(full_z_edges[-1])  #Add end of calo
+            
+    return np.round(np.sort(rand_Ls),2)
 
 
 def get_nrand_z_pos(full_z_edges, n_seg, nrand=1):
