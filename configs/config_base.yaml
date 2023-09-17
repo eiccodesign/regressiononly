@@ -1,0 +1,41 @@
+data:
+  already_preprocessed: False # True while simulating all cases
+  batch_size: 512
+  calc_stats: True
+  data_dir: /usr/workspace/hip/eic/log10_Uniform_03-23/log10_pi+_100_10k_10-30deg_1/
+  num_procs: 32
+  num_train_files: 85
+  num_val_files: 30
+  num_test_files: 49
+  output_dir: /usr/workspace/sinha4/regressiononly/output/
+  particle_type: pion
+  preprocess: true
+  shuffle: false
+  num_features: 4 # Energy, x,y,z.
+  k: 10  # 5,10
+model:
+  block_type: graphnet
+  concat_input: true
+  edge_block_opt:
+    use_edges: true
+    use_globals: true
+    use_receiver_nodes: true
+    use_sender_nodes: true
+  global_block_opt:
+    use_edges: false
+    use_globals: true
+    use_nodes: true
+  node_block_opt:
+    use_globals: true
+    use_nodes: true
+    use_received_edges: true
+    use_sent_edges: false # going out of the node , check get edges.
+  num_blocks: 3 # 2,3,4
+  num_layers: 6 # 2,3,4
+  latent_size: 128 # 64,128,256
+  reducer: mean
+training:
+  epochs: 55 # 10 epochs, 10 tr, 5 v and 5 ts
+  learning_rate: 0.001
+  save_dir: /usr/workspace/sinha4/regressiononly/savemodel_hcal_only/
+  

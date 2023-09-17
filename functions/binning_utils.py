@@ -1,6 +1,7 @@
 import h5py
 import numpy as np
 from tqdm import tqdm
+import sys
 
 var_str = ["E","X","Y","Z"]
 print(f"\nUsing variable strings {var_str} from binning_utils.py\n")
@@ -9,7 +10,7 @@ def get_bin_width(centers):
 
     # Assumes fixed-width binning, 
     # Can be changed to centers[1:] - centers[:-1]
-    print("\n\n get_bin_width: centers = ", centers)
+    # print("\n\n get_bin_width: centers = ", centers)
     width = np.round(centers[2] - centers[1], 2)  # avoids [0] edgecase
     
     return width
@@ -27,6 +28,30 @@ def get_bin_edges(g4_cell_data):
 
     return centers, edges, width
 
+
+def get_equidistant_layers(full_z_edges, n_segments):
+    nZ = len(full_z_edges)-1
+    print(f"\nIdentified {nZ} Longitudinal Layers\n")
+    assert(nZ > n_segments)
+    z_layers = []
+
+    if nZ % n_segments != 0:
+        sys.exit(f"ERROR: Please choose an integer factor for number of z-sections. \nThere are {nZ} sections total")
+
+    #Add Front of Calorimeter
+
+    n_skip = int(nZ/n_segments)
+    z_layers = full_z_edges[::n_skip]
+
+    #Make sure to include front of calorimeter
+    if not(full_z_edges[-1] in z_layers):
+        z_layers.insert(0,full_z_edges[0])
+
+    #Make sure to include back of calorimeter
+    if not(full_z_edges[-1] in z_layers):
+        z_layers.append(full_z_edges[-1])
+
+    return z_layers
 
 
 def get_bin_dict(geant4_name, nevts = 100_000, dataset = 'hcal_cells'):
@@ -116,6 +141,20 @@ def get_nrand_z_pos(full_z_edges, n_seg, nrand=1):
     assert (np.max(rand_Ls) == np.max(full_z_edges))
     return np.round(np.sort(rand_Ls), 2)
 
+
+def Sum_EinZbins(cellE, cellZ, zbins):
+
+    # this sums cells in the same Z range
+    if (len(cellE) != len(cellZ)):
+        exit("ERROR: cellE and cellZ must be the same lengeth")
+
+    counts, bins = np.histogram(np.ravel(cellZ), bins=zbins,
+                                weights = np.ravel(cellE))
+
+    count_mask = counts != 0
+
+    return(counts[count_mask], count_mask) 
+    #count mask is used later to get appropriate z-centers
 
 
 def get_newZbinned_cells(cellE, cellX, cellY, cellZ,

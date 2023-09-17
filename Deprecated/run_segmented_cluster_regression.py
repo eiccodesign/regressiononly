@@ -9,6 +9,16 @@ from data_functions import *
 from NN_Regression import *
 
 root_file = "Log10_Continuous_17deg.root"
+label ="FiftyFour_Segmentation_17deg"
+detector_name = "HcalEndcapPHitsReco" #or "HcalEndcapPInsertHitsReco"
+sampling_fraction = 0.02 #or 0.0098
+NEvents_Max = 1000000 #OK if tree has less events than this
+Energy_Bins = binning=np.linspace(0.1,110,21) #Plotting
+n_calo_layers = 54
+
+take_log10 = False
+if (take_log10):
+    Energy_Bins = np.logspace()
 # label ="TwoHundred16_Segmentation_17deg"
 # label ="CellLevel_50_Segmentation_17deg"
 # label ="Nine_Segmentation_17deg"
@@ -34,6 +44,7 @@ if cell_level:
 take_log10 = False
 if (take_log10):
     Energy_Bins = np.logspace(-3, 1, num=20)
+>>>>>>> origin/main
 
 Do_Processing = True
 Do_Training = True

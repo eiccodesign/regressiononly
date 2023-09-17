@@ -21,6 +21,8 @@ from generators import MPGraphDataGenerator
 import block as models
 sns.set_context('poster')
 
+print('import done')
+
 if __name__=="__main__":
 
     parser = argparse.ArgumentParser()
@@ -237,6 +239,7 @@ if __name__=="__main__":
         return loss
 
     #@tf.function(input_signature=[graph_spec, tf.TensorSpec(shape=[None,], dtype=tf.float32)])
+    
     def val_step(graphs, targets):
         predictions = model(graphs).globals
         loss = loss_fn(targets, predictions)
@@ -244,8 +247,12 @@ if __name__=="__main__":
         return loss, predictions
 
     curr_loss = 1e5
+    print('import done,now starting training')
+
 
     #Main Epoch Loop
+
+
     for e in range(epochs):
 
         print('\n\nStarting epoch: {}'.format(e))
@@ -255,6 +262,8 @@ if __name__=="__main__":
         val_loss = []
 
         # Train
+
+
         print('Training...')
         i = 1
         start = time.time()
@@ -282,7 +291,10 @@ if __name__=="__main__":
         training_loss_epoch.append(training_loss)
         training_end = time.time()
 
+
         # validate
+
+
         print('\nValidation...')
         i = 1
         all_targets = []
