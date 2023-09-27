@@ -24,8 +24,3 @@ or
 ```python train_block.py --config [config file name]```
 
 One may need to limit `num_procs` and `batch_size` according to what their computer can handle.
-
-### MISC
-There is a deprecated folder that, as the name suggests, should not be used anymore, and will be deleted soon. 
-The pfn training script is located in the training folder, and should be runable from there.
-
