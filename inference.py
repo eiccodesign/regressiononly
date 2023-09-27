@@ -47,6 +47,7 @@ if __name__=="__main__":
     
     try:
         num_test_files = data_config['num_test_files']
+        test_dir = data_dir
     except:
         if (args.test_dir is None):
             print("\nNEED TO RUN with --test_dir \n")
@@ -78,7 +79,9 @@ if __name__=="__main__":
     yaml.dump(config, open(save_dir + '/config_inference.yaml', 'w'))
 
 
-    root_test_files = np.sort(glob.glob(data_dir+'*root'))[:num_test_files]
+    root_test_files = np.sort(glob.glob(test_dir+'*root'))[:num_test_files]
+    ### Sanity Check
+    print(f'\n\nFirst 5 inference root files:\n{root_test_files[:5]}')
 
     #Loads the files from test_dir if specified.
     #Note: if not specified, takes vals from CONFIG
@@ -242,7 +245,7 @@ if __name__=="__main__":
 
         test_loss.append(losses_test.numpy())
         targets_test = targets_test.numpy()
-        output_test = output_test.numpy().squeeze()
+        output_test = output_test.numpy().reshape(-1)
 
         output_test_scaled = 10**(output_test*stdvs_dict['genP'] + means_dict['genP'])
         targets_test_scaled = 10**(targets_test*stdvs_dict['genP'] + means_dict['genP'])
