@@ -29,10 +29,12 @@ NHITS_MIN=2
 
 # data_dir = '/pscratch/sd/f/fernando/regressiononly/pi0_data/'
 # out_dir = '/pscratch/sd/f/fernando/regression_common/regressiononly/preprocessed_pi0_1L/generator_test/'
-data_dir = '/pscratch/sd/f/fernando/ECCE_data/'
-out_dir = '/pscratch/sd/f/fernando/regression_common/regressiononly/preprocessed/generator_test/'
-# data_dir = '/usr/workspace/hip/eic/log10_Uniform_03-23/ECCE_HCAL_Files/hcal_pi+_log10discrete_1GeV-150GeV_10deg-30deg_07-23-23/'
-# out_dir = '/usr/WS2/karande1/eic/gitrepos/regressiononly/preprocessed_data/train/'
+
+# data_dir = '/pscratch/sd/f/fernando/ECCE_data/'
+# out_dir = '/pscratch/sd/f/fernando/regression_common/regressiononly/preprocessed/generator_test/'
+
+data_dir = '/usr/workspace/hip/eic/log10_Uniform_03-23/ECCE_HCAL_Files/hcal_pi+_log10discrete_1GeV-150GeV_10deg-30deg_07-23-23/'
+out_dir = '/usr/WS2/karande1/eic/gitrepos/regressiononly/preprocessed_data/train/'
 
 
 class MPGraphDataGenerator:
