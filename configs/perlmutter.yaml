@@ -10,6 +10,8 @@ data:
   batch_size: 2048
   shuffle: False
   num_procs: 4
+  num_features: 2
+  k: 5
   preprocess: True
   output_dir: /pscratch/sd/f/fernando/regressiononly/preprocessed
   already_preprocessed: False

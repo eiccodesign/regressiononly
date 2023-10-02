@@ -12,11 +12,15 @@ data:
   num_procs: 4
   preprocess: True
   output_dir: /pscratch/sd/f/fernando/regressiononly/preprocessed
+  particle_type: pion
   already_preprocessed: False
   calc_stats: True
   k: 10  # 5,10
   n_zsections: 8
+  num_features: 2
   condition_zsections: True
+  include_ecal: False
+  hadronic_detector: hcal
 model:
   block_type: deepsets
   num_blocks: 1

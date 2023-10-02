@@ -45,6 +45,8 @@ if __name__=="__main__":
     calc_stats = data_config['calc_stats']
     num_features = data_config['num_features']
     k = data_config['k']
+    # z_segmentations = data_config['n_zsections']
+    # condition_zsections = data_config['condition_zsections']
     hadronic_detector = data_config['hadronic_detector']
     include_ecal = data_config['include_ecal']
 

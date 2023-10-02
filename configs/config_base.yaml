@@ -2,17 +2,23 @@ data:
   already_preprocessed: False # True while simulating all cases
   batch_size: 512
   calc_stats: True
-  data_dir: /usr/workspace/hip/eic/log10_Uniform_03-23/log10_pi+_100_10k_10-30deg_1/
+  data_dir: /pscratch/sd/f/fernando/data_dir/
+  # data_dir: /usr/workspace/hip/eic/log10_Uniform_03-23/log10_pi+_100_10k_10-30deg_1/
   num_procs: 32
   num_train_files: 85
   num_val_files: 30
   num_test_files: 49
-  output_dir: /usr/workspace/sinha4/regressiononly/output/
+  # output_dir: /usr/workspace/sinha4/regressiononly/output/
+  output_dir: /pscratch/sd/f/fernando/regressiononly/preprocessed
   particle_type: pion
   preprocess: true
   shuffle: false
   num_features: 4 # Energy, z,x,y.
+  hadronic_detector: hcal
   k: 10  # 5,10
+  n_zsections: None
+  condition_zsections: False
+  include_ecal: False
 model:
   block_type: graphnet
   concat_input: true
@@ -37,5 +43,5 @@ model:
 training:
   epochs: 55 # 10 epochs, 10 tr, 5 v and 5 ts
   learning_rate: 0.001
-  save_dir: /usr/workspace/sinha4/regressiononly/savemodel_hcal_only/
-  
+  # save_dir: /usr/workspace/sinha4/regressiononly/savemodel_hcal_only/
+  save_dir: /pscratch/sd/f/fernando/regressiononly/preprocessed
