@@ -51,7 +51,8 @@ class MPGraphDataGenerator:
                  hadronic_detector: str = None,
                  include_ecal: bool = True,
                  k: int = 5,
-                 z_segmentations = None):
+                 z_segmentations = None,
+                 condition_zsections = False):
         """Initialization"""
 
         self.preprocess = preprocess
@@ -131,6 +132,9 @@ class MPGraphDataGenerator:
             print(f'\nLongitudinal Layers = {self.z_layers} [{len(self.z_layers)}]')
 
 
+        # z_sections for conditioning
+        self.condition_zsections = condition_zsections
+
         # if not self.is_val and self.calc_stats:
         if self.calc_stats:
             n_scalar_files = 8 #num files to use for scaler calculation
@@ -154,6 +158,7 @@ class MPGraphDataGenerator:
             print('Check preprocessing config!!')
 
         if self.shuffle: np.random.shuffle(self.processed_file_list)
+
 
 
     def preprocess_scalar(self,n_calcs):
@@ -315,14 +320,19 @@ class MPGraphDataGenerator:
             for event_ind in range(num_events):
 
                 nodes, global_node, cluster_num_nodes = self.get_nodes(event_data, event_ind)
+
+
                 if cluster_num_nodes<2 or self.custom_z:
                     # senders, receivers, edges = None, None, None
-                    continue
+                    senders, receivers, edges = None, None, None
+                    # continue
                 else:
                     senders, receivers, edges = self.get_edges(event_data, event_ind, cluster_num_nodes)
                 
-                if not global_node:
+                # if not global_node:
+                if None in global_node:
                     continue
+
 
                 graph = {'nodes': nodes.astype(np.float32), 
                          'globals': global_node.astype(np.float32),
@@ -347,13 +357,25 @@ class MPGraphDataGenerator:
 
     def get_nodes(self, event_data, event_ind):
 
-        nodes = self.get_cell_data(event_data[event_ind])
-        cluster_num_nodes = len(nodes)
         global_node = self.get_cluster_calib(event_data[event_ind])
+
+        if (self.condition_zsections):
+            rand_Zs = get_random_z_pos(self.edgesZ, self.z_segmentations+1)
+            nodes = self.get_cell_data(event_data[event_ind], rand_Zs)
+            rand_Zs_norm = (rand_Zs - self.means_dict['.position.z']) \
+                / self.stdvs_dict['.position.z']
+            global_node = np.append(global_node, rand_Zs_norm)
+
+        else:
+            nodes = self.get_cell_data(event_data[event_ind])
+
+        # nodes = self.get_cell_data(event_data[event_ind])
+        cluster_num_nodes = len(nodes)
 
         return nodes, np.array([global_node]), cluster_num_nodes
 
-    def get_cell_data(self,event_data):
+
+    def get_cell_data(self,event_data, z_sections=None):
 
         cell_data = []
 
@@ -363,11 +385,33 @@ class MPGraphDataGenerator:
 
         cell_E = cell_E[mask]
 
-        if self.custom_z:
+        if self.custom_z and z_sections is not None:
             cell_Z = event_data[self.detector_name+'.position.z'][mask]
             binned_cell_E, binned_mask = Sum_EinZbins(cell_E, cell_Z, self.z_layers)
             binned_cell_Z = self.z_centers[binned_mask]
 
+            cellX = ak.ravel(event_data[self.detector_name+'.position.x'][mask])
+            cellY = ak.ravel(event_data[self.detector_name+'.position.y'][mask])
+            cellZ = ak.ravel(event_data[self.detector_name+'.position.z'][mask])
+
+
+            new_features = get_newZbinned_cells(np.ravel(cell_E),
+                                                cellZ, cellX, cellY, 
+                                                self.edgesX, self.edgesY,
+                                                z_sections)
+
+            # print("%"*30)
+            # print("New Z = ",new_features[1])
+            for i_feat, feature in enumerate(self.nodeFeatureNames):
+                if "energy" in feature: feature = self.detector_name + feature
+                feature_data = (new_features[i_feat] - self.means_dict[feature])\
+                    / self.stdvs_dict[feature]
+                feature_data = np.nan_to_num(feature_data)
+                cell_data.append(feature_data)
+            cell_data = np.swapaxes(cell_data, 0, 1)
+            return cell_data
+
+        # ECAL and Z Conditioning not compatible at this time 10/3/23
         if self.include_ecal:
             cell_data_ecal = []
             cell_E_ecal = event_data[self.detector_ecal+".energy"]
@@ -629,7 +673,8 @@ if __name__ == '__main__':
                                     hadronic_detector="hcal",
                                     include_ecal=False,
                                     num_features=2,
-                                    z_segmentations=8)
+                                    z_segmentations=8,
+                                    condition_zsections = True)
 
     gen = data_gen.generator()
 
