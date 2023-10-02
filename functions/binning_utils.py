@@ -157,7 +157,7 @@ def Sum_EinZbins(cellE, cellZ, zbins):
     #count mask is used later to get appropriate z-centers
 
 
-def get_newZbinned_cells(cellE, cellX, cellY, cellZ,
+def get_newZbinned_cells(cellE, cellZ, cellX, cellY,
                          edgesX, edgesY, zbins):
     #currently assumes only varrying Z.
     #generalize by passing in bins for XY
@@ -183,13 +183,13 @@ def get_newZbinned_cells(cellE, cellX, cellY, cellZ,
 
     # Now that we have cell-sums along Z,
     # Transorm back into coordinates
-    newX, newY, newZ = xyz_coordinates_from_counts(counts, centersX, 
+    newZ, newX, newY = xyz_coordinates_from_counts(counts, centersX, 
                                                    centersY, centersZ)
 
     count_mask = counts != 0
     cellE_log10 = np.log10(counts[count_mask])
 
-    return(cellE_log10, newX, newY, newZ)
+    return(cellE_log10, newZ, newX, newY)
 
 
 def xyz_masks_from_counts(counts):
