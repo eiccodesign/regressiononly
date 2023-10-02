@@ -53,7 +53,7 @@ class MPGraphDataGenerator:
                  hadronic_detector: str = None,
                  include_ecal: bool = True,
                  k: int = 5,
-                 z_segmentations = None,
+                 n_zsections = None,
                  condition_zsections = False):
         """Initialization"""
 
@@ -119,22 +119,22 @@ class MPGraphDataGenerator:
 
         # HCal Z-Segmentation (training, not conditioning):
         self.custom_z = False
-        self.z_segmentations = z_segmentations
-        if (self.z_segmentations is not None):
+        self.n_zsections = n_zsections
+        if (self.n_zsections is not None):
             self.custom_z = True
             if self.custom_z and self.include_ecal:
                 sys.exit("ERROR: Custom Z and include ECal NOT supported")
             self.edgesX, self.edgesY, self.edgesZ \
             = self.get_cell_boundaries('HcalEndcapPHitsReco')
             self.z_layers = get_equidistant_layers(self.edgesZ,
-                                                   self.z_segmentations)
+                                                   self.n_zsections)
             self.z_centers = (self.z_layers[0:-1] + self.z_layers[1:])/2
 
             print(f'\nCell Boundaries = {self.edgesZ} [{len(self.edgesZ)}]')
             print(f'\nLongitudinal Layers = {self.z_layers} [{len(self.z_layers)}]')
 
 
-        # z_sections for conditioning
+        # n_zsections for conditioning
         self.condition_zsections = condition_zsections
 
         # if not self.is_val and self.calc_stats:
@@ -362,7 +362,7 @@ class MPGraphDataGenerator:
         global_node = self.get_cluster_calib(event_data[event_ind])
 
         if (self.condition_zsections):
-            rand_Zs = get_random_z_pos(self.edgesZ, self.z_segmentations+1)
+            rand_Zs = get_random_z_pos(self.edgesZ, self.n_zsections+1)
             nodes = self.get_cell_data(event_data[event_ind], rand_Zs)
             rand_Zs_norm = (rand_Zs - self.means_dict['.position.z']) \
                 / self.stdvs_dict['.position.z']
@@ -377,7 +377,7 @@ class MPGraphDataGenerator:
         return nodes, np.array([global_node]), cluster_num_nodes
 
 
-    def get_cell_data(self,event_data, z_sections=None):
+    def get_cell_data(self,event_data, n_zsections=None):
 
         cell_data = []
 
@@ -387,7 +387,7 @@ class MPGraphDataGenerator:
 
         cell_E = cell_E[mask]
 
-        if self.custom_z and z_sections is not None:
+        if self.custom_z and n_zsections is not None:
             cell_Z = event_data[self.detector_name+'.position.z'][mask]
             binned_cell_E, binned_mask = Sum_EinZbins(cell_E, cell_Z, self.z_layers)
             binned_cell_Z = self.z_centers[binned_mask]
@@ -400,7 +400,7 @@ class MPGraphDataGenerator:
             new_features = get_newZbinned_cells(np.ravel(cell_E),
                                                 cellZ, cellX, cellY, 
                                                 self.edgesX, self.edgesY,
-                                                z_sections)
+                                                n_zsections)
 
             # print("%"*30)
             # print("New Z = ",new_features[1])
@@ -675,7 +675,7 @@ if __name__ == '__main__':
                                     hadronic_detector="hcal",
                                     include_ecal=False,
                                     num_features=2,
-                                    z_segmentations=8,
+                                    n_zsections=8,
                                     condition_zsections = True)
 
     gen = data_gen.generator()

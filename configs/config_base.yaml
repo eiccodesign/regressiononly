@@ -11,7 +11,7 @@ data:
   particle_type: pion
   preprocess: true
   shuffle: false
-  num_features: 4 # Energy, x,y,z.
+  num_features: 4 # Energy, z,x,y.
   k: 10  # 5,10
 model:
   block_type: graphnet
