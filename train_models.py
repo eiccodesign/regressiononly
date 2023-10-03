@@ -45,8 +45,8 @@ if __name__=="__main__":
     calc_stats = data_config['calc_stats']
     num_features = data_config['num_features']
     k = data_config['k']
-    # z_segmentations = data_config['n_zsections']
-    # condition_zsections = data_config['condition_zsections']
+    z_segmentations = data_config['n_zsections']
+    condition_zsections = data_config['condition_zsections']
     hadronic_detector = data_config['hadronic_detector']
     include_ecal = data_config['include_ecal']
 
@@ -92,7 +92,9 @@ if __name__=="__main__":
                                           hadronic_detector=hadronic_detector,
                                           include_ecal=include_ecal,
                                           num_features=num_features,
-                                          k=k)
+                                          k=k,
+                                          n_zsections = n_zsections,
+                                          condition_zsections = condition_zsections)
 
     data_gen_val = MPGraphDataGenerator(file_list=root_val_files,
                                         batch_size=batch_size,
@@ -106,7 +108,9 @@ if __name__=="__main__":
                                         hadronic_detector=hadronic_detector,
                                         include_ecal=include_ecal,
                                         num_features=num_features,
-                                        k=k)
+                                        k=k,
+                                        n_zsections = n_zsections,
+                                        condition_zsections = condition_zsections)
 
     # data_gen_test = MPGraphDataGenerator(file_list=root_test_files,
     #                                      batch_size=batch_size,
