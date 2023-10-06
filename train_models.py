@@ -93,7 +93,7 @@ if __name__=="__main__":
                                           include_ecal=include_ecal,
                                           num_features=num_features,
                                           k=k,
-                                          n_zsections = n_zsections,
+                                          n_zsections = z_segmentations,
                                           condition_zsections = condition_zsections)
 
     data_gen_val = MPGraphDataGenerator(file_list=root_val_files,
@@ -109,7 +109,7 @@ if __name__=="__main__":
                                         include_ecal=include_ecal,
                                         num_features=num_features,
                                         k=k,
-                                        n_zsections = n_zsections,
+                                        n_zsections = z_segmentations,
                                         condition_zsections = condition_zsections)
 
     # data_gen_test = MPGraphDataGenerator(file_list=root_test_files,
