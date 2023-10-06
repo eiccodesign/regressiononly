@@ -1,5 +1,5 @@
 data:
-  data_dir: /pscratch/sd/f/fernando/data_dir/
+  data_dir: /pscratch/sd/f/fernando/ECCE_data/
   particle_type: pion
   # num_train_files: 100
   # num_val_files: 30
