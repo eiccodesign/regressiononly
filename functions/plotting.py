@@ -1441,8 +1441,10 @@ def get_loss_curve_from_training_hcal(path_to_deepset_models, granularity, outpu
     return final_model_path   
 
 
-def read_start_stop_local(file_path, detector, NumEvents):
+def read_start_stop_local(file_path, detector, NumEvents, include_ecal=True):
     import uproot as ur
+    MIP_TH_ecal=0.5 * 0.13
+    Time_TH_ecal=150
     root_files = os.listdir(file_path)
     selected_file = random.choice(root_files)
     file = os.path.join(file_path, selected_file)
@@ -1466,12 +1468,12 @@ def read_start_stop_local(file_path, detector, NumEvents):
         sampling_fraction=0.0224
     elif detector=='ecal':
         detector_name = "EcalEndcapPHitsReco"
-        MIP_TH=0.5 * 0.13
-        Time_TH=150
+        MIP_TH_ecal=0.5 * 0.13
+        Time_TH_ecal=150
         theta_max=600.0
         sampling_fraction=1.0
         
-    elif detector=="hcal_insert":
+    elif detector=="insert":
         detector_name= "HcalEndcapPInsertHitsReco"
         MIP_TH=0.5 * 0.0006
         Time_TH=150.0
@@ -1510,7 +1512,25 @@ def read_start_stop_local(file_path, detector, NumEvents):
     posx=posx[mask]
     posy=posy[mask]
     posz=posz[mask]
-    cluster_sum=(np.sum(hit_e, axis=-1))/sampling_fraction
+    cluster_sum_hcal=(np.sum(hit_e, axis=-1))/sampling_fraction
+
     
-    return hit_e, posx, posy, posz, genPx, genPy, gen_energy, theta, cluster_sum  
+    if include_ecal==True:
+        detector_name='EcalEndcapPHitsReco'
+        hit_e_ecal =event_data[f'{detector_name}.energy']
+        time_ecal =event_data[f'{detector_name}.time']
+        mask_ecal=np.logical_and(hit_e_ecal>MIP_TH_ecal , time_ecal<Time_TH_ecal)
+        hit_e_ecal = hit_e_ecal[mask_ecal]
+        cluster_sum_ecal=np.sum(hit_e_ecal, axis=-1)
+        cluster_sum_total=cluster_sum_hcal + cluster_sum_ecal
+        
+        
+    else:
+        cluster_sum_total=cluster_sum_hcal
+        cluster_sum_ecal=None
+        
+    
+   
+    
+    return hit_e, posx, posy, posz, genPx, genPy, gen_energy, theta, cluster_sum_total , cluster_sum_hcal, cluster_sum_ecal 
      
