@@ -23,7 +23,7 @@ sns.set_context('poster')
 if __name__=="__main__":
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config', default='configs/config_base.yaml')
+    parser.add_argument('--config', default='configs/config_base_ucr.yaml')
     args = parser.parse_args()
 
     config = yaml.safe_load(open(args.config))
@@ -45,11 +45,12 @@ if __name__=="__main__":
     calc_stats = data_config['calc_stats']
     num_features = data_config['num_features']
     k = data_config['k']
-    z_segmentations = data_config['n_zsections']
+    n_zsections = data_config['n_zsections']
     condition_zsections = data_config['condition_zsections']
+    output_dim=data_config['output_dim']
     hadronic_detector = data_config['hadronic_detector']
     include_ecal = data_config['include_ecal']
-
+    
     block_type = model_config['block_type']
 
     epochs = train_config['epochs']
@@ -58,7 +59,7 @@ if __name__=="__main__":
     save_dir = train_config['save_dir'] + '/ECCE_'+time.strftime("%Y%m%d-%H%M_")+block_type+f'_{num_features:d}D'
     os.makedirs(save_dir, exist_ok=True)
     yaml.dump(config, open(save_dir + '/config.yaml', 'w'))
-
+    print('output_dim ==== ',output_dim)
     root_files = np.sort(glob.glob(data_dir+'*root'))
     train_start = 0
     train_end = train_start + num_train_files
@@ -72,6 +73,12 @@ if __name__=="__main__":
     train_output_dir = None
     val_output_dir = None
 
+
+    # Check for GPU availability
+    if tf.test.is_gpu_available():
+        print("GPU is available")
+    else:
+        print("GPU is not available")
     # Get Data
     if preprocess:
         train_output_dir = output_dir + '/train/'
@@ -93,7 +100,8 @@ if __name__=="__main__":
                                           include_ecal=include_ecal,
                                           num_features=num_features,
                                           k=k,
-                                          n_zsections = z_segmentations,
+                                          output_dim=output_dim,
+                                          n_zsections = n_zsections,
                                           condition_zsections = condition_zsections)
 
     data_gen_val = MPGraphDataGenerator(file_list=root_val_files,
@@ -109,7 +117,8 @@ if __name__=="__main__":
                                         include_ecal=include_ecal,
                                         num_features=num_features,
                                         k=k,
-                                        n_zsections = z_segmentations,
+                                        output_dim=output_dim,
+                                        n_zsections = n_zsections,
                                         condition_zsections = condition_zsections)
 
     # data_gen_test = MPGraphDataGenerator(file_list=root_test_files,
@@ -128,7 +137,7 @@ if __name__=="__main__":
 
     optimizer = tf.keras.optimizers.Adam(learning_rate)
 
-    model = models.BlockModel(global_output_size=1, model_config=model_config)
+    model = models.BlockModel(global_output_size=output_dim, model_config=model_config)
 
     training_loss_epoch = []
     val_loss_epoch = []
@@ -227,8 +236,12 @@ if __name__=="__main__":
 
     def loss_fn(targets, predictions):
         return mae_loss(targets, predictions) 
-
-    @tf.function(input_signature=[graph_spec, tf.TensorSpec(shape=[None,], dtype=tf.float32)])
+    if output_dim==2:
+        provided_shape=[None, None]
+    elif output_dim==1:
+        provided_shape=[None,]
+        
+    @tf.function(input_signature=[graph_spec, tf.TensorSpec(shape=provided_shape, dtype=tf.float32)])
     def train_step(graphs, targets):
         with tf.GradientTape() as tape:
             predictions = model(graphs).globals
@@ -239,7 +252,7 @@ if __name__=="__main__":
 
         return loss
 
-    @tf.function(input_signature=[graph_spec, tf.TensorSpec(shape=[None,], dtype=tf.float32)])
+    @tf.function(input_signature=[graph_spec, tf.TensorSpec(shape=provided_shape, dtype=tf.float32)])
     def val_step(graphs, targets):
         predictions = model(graphs).globals
         loss = loss_fn(targets, predictions)

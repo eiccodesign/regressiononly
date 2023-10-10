@@ -44,9 +44,15 @@ if __name__=="__main__":
 
     num_train_files = data_config['num_train_files']
     num_val_files = data_config['num_val_files']
-    
+    num_test_files = int(args.num_test_files)
+    test_dir = data_dir
+    #num_test_files = len(glob.glob(test_dir+'/*root'))
+    print(' total files   ',num_test_files)
+    '''
     try:
         num_test_files = data_config['num_test_files']
+        num_test_files=num_test_files
+        print('I am in try')
         test_dir = data_dir
     except:
         if (args.test_dir is None):
@@ -56,11 +62,14 @@ if __name__=="__main__":
             test_dir = args.test_dir
             print(f"Test files in = {args.test_dir}")
 
+        
         if (args.num_test_files is not None):
             num_test_files = int(args.num_test_files)
         else:
             num_test_files = len(glob.glob(test_dir+'/*root'))
-
+    print('num_test_files=,', num_test_files)                
+    '''
+    
     batch_size = data_config['batch_size']
     shuffle = data_config['shuffle']
     num_procs = data_config['num_procs']
@@ -70,9 +79,13 @@ if __name__=="__main__":
     k = data_config['k']
     hadronic_detector = data_config['hadronic_detector']
     include_ecal = data_config['include_ecal']
+    output_dim=data_config['output_dim']
+    n_zsections = data_config['n_zsections']
+    condition_zsections = data_config['condition_zsections']
+    print(" output_dim ", output_dim, '  n sections  ', n_zsections)
     # already_preprocessed = data_config['already_preprocessed']
-    already_preprocessed = True
-    calc_stats = False
+    already_preprocessed = False
+    calc_stats = True
 
     learning_rate = train_config['learning_rate']
 
@@ -108,7 +121,7 @@ if __name__=="__main__":
 
 
     ### MODEL READ 
-    model = models.BlockModel(global_output_size=1, model_config=model_config)
+    model = models.BlockModel(global_output_size=output_dim, model_config=model_config)
     checkpoint = tf.train.Checkpoint(module=model)
 
     best_ckpt_prefix = os.path.join(save_dir, '/best_model')
@@ -192,7 +205,7 @@ if __name__=="__main__":
         )
 
         return graph
-
+    
     data_gen_test = MPGraphDataGenerator(file_list=root_test_files,
                                          batch_size=batch_size,
                                          shuffle=shuffle,
@@ -205,10 +218,14 @@ if __name__=="__main__":
                                          num_features=num_features,
                                          hadronic_detector=hadronic_detector,
                                          include_ecal=include_ecal,
-                                         k=k)
+                                         k=k,
+                                         output_dim=output_dim,
+                                         n_zsections = n_zsections,
+                                         condition_zsections = condition_zsections
+    )
 
 
-
+    
     #samp_graph, samp_target = next(get_batch(data_gen_train.generator()))
     samp_graph, samp_target = next(get_batch(data_gen_test.generator()))
     data_gen_test.kill_procs()
@@ -219,62 +236,138 @@ if __name__=="__main__":
     def loss_fn(targets, predictions):
             return mae_loss(targets, predictions) 
 
-
-    @tf.function(input_signature=[graph_spec, tf.TensorSpec(shape=[None,], dtype=tf.float32)])
+    
+    @tf.function(input_signature=[graph_spec, tf.TensorSpec(shape=[None,None], dtype=tf.float32)])
     def val_step(graphs, targets):
             predictions = model(graphs).globals
             loss = loss_fn(targets, predictions)
 
             return loss, predictions
-
-    i = 1
-    test_loss = []
-    all_targets = []
-    all_outputs = []
-    all_targets_scaled = []
-    all_outputs_scaled = []
-
-
+    
+    
+    
     means_dict = pickle.load(open(f"{output_dir}/means.p", 'rb'), compression='gzip')
     stdvs_dict = pickle.load(open(f"{output_dir}/stdvs.p", 'rb'), compression='gzip')
 
-    start = time.time()
+    def get_pred_2D(data_gen_test, means_dict, stdvs_dict):
+        print('Hello Hello')
+        i = 1
+        test_loss = []
+        all_targets = []
+        all_outputs = []
+        all_targets_scaled = []
+        all_outputs_scaled = []
+        all_targets_scaled_ene = []
+        all_outputs_scaled_ene = []
+        all_targets_scaled_theta = []
+        all_outputs_scaled_theta = []
+        start = time.time()
 
-    for graph_data_test, targets_test in get_batch(data_gen_test.generator()):
-        losses_test, output_test = val_step(graph_data_test, targets_test)
+        for graph_data_test, targets_test in get_batch(data_gen_test.generator()):
+            losses_test, output_test = val_step(graph_data_test, targets_test)
 
-        test_loss.append(losses_test.numpy())
-        targets_test = targets_test.numpy()
-        output_test = output_test.numpy().reshape(-1)
+            test_loss.append(losses_test.numpy())
+            targets_test = targets_test.numpy()
+            output_test = output_test.numpy()
 
-        output_test_scaled = 10**(output_test*stdvs_dict['genP'] + means_dict['genP'])
-        targets_test_scaled = 10**(targets_test*stdvs_dict['genP'] + means_dict['genP'])
+            output_test_scaled_ene = 10**(output_test[:,0]*stdvs_dict['genP'] + means_dict['genP'])
+            targets_test_scaled_ene = 10**(targets_test[:,0]*stdvs_dict['genP'] + means_dict['genP'])
+            
+            output_test_scaled_theta = (output_test[:,1]*stdvs_dict['theta'] + means_dict['theta'])
+            targets_test_scaled_theta = (targets_test[:,1]*stdvs_dict['theta'] + means_dict['theta'])
+            
+            all_targets.append(targets_test)
+            all_outputs.append(output_test)
+            
+            all_targets_scaled_ene.append(targets_test_scaled_ene)
+            all_outputs_scaled_ene.append(output_test_scaled_ene)
+            
+            all_targets_scaled_theta.append(targets_test_scaled_theta)
+            all_outputs_scaled_theta.append(output_test_scaled_theta)
+            
+            
 
-        all_targets.append(targets_test)
-        all_outputs.append(output_test)
-        all_targets_scaled.append(targets_test_scaled)
-        all_outputs_scaled.append(output_test_scaled)
-
-        if not (i)%100:
-            end = time.time()
-            print('Iter: {:03d}, Test_loss_curr: {:.4f}, Test_loss_mean: {:.4f}'. \
+            if not (i)%100:
+                end = time.time()
+                print('Iter: {:03d}, Test_loss_curr: {:.4f}, Test_loss_mean: {:.4f}'. \
                   format(i, test_loss[-1], np.mean(test_loss)), end='  ')
-            print('Took {:.3f} secs'.format(end-start))
-            start = time.time()
+                print('Took {:.3f} secs'.format(end-start))
+                start = time.time()
 
-        i += 1 
-
-    end = time.time()
-    print('Iter: {:03d}, Test_loss_curr: {:.4f}, Test_loss_mean: {:.4f}'. \
+            i += 1
+        
+        end = time.time()
+        print('Iter: {:03d}, Test_loss_curr: {:.4f}, Test_loss_mean: {:.4f}'. \
           format(i, test_loss[-1], np.mean(test_loss)), end='  ')
-    print('Took {:.3f} secs'.format(end-start))
+        print('Took {:.3f} secs'.format(end-start))
 
-    epoch_end = time.time()
+        epoch_end = time.time()
+        all_targets_scaled_theta=np.concatenate(all_targets_scaled_theta)
+        all_targets_scaled_ene=np.concatenate(all_targets_scaled_ene)
+        all_outputs_scaled_theta=np.concatenate(all_outputs_scaled_theta)
+        all_outputs_scaled_ene=np.concatenate(all_outputs_scaled_ene)
+        
+        all_targets_scaled=np.vstack((all_targets_scaled_ene, all_targets_scaled_theta)).T
+        all_outputs_scaled=np.vstack((all_outputs_scaled_ene, all_outputs_scaled_theta)).T
+
+        return all_targets_scaled, all_outputs_scaled, all_targets, all_outputs    
+
+    
+    def get_pred_1D(data_gen_test, means_dict, stdvs_dict):
+        print('Hello Hello')
+        i = 1
+        test_loss = []
+        all_targets = []
+        all_outputs = []
+        all_targets_scaled = []
+        all_outputs_scaled = []
+        start = time.time()
+        
+        for graph_data_test, targets_test in get_batch(data_gen_test.generator()):
+            losses_test, output_test = val_step(graph_data_test, targets_test)
+        
+            test_loss.append(losses_test.numpy())
+            targets_test = targets_test.numpy()
+            output_test = output_test.numpy().reshape(-1)
+        
+            output_test_scaled = 10**(output_test*stdvs_dict['genP'] + means_dict['genP'])
+            targets_test_scaled = 10**(targets_test*stdvs_dict['genP'] + means_dict['genP'])
+            
+            
+            all_targets.append(targets_test)
+            all_outputs.append(output_test)
+            all_targets_scaled.append(targets_test_scaled)
+            all_outputs_scaled.append(output_test_scaled)
+            
+            if not (i)%100:
+                end = time.time()
+                print('Iter: {:03d}, Test_loss_curr: {:.4f}, Test_loss_mean: {:.4f}'. \
+                  format(i, test_loss[-1], np.mean(test_loss)), end='  ')
+                print('Took {:.3f} secs'.format(end-start))
+                start = time.time()
+
+            i += 1
+
+        end = time.time()
+        print('Iter: {:03d}, Test_loss_curr: {:.4f}, Test_loss_mean: {:.4f}'. \
+          format(i, test_loss[-1], np.mean(test_loss)), end='  ')
+        print('Took {:.3f} secs'.format(end-start))
+
+        epoch_end = time.time()
+        all_targets_scaled = np.concatenate(all_targets_scaled)
+        all_outputs_scaled = np.concatenate(all_outputs_scaled)
+        
+        return all_targets_scaled, all_outputs_scaled, all_targets, all_outputs
+    if output_dim==1:
+        all_targets_scaled, all_outputs_scaled, all_targets, all_outputs=get_pred_1D(data_gen_test, means_dict, stdvs_dict)
+
+    if output_dim==2:
+    	all_targets_scaled, all_outputs_scaled, all_targets, all_outputs=get_pred_2D(data_gen_test, means_dict, stdvs_dict)    
             
     all_targets = np.concatenate(all_targets)
     all_outputs = np.concatenate(all_outputs)
-    all_targets_scaled = np.concatenate(all_targets_scaled)
-    all_outputs_scaled = np.concatenate(all_outputs_scaled)
+    #all_targets_scaled = np.concatenate(all_targets_scaled)
+    #all_outputs_scaled = np.concatenate(all_outputs_scaled)
     print(f"\n Done. Completed {np.shape(all_targets)}\n")
     # print("IGNORE ERROR BELOW")
     # print("       |  |")
@@ -282,9 +375,10 @@ if __name__=="__main__":
     # print("      \    /")
     # print("       \  /")
     # print("        \/\n")
-           
+          
     np.savez(save_dir+'/predictions_appended_'+'_'.join(save_dir.split('/')[-2].split('_')[-2:])+'.npz', 
              targets=all_targets, targets_scaled=all_targets_scaled,
              outputs=all_outputs, outputs_scaled=all_outputs_scaled)
+    
     # np.save(save_dir+'/predictions_standalone.npy', all_outputs)
     # np.save(save_dir+'/targets_standalone.npy', all_targets)
