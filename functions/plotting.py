@@ -436,7 +436,7 @@ def draw_plot_res_scale(var_X, var_Y,labels, title, xlimits,ylimits, particle, d
     greek_particle=get_greek_particle(particle)
     #plt.title("AI Codesign Scale",fontsize=25
     if title=='scale':
-        plt.ylabel("$(E_\mathrm{Pred}/E_\mathrm{Truth})$",fontsize=24)
+        plt.ylabel("$E_\mathrm{Pred}/E_\mathrm{Truth}$",fontsize=24)
         ylim_min=0.9
         title_head='Energy Scale for '+ greek_particle + ' in ' +' '+detector
     elif title=='resolution':
@@ -444,7 +444,17 @@ def draw_plot_res_scale(var_X, var_Y,labels, title, xlimits,ylimits, particle, d
         plt.ylabel("Resolution",fontsize=24)
         ylim_min=0
         title_head='Energy Resolution for '+ greek_particle + ' in' +' '+ detector
-
+    elif title=='angular-resolution-theta':
+        #plt.ylabel("$(\sigma_{E,\mathrm{Pred}}/E_\mathrm{Truth})$",fontsize=24)
+        plt.ylabel(r"$\sigma_{\theta} \quad [mrad]$",fontsize=24)
+        ylim_min=0
+        title_head='Angular Resolution  for '+ greek_particle + ' in' +' '+ detector
+        
+    elif title=='angular-resolution-phi':
+        #plt.ylabel("$(\sigma_{E,\mathrm{Pred}}/E_\mathrm{Truth})$",fontsize=24)
+        plt.ylabel(r"$\sigma_{\phi} \quad [mrad]$",fontsize=24)
+        ylim_min=0
+        title_head='Angular Resolution  for '+ greek_particle + ' in' +' '+ detector    
     plt.xlabel("$E_\mathrm{Truth}$ [GeV]",fontsize=24)
     plt.xticks(fontsize=20)
     plt.yticks(fontsize=20)
@@ -462,7 +472,7 @@ def draw_plot_res_scale(var_X, var_Y,labels, title, xlimits,ylimits, particle, d
     #plt.errorbar(straw_X,straw_Y,linewidth=2.0,marker="o",alpha=0.7,\
     #             label="Strawman")
     plt.legend(fontsize=15,loc=legend_position)
-    plt.title(title_head, fontsize=20)
+    #plt.title(title_head, fontsize=20)
 
 ### compare the loss and val loss for given directories    
 
@@ -633,6 +643,7 @@ def get_res_scale_fit_log10_log2(truth,pred, binning, nbins, data_type, particle
         #return
     if data_type=='discrete':
         truth=np.rint(truth)
+    
     indecies = np.digitize(truth,binning)-1 #Get the bin number each element belongs to.
     indecies=np.where(indecies < 0, 0, indecies)
     #if any(indecies<0): print(indicies)
@@ -758,7 +769,7 @@ def get_res_scale_fit_log10_log2(truth,pred, binning, nbins, data_type, particle
             #resolution=std
             
             if label=='energy':
-                resolution=(std/mean)/scale    #Scale corrected Strawman
+                resolution=(std/mean)    #Scale corrected Strawman
                 
                 #resolution_scale_corr=(stdev_pred[ii]/avg_truth[ii])/scale_median  ## this is std vs median
                 #resolution_scale_corrected=np.nan_to_num(resolution_scale_corr)
@@ -813,7 +824,7 @@ def generate_file_name_dict(input_dims, latent_sizes,num_layers, learning_rates,
         
 def get_fit_parameters_strawman(root_file, detector, binning, particle, total_events, data_type, output_path, nbins, time_TH, MIP_TH_HCAL):
     if detector=='hcal': 
-        sampling_fraction=0.0224 
+        sampling_fraction=0.0139 #0.0224 (ATHENA CONFIG 0.0224 
     elif detector=='hcal_insert':
         sampling_fraction=0.0089 ## time 150 ns and MIP 0.5*MIP
        
@@ -1042,7 +1053,7 @@ def get_cluster_sum_from_hits(detector, ur_tree):
     hit_e_arr=[]
     if detector=="hcal":
         detector_name = "HcalEndcapPHitsReco"
-        sampling_fraction=0.0224 
+        sampling_fraction= 0.0224 #0.0139 #0.0224 (ATHENA CONFIG 0.0224
         MIP_TH=MIP_TH_HCAL
         
     elif detector=="zdc":
@@ -1065,9 +1076,14 @@ def get_cluster_sum_from_hits(detector, ur_tree):
        
     hit_raw =ur_tree.array(f'{detector_name}.energy')
     time =ur_tree.array(f'{detector_name}.time')
+    condition1 = hit_raw > MIP_TH
+    condition2= time < time_TH
+    condition3= hit_raw < 1e10
+    combined_mask = condition1 & condition2 & condition3
 
-    mask = (hit_raw > MIP_TH) & (time < time_TH) & (hit_raw < 1e10)
-    hit_e=hit_raw[mask]
+    hit_e = ak.mask(hit_raw, combined_mask)
+    #mask = (ak.num(hit_raw) > MIP_TH) & (ak.num(time) < time_TH) & (ak.num(hit_raw) < 1e10)
+    #hit_e=hit_raw[mask]
         
     #PosRecoX_hcal = ur_tree.array(f'{detector_name}.position.x')/10.0
     #PosRecoY_hcal = ur_tree.array(f'{detector_name}.position.y')/10.0
@@ -1148,14 +1164,21 @@ def gaussian_fit_on_distribution(FIT_SIGMA, sigma_guess, mean_guess, binscenters
             error_counts=np.where(error_counts==0,1,error_counts)
         
             param_bounds=([-np.inf,-np.inf,-np.inf], [np.inf,np.inf,np.inf])
-            popt,pcov=curve_fit(gaussian,binscenters[mask],count[mask],p0=[np.max(count),mean_guess,sigma_guess],bounds=param_bounds)
-
-            ax.plot(binscenters[mask], gaussian(binscenters[mask], *popt), color='red', linewidth=2.5, label=r'F')
             
-            #ax.set_xlim(math.floor(min_range),math.ceil(max_range))
-            mean=popt[1]
-            std=popt[2]
+            try:
+                popt,pcov=curve_fit(gaussian,binscenters[mask],count[mask],p0=[np.max(count),mean_guess,sigma_guess],bounds=param_bounds)
+            except RuntimeError:
+            # Fitting failed, set mean and std to 9999
+                mean = 9999
+                std = 9999
+            else:    
+                ax.plot(binscenters[mask], gaussian(binscenters[mask], *popt), color='red', linewidth=2.5, label=r'F')
+            
+                #ax.set_xlim(math.floor(min_range),math.ceil(max_range))
+                mean=popt[1]
+                std=popt[2]
             return mean, std        
+        
         
         
 ####FOR MIP ANALYSIS SELECTS THE RIGHT FILE FOR GIVEN DETECTOR AND PARTICLE
@@ -1167,7 +1190,7 @@ def get_hitE_genE_fromChain(detector, particle, start, stop):
     gen_energy_arr=[]
     if detector=="hcal":
         detector_name = "HcalEndcapPHitsReco"
-        sampling_fraction=0.0224 
+        sampling_fraction=0.0139 #0.0224 (ATHENA CONFIG 0.0224 
         Mev_to_GeV=1
 
     elif detector=="hcal_insert":
@@ -1225,9 +1248,15 @@ def get_hitE_genE_fromChain(detector, particle, start, stop):
         hit_raw =ur_tree.array(f'{detector_name}.energy')/Mev_to_GeV
         
         time =ur_tree.array(f'{detector_name}.time')
-  
-        mask = (hit_raw > MIP_TH_HCAL) & (time < time_TH) & (hit_raw < 1e10)
-        hit_e=hit_raw[mask]
+        condition1 = hit_raw > MIP_TH
+        condition2= time < time_TH
+        condition3= hit_raw < 1e10
+        combined_mask = condition1 & condition2 & condition3
+
+    
+        hit_e = ak.mask(hit_raw, combined_mask)
+        #mask = (hit_raw > MIP_TH_HCAL) & (time < time_TH) & (hit_raw < 1e10)
+        #hit_e=hit_raw[mask]
         
         
         hit_e=hit_e.astype(float)
@@ -1278,7 +1307,7 @@ def get_resolution_fit_terms(energies, resolutions,  xpos, ypos, text_size, titl
     plt.ylabel(ylabel, fontsize=25)
     
     popt, pcov = curve_fit(fit_resolution_curve, energies, resolutions)
-    plt.plot(energies, fit_resolution_curve(energies, *popt), color='red', linewidth=2.5, label=r'F')
+    plt.plot(energies, fit_resolution_curve(energies, *popt), color='red', linewidth=2.5, label=r'Fit to Insert data')
     stochastic_term, const_term=popt
     plt.text(xpos, ypos, f'$\sigma/E $ =  {stochastic_term:.2f}/$\sqrt{{E}} \quad \oplus$ {const_term:.2e} ', fontsize=text_size)     
     
@@ -1288,7 +1317,7 @@ def get_resolution_fit_terms(energies, resolutions,  xpos, ypos, text_size, titl
     plt.yticks(fontsize=20)
     
     
-def get_3D_inference_from_discrete_data(path_to_result, path_to_stat, file="test_predictions.npz"):
+def get_3D_inference_from_discrete_data(path_to_result, path_to_stat, granularity, file="test_predictions.npz"):
 
     npz_unpacked = np.load(f'{path_to_result}/{file}')
 
@@ -1302,12 +1331,16 @@ def get_3D_inference_from_discrete_data(path_to_result, path_to_stat, file="test
     
     ### True ENERGY
     targets_ene = targets_arr[:,0]*stdvs['genP'] + means['genP']
-    targets_ene_plt = 10**targets_ene
-
     ### PREDICTED ENERGY
     prediction_ene=predictions_arr[:,0]*stdvs['genP'] + means['genP']
-    prediction_ene_plt=10**prediction_ene
-
+    
+    if granularity=='full_cell_hits':
+        targets_ene_plt = 10**targets_ene
+        prediction_ene_plt=10**prediction_ene
+        
+    elif granularity=='z_sections':
+        targets_ene_plt = targets_ene
+        prediction_ene_plt=prediction_ene
 
     ### True Theta
     targets_theta= targets_arr[:,1]*stdvs['theta'] + means['theta']
