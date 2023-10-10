@@ -7,6 +7,8 @@ import awkward as ak
 import glob
 import math
 import json
+import os
+import random
 import compress_pickle as pickle
 from scipy.optimize import curve_fit
 import uproot3 as ur
@@ -61,8 +63,8 @@ def ClusterSum_vs_GenP(clusterSum, genP, label, take_log = False, ylabel="Cluste
     fig.text(0.95,-0.05,label,transform=ax.transAxes,fontsize=10)
 
 
-    path =label
-    plt.savefig(f"{path}/ClusterSum_vs_GenP_Colormap.pdf") 
+    #path =label
+    #plt.savefig(f"{path}/ClusterSum_vs_GenP_Colormap.pdf") 
 
 def energy_QA_plots(flat_hits_e, genP, cluster_sum, label):
 
@@ -558,6 +560,9 @@ def read_start_stop(file_path, detector, entry_start, entry_stop):
         
     elif detector=="hcal_insert":
         detector_name= "HcalEndcapPInsertHitsReco"
+        
+    elif detector=="zdc":
+        detector_name="ZDCHcalHitsReco"
     else:
         print("Please make sure you have picked right detector name")     
         print("Pick: hcal or hcal_insert for endcap calo/ hcal_insert for insert")
@@ -1433,5 +1438,79 @@ def get_loss_curve_from_training_hcal(path_to_deepset_models, granularity, outpu
     else:
         final_model_path= f'{path_to_deepset_models}/{model_dir}/{result_dir}/{block_name}'
         
-    return final_model_path    
+    return final_model_path   
+
+
+def read_start_stop_local(file_path, detector, NumEvents):
+    import uproot as ur
+    root_files = os.listdir(file_path)
+    selected_file = random.choice(root_files)
+    file = os.path.join(file_path, selected_file)
+    
+    ur_tree = ur.open(file)['events']
+    #ur_tree = ur_file['events']
+    num_entries = ur_tree.num_entries
+    if (NumEvents==-1) or (NumEvents>num_entries):
+        NumEvents=num_entries
+    event_data=ur_tree.arrays(entry_stop=NumEvents)
+    #num_entries=int(train_frac*num_entriesss)
+    print("Total Entries ", num_entries)
+    
+    #print(means.shape,'      ',stds.shape)
+    #print("PRINT  DETECTOR ", detector)    
+    if detector=="hcal":
+        detector_name = "HcalEndcapPHitsReco"
+        MIP_TH=0.5 * 0.0006
+        Time_TH=150
+        theta_max=600.0
+        sampling_fraction=0.0224
+    elif detector=='ecal':
+        detector_name = "EcalEndcapPHitsReco"
+        MIP_TH=0.5 * 0.13
+        Time_TH=150
+        theta_max=600.0
+        sampling_fraction=1.0
+        
+    elif detector=="hcal_insert":
+        detector_name= "HcalEndcapPInsertHitsReco"
+        MIP_TH=0.5 * 0.0006
+        Time_TH=150.0
+        theta_max=600.0
+        sampling_fraction=0.0224
+        
+    elif detector=="zdc":
+        detector_name="ZDCHcalHitsReco"
+        MIP_TH=0.5 * 0.000393
+        Time_TH=275.0
+        theta_max=10.0
+        sampling_fraction=0.0216
+        
+    else:
+        print("Please make sure you have picked right detector name")     
+        print("Pick: hcal or hcal_insert for endcap calo/ hcal_insert for insert")
+            
+    
+    genPx = event_data['MCParticles.momentum.x'][:,2]
+    genPy = event_data['MCParticles.momentum.y'][:,2]
+    genPz = event_data['MCParticles.momentum.z'][:,2]
+    mass = event_data["MCParticles.mass"][:,2]
+    root_gen_P = np.sqrt(genPx*genPx + genPy*genPy + genPz*genPz)
+    mom=np.sqrt(genPx*genPx + genPy*genPy + genPz*genPz)
+    theta=np.arccos(genPz/mom)*1000  ## in mili radians
+    gen_energy=np.sqrt(root_gen_P**2 + mass**2)
+    
+    hit_e =event_data[f'{detector_name}.energy']
+    time =event_data[f'{detector_name}.time']
+    posx =event_data[f'{detector_name}.position.x']/10.
+    posy =event_data[f'{detector_name}.position.y']/10.
+    posz =event_data[f'{detector_name}.position.z']/10.
+    
+    mask=np.logical_and(hit_e>MIP_TH , time<Time_TH)
+    hit_e = hit_e[mask]
+    posx=posx[mask]
+    posy=posy[mask]
+    posz=posz[mask]
+    cluster_sum=(np.sum(hit_e, axis=-1))/sampling_fraction
+    
+    return hit_e, posx, posy, posz, genPx, genPy, gen_energy, theta, cluster_sum  
      

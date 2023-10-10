@@ -236,8 +236,11 @@ if __name__=="__main__":
     def loss_fn(targets, predictions):
             return mae_loss(targets, predictions) 
 
-    
-    @tf.function(input_signature=[graph_spec, tf.TensorSpec(shape=[None,None], dtype=tf.float32)])
+    if output_dim==2:
+        provided_shape=[None, None]
+    elif output_dim==1:
+        provided_shape=[None,]
+    @tf.function(input_signature=[graph_spec, tf.TensorSpec(shape=provided_shape, dtype=tf.float32)])
     def val_step(graphs, targets):
             predictions = model(graphs).globals
             loss = loss_fn(targets, predictions)
