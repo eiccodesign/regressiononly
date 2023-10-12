@@ -1,7 +1,7 @@
 data:
-  already_preprocessed: False # True while simulating all cases
+  already_preprocessed: True # True while simulating all cases
   batch_size: 256
-  calc_stats: True
+  calc_stats: False
   #data_dir: /media/miguel/Elements/ECCE_HCAL/hcal_pi+_log10continuous_1GeV-150GeV_10deg-30deg_07-21-23/ #### 160 46 40
   #data_dir: /media/miguel/Elements/zdc_data/zdc_neutron_log10continuous_10GeV-300GeV_0.0deg-0.5deg_staggered_h4_08_18/  ##106 35 35
   data_dir: /media/miguel/Elements/ECCE_HCAL/hcal_ecal_ECCE_64Fe_pi+_log10continuous_1GeV-150GeV_10deg-30deg_09-27-23/ ## 120  ## 35  ## 1
@@ -41,10 +41,10 @@ model:
     use_sent_edges: false # going out of the node , check get edges.
   num_blocks: 1 # 2,3,4
   num_layers: 4 # 2,3,4
-  latent_size:  64,128,256
+  latent_size: 64 ##,128,256
   reducer: mean
 training:
-  epochs: 100 #60 # 10 epochs, 10 tr, 5 v and 5 ts
+  epochs: 60 #60 # 10 epochs, 10 tr, 5 v and 5 ts
   learning_rate: 0.001
   save_dir: /media/miguel/Elements/ECCE_HCAL/ECCE_ECAL_HCAL_model_theta_10-30/new_models_1Doutput_09-08/results_4D_output1D_ECCE_graphnet_1block_4layers_latentsize64
   #save_dir: /media/miguel/Elements/bishnu/zdc_models/results_4D_output2D_ZDCFe_deepsets_newThetacut
