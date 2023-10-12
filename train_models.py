@@ -23,7 +23,7 @@ sns.set_context('poster')
 if __name__=="__main__":
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config', default='configs/config_base.yaml')
+    parser.add_argument('--config', default='configs/config_base_ucr.yaml')
     args = parser.parse_args()
 
     config = yaml.safe_load(open(args.config))
