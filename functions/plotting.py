@@ -774,7 +774,7 @@ def get_res_scale_fit_log10_log2(truth,pred, binning, nbins, data_type, particle
             #resolution=std
             
             if label=='energy':
-                resolution=(std/mean)    #Scale corrected Strawman
+                resolution=(std/mean)/scale    #Scale corrected Strawman
                 
                 #resolution_scale_corr=(stdev_pred[ii]/avg_truth[ii])/scale_median  ## this is std vs median
                 #resolution_scale_corrected=np.nan_to_num(resolution_scale_corr)

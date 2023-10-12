@@ -59,7 +59,7 @@ if __name__=="__main__":
     save_dir = train_config['save_dir'] + '/ECCE_'+time.strftime("%Y%m%d-%H%M_")+block_type+f'_{num_features:d}D'
     os.makedirs(save_dir, exist_ok=True)
     yaml.dump(config, open(save_dir + '/config.yaml', 'w'))
-    print('output_dim ==== ',output_dim)
+    print('output_dim ==== ',output_dim, 'output_dir == ', output_dir, 'include ecal ==', include_ecal, 'already preprocessed ', already_preprocessed)
     root_files = np.sort(glob.glob(data_dir+'*root'))
     train_start = 0
     train_end = train_start + num_train_files
@@ -120,7 +120,7 @@ if __name__=="__main__":
                                         output_dim=output_dim,
                                         n_zsections = n_zsections,
                                         condition_zsections = condition_zsections)
-
+    
     # data_gen_test = MPGraphDataGenerator(file_list=root_test_files,
     #                                      batch_size=batch_size,
     #                                      shuffle=shuffle,
@@ -227,7 +227,7 @@ if __name__=="__main__":
             targets = tf.convert_to_tensor(targets, dtype=tf.float32)
 
             yield graphs, targets
-
+    
     samp_graph, samp_target = next(get_batch(data_gen_train.generator()))
     data_gen_train.kill_procs()
     graph_spec = utils_tf.specs_from_graphs_tuple(samp_graph, True, True, True)
@@ -251,7 +251,7 @@ if __name__=="__main__":
         optimizer.apply_gradients(zip(gradients, model.trainable_variables))
 
         return loss
-
+     
     @tf.function(input_signature=[graph_spec, tf.TensorSpec(shape=provided_shape, dtype=tf.float32)])
     def val_step(graphs, targets):
         predictions = model(graphs).globals
@@ -260,7 +260,7 @@ if __name__=="__main__":
         return loss, predictions
 
     curr_loss = 1e5
-
+    
     #Main Epoch Loop
     for e in range(epochs):
 
@@ -296,7 +296,7 @@ if __name__=="__main__":
 
         training_loss_epoch.append(training_loss)
         training_end = time.time()
-
+    
         # validate
         print('\nValidation...')
         i = 1
@@ -416,3 +416,4 @@ if __name__=="__main__":
     # np.savez(save_dir+'/test_loss', test=test_loss)
 
 
+    

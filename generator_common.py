@@ -147,7 +147,6 @@ class MPGraphDataGenerator:
         self.n_zsections = n_zsections
         print('n zsections', self.n_zsections)
         if (self.n_zsections is not None):
-            print('I should not be here')
             self.custom_z = True
             if self.custom_z and self.include_ecal:
                 sys.exit("ERROR: Custom Z and include ECal NOT supported")
@@ -174,11 +173,11 @@ class MPGraphDataGenerator:
                                                'rb'), compression='gzip')
             self.stdvs_dict = pickle.load(open(f"{self.stats_dir}/stdvs.p",
                                                'rb'), compression='gzip')
-
+            print(self.means_dict)
         if self.already_preprocessed and os.path.isdir(self.output_dir):
             self.processed_file_list = [self.output_dir + f'data_{i:03d}.p'\
                 for i in range(self.num_files)]
-
+            print('Hello Hello Hello ')
         elif self.preprocess and self.output_dir is not None:
             os.makedirs(self.output_dir, exist_ok=True)
             self.preprocess_data()
