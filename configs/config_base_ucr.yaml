@@ -2,7 +2,11 @@ data:
   already_preprocessed: True # True while simulating all cases
   batch_size: 256
   calc_stats: False
+<<<<<<< Updated upstream
   #data_dir: /media/miguel/Elements/ECCE_HCAL/hcal_pi+_log10continuous_1GeV-150GeV_10deg-30deg_07-21-23/ #### 160 46 40
+=======
+  data_dir: /media/miguel/Elements/ECCE_HCAL/hcal_pi+_log10continuous_1GeV-150GeV_10deg-30deg_07-21-23/ #### 160 46 40
+>>>>>>> Stashed changes
   #data_dir: /media/miguel/Elements/zdc_data/zdc_neutron_log10continuous_10GeV-300GeV_0.0deg-0.5deg_staggered_h4_08_18/  ##106 35 35
   data_dir: /media/miguel/Elements/ECCE_HCAL/hcal_ecal_ECCE_64Fe_pi+_log10continuous_1GeV-150GeV_10deg-30deg_09-27-23/ ## 120  ## 35  ## 1
   # data_dir: /usr/workspace/hip/eic/log10_Uniform_03-23/log10_pi+_100_10k_10-30deg_1/

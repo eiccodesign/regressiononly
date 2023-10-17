@@ -1,0 +1,78 @@
+data:
+  #data_dir: /media/miguel/Elements/Data_hcali/Data1/log10_Uniform_03-23/log10_pi+_Uniform_0-140Gev_17deg_1/ # 200, 99, 100
+  #data_dir: /media/miguel/Elements/Data_hcali/Data1/log10_Uniform_03-23/log10_pi+_100_10k_10-30deg_1/ # 108, 40, 50
+  #data_dir: /media/miguel/Elements/Data_hcali/Data1/log10_Uniform_03-23/log10_pi+_uniform_2.83deg_100_6k_1/
+  #data_dir: /media/miguel/Elements/Data_hcali/Data1/log10_Uniform_03-23/log10_pi+_100_10k_17deg_ECAL_1/   # 80, 36, 36
+  #data_dir: /media/miguel/Elements/Data_hcali/Data1/log10_Uniform_03-23/log10_pi+_100_10k_10-30-deg_ECAL_updated_1/  ## 85 30 49
+  #data_dir: /media/miguel/Elements/Data_hcali/Data1/ZDC_data/log10_ZDC_neutron_1_300GeV_0_0.5deg_staggered_h3/ ## 95 40 55
+
+
+  ## ECCE CONFIG 4W + 60 Fe
+  data_dir: /media/miguel/Elements/ECCE_HCAL/hcal_pi+_log10continuous_1GeV-150GeV_10deg-30deg_07-21-23/ ## 246 = 184   60 11  1
+  #data_dir: /media/miguel/Elements/ECCE_HCAL/hcal_ecal_ECCE_64Fe_pi+_log10continuous_1GeV-150GeV_10deg-30deg_09-27-23/   ###   156   =  112, 42, 1
+  ## ZDC FE H4 PI+  CONTINUOUS
+  #data_dir: /media/miguel/Elements/zdc_data/zdc_neutron_log10continuous_10GeV-300GeV_0.0deg-0.5deg_staggered_h4_08_18/  #130 45  1
+  #data_dir: /media/miguel/Elements/zdc_data/zdc_Pb_neutron_log10continuous_10GeV-300GeV_0.0deg-0.5deg_staggered_h4_09_23/  # 250  74 75
+  
+  ## PION (0)  ###
+  #data_dir: /media/miguel/Elements/zdc_data/zdc_pi0_log10continuous_10GeV-300GeV_0.0deg-0.5deg_staggered_h4_10_23/ ##140  # 54  #1 
+  ## Gamma ####
+  #data_dir: /media/miguel/Elements/zdc_data/zdc_gamma_log10continuous_10GeV-300GeV_0.0deg-0.5deg_staggered_h4_10_14/  ## 142  ## 54  ## 2
+
+  ### 60 FE + 4	W  HCAL ECCE
+  #data_dir: /media/miguel/Elements/ECCE_HCAL/hcal_pi+_log10continuous_1GeV-150GeV_10deg-30deg_07-21-23/ #### 160 46 40
+  
+  ### 64 FE + 0 W 
+  #data_dir: /media/miguel/Elements/ECCE_HCAL/hcal_ecal_ECCE_64Fe_pi+_log10continuous_1GeV-150GeV_10deg-30deg_09-27-23/ ## 120  ## 35  ##
+  
+  #### CALICE DATA HCAL ONLY ####
+  #data_dir: /media/miguel/Elements/calice_sim_data/calice_pi+_log10continuous_1Gev_150GeV_5deg_13deg_Fe_09_23/  #120   30  43
+  #data_dir: /media/miguel/Elements/calice_sim_data/calice_Fe_log10continuous_Size_equal_to_ECCE_HCAL_10_30deg_1_90Gev_09_20/ ##  160 50 33
+
+  ## INSERT WITH 10W + 54 FE
+  #data_dir: /media/miguel/Elements/ECCE_HCAL/insert_pi+_log10continuous_1GeV-150GeV_2.3deg-4.25deg_10-3-23/ ## total =96  =>  75, 20 1 
+  ## INSERT WITH 0W + 64 FE
+  #data_dir: /media/miguel/Elements/ECCE_HCAL/insert_64Fe_pi+_log10continuous_1GeV-150GeV_2.3deg-4.25deg_10-8-23/  ## total = 196 =>  140   ##55 1
+  
+  particle_type: pion  
+  num_train_files: 184
+  num_val_files:  60
+  num_test_files: 1  
+  batch_size: 256  
+  shuffle: True #
+  num_procs: 2   ##
+  preprocess: True
+  output_dir: /media/miguel/Elements/preprocessed_input4D_output2D_hcal_4W_60Fe_graphnet ## change this directory
+  already_preprocessed: False
+  calc_stats: True   ##
+  num_features: 4
+  output_dim: 2
+  k: 10
+  hadronic_detector: hcal  #hcal #zdc_Fe
+  include_ecal: False
+model:
+  block_type: graphnet
+  concat_input: True
+  edge_block_opt:
+    use_edges: true
+    use_globals: true
+    use_receiver_nodes: true
+    use_sender_nodes: true
+  global_block_opt:
+    use_edges: false
+    use_globals: true
+    use_nodes: true
+  node_block_opt:
+    use_globals: true
+    use_nodes: true
+    use_received_edges: true
+    use_sent_edges: false # going out of the node , check get edges.  
+  num_blocks: 1
+  num_layers: 4
+  latent_size: 64
+  reducer: mean
+  
+training:
+  epochs: 70
+  learning_rate: 1.e-3
+  save_dir: /media/miguel/Elements/results_4D_output2D_hcal_4W_60Fe_graphnet  ## change the name of this directory

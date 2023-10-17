@@ -13,25 +13,18 @@ from scipy.stats import circmean
 from sklearn.neighbors import NearestNeighbors
 import random
 
-import sys
-sys.path.insert(0, './functions')
-from binning_utils import *
-
 #MIP=0.0006 ## GeV
 MIP_ECAL=0.13
-#time_TH=150  ## ns
+
+#theta_max=4.0
 #energy_TH=0.5*MIP
 energy_TH_ECAL=0.5*MIP_ECAL
-NHITS_MIN=2
+#NHITS_MIN=2
 
-#This is specified here for running this .py file by itself.
-#train_model.py will get these paths from the config file in configs/
+#Change these for your usecase!
 
-# data_dir = '/pscratch/sd/f/fernando/regressiononly/pi0_data/'
-# out_dir = '/pscratch/sd/f/fernando/regression_common/regressiononly/preprocessed_pi0_1L/generator_test/'
-
-# data_dir = '/pscratch/sd/f/fernando/ECCE_data/'
-# out_dir = '/pscratch/sd/f/fernando/regression_common/regressiononly/preprocessed/generator_test/'
+# data_dir = '/clusterfs/ml4hep_nvme2/ftoralesacosta/regressiononly/data/'
+# out_dir = '/clusterfs/ml4hep_nvme2/ftoralesacosta/regressiononly/preprocessed_data/'
 
 data_dir = '/usr/workspace/hip/eic/log10_Uniform_03-23/ECCE_HCAL_Files/hcal_pi+_log10discrete_1GeV-150GeV_10deg-30deg_07-23-23/'
 out_dir = '/usr/WS2/karande1/eic/gitrepos/regressiononly/preprocessed_data/train/'
@@ -49,12 +42,10 @@ class MPGraphDataGenerator:
                  is_val: bool = False,
                  output_dir: str = None,
                  num_features: int = 4,
-                 output_dim: int = 1,
+                 output_dim: int = 2,
                  hadronic_detector: str = None,
                  include_ecal: bool = True,
-                 k: int = 5,
-                 n_zsections = None,
-                 condition_zsections = False):
+                 k: int = 5):
         """Initialization"""
 
         self.preprocess = preprocess
@@ -63,7 +54,6 @@ class MPGraphDataGenerator:
         self.is_val = is_val
         self.output_dir = output_dir
         self.stats_dir = os.path.realpath(self.output_dir+'../')
-        print(f"\n\n STATS DIR = {self.stats_dir}\n\n")
         self.output_dim= output_dim
 
         os.makedirs(self.output_dir, exist_ok=True)
@@ -75,20 +65,20 @@ class MPGraphDataGenerator:
         self.num_files = len(self.file_list)
 
         self.batch_size = batch_size
+        self.num_features=num_features
         self.shuffle = shuffle
         
         self.num_procs = num_procs
         self.procs = []
-        
 
         if(self.hadronic_detector=='hcal'):
             self.detector_name = "HcalEndcapPHitsReco"
-            self.energy_TH=0.5*0.0006
             self.sampling_fraction =0.0224
+            self.energy_TH=0.5*0.0006
             self.time_TH=150
-            self.theta_max=600.0 ## is in radian
+            self.theta_max=1000.0
             
-        elif(self.hadronic_detector=='hcal_insert'):    #'Insert' after the 'P'
+        elif(self.hadronic_detector=='insert'):    #'Insert' after the 'P'
             self.detector_name = "HcalEndcapPInsertHitsReco"
             self.sampling_fraction =0.0089
             self.energy_TH=0.5*0.0006
@@ -102,91 +92,59 @@ class MPGraphDataGenerator:
             self.time_TH=275
             self.theta_max=4.0
             
-            
         elif(self.hadronic_detector=='zdc_Pb'):  ##added by smoran
             self.detector_name = "ZDCHcalHitsReco"
-            self.sampling_fraction =0.0216  ## CHANGE THIS NUMBER?
+            self.sampling_fraction =0.0216   ## CHANGE THIS NUMBER?
             self.energy_TH=0.5*0.000393
             self.time_TH=275
             self.theta_max=4.0
-
             
-        self.nodeFeatureNames = [".energy", ".position.z",
-                                 ".position.x", ".position.y",]
+        
+
+        self.detector_ecal='EcalEndcapPHitsReco'
+        self.nodeFeatureNames = [".energy", ".position.z", ".position.x", ".position.y",]
         if self.output_dim==1:
             self.scalar_keys = [self.detector_name+self.nodeFeatureNames[0]] + \
-                           self.nodeFeatureNames[1:] + ["clusterE","genP"]    
+                           self.nodeFeatureNames[1:] + \
+                           ["clusterE","genP"] #, "theta"]
         elif self.output_dim==2:
             self.scalar_keys = [self.detector_name+self.nodeFeatureNames[0]] + \
                            self.nodeFeatureNames[1:] + \
                            ["clusterE","genP", "theta"]
-            
-        self.detector_ecal='EcalEndcapPHitsReco'
         if self.include_ecal:
-            self.scalar_keys = self.scalar_keys + \
-                [self.detector_ecal+self.nodeFeatureNames[0]]
+            self.scalar_keys = self.scalar_keys + [self.detector_ecal+self.nodeFeatureNames[0]]
 
-
+        print('...............', self.num_features)
         # Slice the nodeFeatureNames list to only include the first 'num_features' elements
         self.nodeFeatureNames = self.nodeFeatureNames[:num_features]
+        print(f'\n\n######################################')
+        print(f'Using features: {self.nodeFeatureNames}') 
+        print(f'######################################\n')
         self.num_nodeFeatures = len(self.nodeFeatureNames)
         self.num_targetFeatures = 1 #Regression on Energy only for now
-        print('\n')
-        print('#'*80,f'\nUsing features: {self.nodeFeatureNames}') 
-        print('#'*80,'\n')
 
-        self.edgeCreationFeatures = [".position.x",
-                                     ".position.y",
-                                     ".position.z", ]
+        self.edgeCreationFeatures = [".position.x", ".position.y", ".position.z", ]
         self.k = k
         self.num_edgeFeatures = 1   # edge length
-        
-
-        # HCal Z-Segmentation (training, not conditioning):
-        self.custom_z = False
-        self.n_zsections = n_zsections
-        print('n zsections', self.n_zsections)
-        if (self.n_zsections is not None):
-            self.custom_z = True
-            if self.custom_z and self.include_ecal:
-                sys.exit("ERROR: Custom Z and include ECal NOT supported")
-            self.edgesX, self.edgesY, self.edgesZ \
-            = self.get_cell_boundaries(self.detector_name)
-            self.z_layers = get_equidistant_layers(self.edgesZ,
-                                                   self.n_zsections)
-            self.z_centers = (self.z_layers[0:-1] + self.z_layers[1:])/2
-
-            print(f'\nCell Boundaries = {self.edgesZ} [{len(self.edgesZ)}]')
-            print(f'\nLongitudinal Layers = {self.z_layers} [{len(self.z_layers)}]')
-
-
-        # n_zsections for conditioning
-        self.condition_zsections = condition_zsections
 
         # if not self.is_val and self.calc_stats:
         if self.calc_stats:
             n_scalar_files = 8 #num files to use for scaler calculation
             self.preprocess_scalar(n_scalar_files)
-
         else:
-            self.means_dict = pickle.load(open(f"{self.stats_dir}/means.p",
-                                               'rb'), compression='gzip')
-            self.stdvs_dict = pickle.load(open(f"{self.stats_dir}/stdvs.p",
-                                               'rb'), compression='gzip')
-            print(self.means_dict)
+            self.means_dict = pickle.load(open(f"{self.stats_dir}/means.p", 'rb'), compression='gzip')
+            self.stdvs_dict = pickle.load(open(f"{self.stats_dir}/stdvs.p", 'rb'), compression='gzip')
+
         if self.already_preprocessed and os.path.isdir(self.output_dir):
-            self.processed_file_list = [self.output_dir + f'data_{i:03d}.p'\
-                for i in range(self.num_files)]
-            print('Hello Hello Hello ')
+            self.processed_file_list = [self.output_dir + f'data_{i:03d}.p' for i in range(self.num_files)]
+            
         elif self.preprocess and self.output_dir is not None:
             os.makedirs(self.output_dir, exist_ok=True)
             self.preprocess_data()
-
         else:
             print('Check preprocessing config!!')
 
         if self.shuffle: np.random.shuffle(self.processed_file_list)
-
 
 
     def preprocess_scalar(self,n_calcs):
@@ -220,7 +178,6 @@ class MPGraphDataGenerator:
             
             self.means_dict = {k: np.mean(v) for k, v in means_dict.items()}
             self.stdvs_dict = {k: np.mean(v) for k, v in stdvs_dict.items()}
-
             print("MEANS = ",self.means_dict)
             print("STDVS = ",self.stdvs_dict)
             print(f"saving calc files to {self.stats_dir}/means.p\n")
@@ -241,35 +198,28 @@ class MPGraphDataGenerator:
         # while file_num < self.n_calcs:
         print(f"Mean + Stdev Calc. file number {file_num}")
         f_name = self.file_list[file_num]
-
         event_tree = ur.open(f_name)['events']
         num_events = event_tree.num_entries
         event_data = event_tree.arrays() #need to use awkward
-
+        #event_data = event_tree.arrays(entry_stop=500) #need to use awkward
+        print('____________XXXXXXXXXXXXXXXXXXXXXX', num_events)
+        
         file_means = {k:[] for k in self.scalar_keys}
         file_stdvs = {k:[] for k in self.scalar_keys}
-
+        
         cell_E = event_data[self.detector_name+".energy"]
         time=event_data[self.detector_name+".time"]
         mask = (cell_E > self.energy_TH) & (time<self.time_TH) & (cell_E<1e10)
 
-        if self.custom_z:
-            cell_Z = event_data[self.detector_name+'.position.z'][mask]
-            binned_cell_E, binned_mask = Sum_EinZbins(cell_E[mask], cell_Z, self.z_layers)
-
         if self.include_ecal:
             cell_E_ecal = event_data[self.detector_ecal+".energy"]
             time_ecal   = event_data[self.detector_ecal+".time"]
-            mask_ecal = (cell_E_ecal > energy_TH_ECAL) & \
-                (time_ecal<self.time_TH) & (cell_E_ecal<1e10) 
+            mask_ecal = (cell_E_ecal > energy_TH_ECAL) & (time_ecal<self.time_TH) & (cell_E_ecal<1e10) 
 
-        print("SCALAR KEYS = ",self.scalar_keys)
         for k in self.scalar_keys:
             # print(k)
             if 'position' in k:
-
                 feature_data = event_data[self.detector_name+k][mask]
-
                 if self.include_ecal:
                     feature_data_ecal = event_data[self.detector_ecal+k][mask_ecal]
                     feature_data = ak.concatenate([feature_data, feature_data_ecal])
@@ -281,10 +231,7 @@ class MPGraphDataGenerator:
                 if 'Ecal' in k:  
                     feature_data = np.log10(event_data[k][mask_ecal])
                 else:
-                    if self.custom_z:
-                        feature_data = np.log10(binned_cell_E)
-                    else:
-                        feature_data = np.log10(event_data[k][mask])
+                    feature_data = np.log10(event_data[k][mask])
 
                 file_means[k].append(np.mean(feature_data))
                 file_stdvs[k].append(np.std(feature_data))
@@ -293,7 +240,7 @@ class MPGraphDataGenerator:
 
         cluster_sum_E_hcal = ak.sum(cell_E[mask],axis=-1) #global node feature later
         total_calib_E = cluster_sum_E_hcal / self.sampling_fraction
-        
+        #total_calib_E=total_calib_E[mask_theta]
         if self.include_ecal:
             cluster_sum_E_ecal = ak.sum(cell_E_ecal[mask_ecal],axis=-1)
             total_calib_E = total_calib_E + cluster_sum_E_ecal ## sampling fractionn crrrection is already done
@@ -303,18 +250,19 @@ class MPGraphDataGenerator:
 
         file_means['clusterE'].append(np.mean(cluster_calib_E))
         file_stdvs['clusterE'].append(np.std(cluster_calib_E))
-        
+
         genPx = event_data['MCParticles.momentum.x'][:,2]
         genPy = event_data['MCParticles.momentum.y'][:,2]
         genPz = event_data['MCParticles.momentum.z'][:,2]
         genP = np.log10(np.sqrt(genPx*genPx + genPy*genPy + genPz*genPz))
         mom=np.sqrt(genPx*genPx + genPy*genPy + genPz*genPz)
-        theta=np.arccos(genPz/mom)*1000  ## in mili radians
+        theta=np.arccos(genPz/mom)*1000  ## in milli radians
 
+        
         if self.output_dim==1:
             file_means['genP'].append(ak.mean(genP))
             file_stdvs['genP'].append(ak.std(genP))
-
+            
         if self.output_dim==2:
             mask_theta=theta<self.theta_max
             theta=theta[mask_theta]
@@ -323,7 +271,7 @@ class MPGraphDataGenerator:
             file_stdvs['genP'].append(ak.std(genP))
             file_means['theta'].append(ak.mean(theta))
             file_stdvs['theta'].append(ak.std(theta))
-
+        
         means.append(file_means)
         stdvs.append(file_stdvs)
         # print(f'\nMeans: {means}')
@@ -342,7 +290,7 @@ class MPGraphDataGenerator:
 
         self.processed_file_list = [self.output_dir + f'data_{i:03d}.p' for i in range(self.num_files)]
 
-    
+
     def preprocessor(self, worker_id):
 
         file_num = worker_id
@@ -356,33 +304,25 @@ class MPGraphDataGenerator:
             event_data = event_tree.arrays() #need to use awkward
 
             preprocessed_data = []
+
             for event_ind in range(num_events):
-            #for event_ind in range(0,10):
+            #for event_ind in range(6,20):    
                 if self.output_dim==2:
                     target = self.get_GenP_Theta(event_data,event_ind)
-                    #print('target shape  ', target[1])
                     if (target[1] * self.stdvs_dict["theta"] + self.means_dict["theta"])>self.theta_max:
-                        
                         continue
                 elif self.output_dim==1:
                     target = self.get_GenP(event_data,event_ind)
-                
+
                 nodes, global_node, cluster_num_nodes = self.get_nodes(event_data, event_ind)
-
-
-                if cluster_num_nodes<2 or self.custom_z:
-                    # senders, receivers, edges = None, None, None
+                if cluster_num_nodes<2:
                     senders, receivers, edges = None, None, None
-                    
                     continue
                 else:
                     senders, receivers, edges = self.get_edges(event_data, event_ind, cluster_num_nodes)
                 
-                # if not global_node:
-                if None in global_node:
-                    
+                if not global_node:
                     continue
-
 
                 graph = {'nodes': nodes.astype(np.float32), 
                          'globals': global_node.astype(np.float32),
@@ -390,14 +330,11 @@ class MPGraphDataGenerator:
                          'receivers': receivers, 
                          'edges': edges} 
 
-                #target = self.get_GenP(event_data,event_ind)
-                #print(target)
-
-                
                 meta_data = [f_name]
                 meta_data.extend(self.get_meta(event_data, event_ind))
 
                 preprocessed_data.append((graph, target, meta_data))
+
             random.shuffle(preprocessed_data) #should be done BEFORE multiple 'images' per geant event
 
             pickle.dump(preprocessed_data, open(self.output_dir + f'data_{file_num:03d}.p', 'wb'), compression='gzip')
@@ -408,25 +345,13 @@ class MPGraphDataGenerator:
 
     def get_nodes(self, event_data, event_ind):
 
-        global_node = self.get_cluster_calib(event_data[event_ind])
-
-        if (self.condition_zsections):
-            rand_Zs = get_random_z_pos(self.edgesZ, self.n_zsections+1)
-            nodes = self.get_cell_data(event_data[event_ind], rand_Zs)
-            rand_Zs_norm = (rand_Zs - self.means_dict['.position.z']) \
-                / self.stdvs_dict['.position.z']
-            global_node = np.append(global_node, rand_Zs_norm)
-
-        else:
-            nodes = self.get_cell_data(event_data[event_ind])
-
-        # nodes = self.get_cell_data(event_data[event_ind])
+        nodes = self.get_cell_data(event_data[event_ind])
         cluster_num_nodes = len(nodes)
+        global_node = self.get_cluster_calib(event_data[event_ind])
 
         return nodes, np.array([global_node]), cluster_num_nodes
 
-
-    def get_cell_data(self,event_data, n_zsections=None):
+    def get_cell_data(self,event_data):
 
         cell_data = []
 
@@ -434,81 +359,29 @@ class MPGraphDataGenerator:
         time=event_data[self.detector_name+".time"]
         mask = (cell_E > self.energy_TH) & (time<self.time_TH) & (cell_E<1e10)
 
-        cell_E = cell_E[mask]
-
-        if self.custom_z and n_zsections is not None:
-            cell_Z = event_data[self.detector_name+'.position.z'][mask]
-            binned_cell_E, binned_mask = Sum_EinZbins(cell_E, cell_Z, self.z_layers)
-            binned_cell_Z = self.z_centers[binned_mask]
-
-            cellX = ak.ravel(event_data[self.detector_name+'.position.x'][mask])
-            cellY = ak.ravel(event_data[self.detector_name+'.position.y'][mask])
-            cellZ = ak.ravel(event_data[self.detector_name+'.position.z'][mask])
-
-
-            new_features = get_newZbinned_cells(np.ravel(cell_E),
-                                                cellZ, cellX, cellY, 
-                                                self.edgesX, self.edgesY,
-                                                n_zsections)
-
-            # print("%"*30)
-            # print("New Z = ",new_features[1])
-            for i_feat, feature in enumerate(self.nodeFeatureNames):
-                if "energy" in feature: feature = self.detector_name + feature
-                feature_data = (new_features[i_feat] - self.means_dict[feature])\
-                    / self.stdvs_dict[feature]
-                feature_data = np.nan_to_num(feature_data)
-                cell_data.append(feature_data)
-            cell_data = np.swapaxes(cell_data, 0, 1)
-            return cell_data
-
-        # ECAL and Z Conditioning not compatible at this time 10/3/23
         if self.include_ecal:
             cell_data_ecal = []
             cell_E_ecal = event_data[self.detector_ecal+".energy"]
             time_ecal   = event_data[self.detector_ecal+".time"]
-            mask_ecal = (cell_E_ecal > energy_TH_ECAL) & \
-                (time_ecal<self.time_TH) & (cell_E_ecal<1e10) 
-
-        # if self.custom_z:
-        #     FIXME: START HERE TOMORROW
-        #     get_new_cell stuff(z_layers)
-        #     return new cell_stuff
+            mask_ecal = (cell_E_ecal > energy_TH_ECAL) & (time_ecal<self.time_TH) & (cell_E_ecal<1e10) 
 
         for feature in self.nodeFeatureNames:
 
             feature_data = event_data[self.detector_name+feature][mask]
-            if self.custom_z:
-                feature_data = binned_cell_Z
-                #only works for cellZ for now. Do not pass XY
-
             if "energy" in feature:  
-                if self.custom_z:
-                    feature_data = binned_cell_E
-                    #feature_data = Sum_EinZbins(feature_data, cellZ, self.z_layers)
                 feature_data = np.log10(feature_data)
-                hcal_feature = self.detector_name+feature
-                #The energy feature specifies hcal or ecal in it's name
-
-            #Standard Scalor
-            feature_data = (feature_data - self.means_dict[hcal_feature])\
-                / self.stdvs_dict[hcal_feature]
-
-
+                feature_data = (feature_data - self.means_dict[self.detector_name+feature])/self.stdvs_dict[self.detector_name+feature]
+            else:
+                feature_data = (feature_data - self.means_dict[feature]) / self.stdvs_dict[feature]
             cell_data.append(feature_data)
 
             if self.include_ecal:
-                feature_data_ecal=event_data[self.detector_ecal+feature][mask_ecal]
-
+                feature_data_ecal = event_data[self.detector_ecal+feature][mask_ecal]
                 if "energy" in feature:
                     feature_data_ecal = np.log10(feature_data_ecal)
-                    ecal_feature = self.detector_ecal+feature
-
-                #standard scalar
-                feature_data_ecal = (feature_data_ecal - \
-                    self.means_dict[ecal_feature])\
-                    / self.stdvs_dict[ecal_feature]
-
+                    feature_data_ecal = (feature_data_ecal - self.means_dict[self.detector_ecal+feature])/self.stdvs_dict[self.detector_ecal+feature]
+                else:
+                    feature_data_ecal = (feature_data_ecal- self.means_dict[feature]) / self.stdvs_dict[feature]
                 cell_data_ecal.append(feature_data_ecal)
 
 
@@ -531,8 +404,7 @@ class MPGraphDataGenerator:
         """ Calibrate Clusters Energy """
 
         cell_E = event_data[self.detector_name+".energy"]
-        cluster_calib_E = np.sum(cell_E,axis=-1)/self.sampling_fraction 
-        #global node feature later
+        cluster_calib_E = np.sum(cell_E,axis=-1)/self.sampling_fraction #global node feature later
         
         if self.include_ecal:
             cell_E_ecal = event_data[self.detector_name+".energy"]
@@ -552,7 +424,6 @@ class MPGraphDataGenerator:
         time = event_data[event_ind][self.detector_name+".time"]
         mask = (cell_E > self.energy_TH) & (time<self.time_TH) & (cell_E<1e10)
 
-
         if self.include_ecal:
             cell_E_ecal = event_data[event_ind][self.detector_ecal+".energy"]
             time_ecal = event_data[event_ind][self.detector_ecal+".time"]
@@ -561,7 +432,6 @@ class MPGraphDataGenerator:
         nodes_NN_feats = []
         for feature in self.edgeCreationFeatures:
             feature_data = event_data[event_ind][self.detector_name+feature][mask]
-
             feature_data = (feature_data - self.means_dict[feature]) / self.stdvs_dict[feature]
 
             if self.include_ecal:
@@ -599,6 +469,7 @@ class MPGraphDataGenerator:
 
         return genP
 
+    
     def get_GenP_Theta(self,event_data,event_ind):
 
         genPx = event_data['MCParticles.momentum.x'][event_ind,2]
@@ -607,14 +478,14 @@ class MPGraphDataGenerator:
         mom=np.sqrt(genPx*genPx + genPy*genPy + genPz*genPz)
         theta=np.arccos(genPz/mom)*1000  #    *180/np.pi
         #gen_phi=(np.arctan2(genPy,genPx))*180/np.pi
-	#the generation has the parent praticle always at index 2
+        #the generation has the parent praticle always at index 2
 
         genP = np.log10(np.sqrt(genPx*genPx + genPy*genPy + genPz*genPz))
         genP = (genP - self.means_dict["genP"]) / self.stdvs_dict["genP"]
         theta = (theta - self.means_dict["theta"]) / self.stdvs_dict["theta"]
+        #gen_phi = (gen_phi - self.means_dict["phi"]) / self.stdvs_dict["phi"]
         return genP, theta
-        #gen_phi = (gen_phi
-    
+
     def get_meta(self, event_data, event_ind):
         """ 
         Reading meta data
@@ -660,36 +531,11 @@ class MPGraphDataGenerator:
 
             batch_queue.put((batch_graphs, batch_targets, batch_meta))
 
-    def get_cell_boundaries(self, detector):
-
-        #IMPORTANT: This won't work if a single root file
-        #Does not contain at least one shower that reaches the back of
-        #the calorimeter. pi0 and photon guns beware!
-
-        event_tree = ur.open(self.file_list[0])['events']
-        num_events = event_tree.num_entries
-        event_data = event_tree.arrays() #need to use awkward
-
-        cell_E = event_data[detector+'.energy']
-        time = event_data[detector+".time"]
-        mask = (cell_E > self.energy_TH) & (time<self.time_TH) & (cell_E<1e10) 
-
-        cellX = ak.ravel(event_data[detector+'.position.x'][mask])
-        cellY = ak.ravel(event_data[detector+'.position.y'][mask])
-        cellZ = ak.ravel(event_data[detector+'.position.z'][mask])
-
-        centersX, edgesX, widthX = get_bin_edges(cellX)
-        centersY, edgesY, widthY = get_bin_edges(cellY)
-        centersZ, edgesZ, widthZ = get_bin_edges(cellZ)
-
-        return edgesX, edgesY, edgesZ
-
-
     def worker(self, worker_id, batch_queue):
         if self.preprocess:
             self.preprocessed_worker(worker_id, batch_queue)
         else:
-            raise Exception('Preprocessing required for regression models.')
+            raise Exception('Preprocessing is required for regression models.')
 
     def check_procs(self):
         for p in self.procs:
@@ -727,20 +573,19 @@ class MPGraphDataGenerator:
 if __name__ == '__main__':
     pion_files = np.sort(glob.glob(data_dir+'*.root')) #dirs L14
     pion_files = pion_files[2:10]
+    # print("Pion Files = ",pion_files)
 
     data_gen = MPGraphDataGenerator(file_list=pion_files, 
                                     batch_size=32,
                                     shuffle=False,
                                     num_procs=16,
-                                    calc_stats=True,
+                                    # calc_stats=True,
                                     preprocess=True,
                                     already_preprocessed=False,
                                     output_dir=out_dir,
                                     hadronic_detector="hcal",
-                                    include_ecal=False,
-                                    num_features=2,
-                                    n_zsections=8,
-                                    condition_zsections = True)
+                                    include_ecal=True,
+                                    num_features=4)
 
     gen = data_gen.generator()
 
