@@ -23,12 +23,21 @@ if __name__=="__main__":
     parser.add_argument('--test_dir')
     parser.add_argument('--num_test_files')
     args = parser.parse_args()
-    print('XXXXXXXXXXXXXXXXXXXXXXXXXX')
+    
     if (args.results_dir is None):
         print("\nNEED TO RUN with --results_dir \n")
         exit()
+    elif (args.test_dir is None):
+        print("\ NEED TO RUN with --test_dir \n")
+
+    elif (args.num_test_files is None):
+        print("\n NEED TO RUN with --num_test_files\n")
     else:
-        print("RESULTS DIR = ",args.results_dir)
+        print("---------------------------------------------")
+        print("RESULTS DIR =  ",args.results_dir)
+        print(" TEST DIR  ", args.test_dir)
+        print("Number of Test Files ", args.num_test_files)
+        print("---------------------------------------------")
         print(f"CONFIG = {args.results_dir}/config.yaml")
 
     config = yaml.safe_load(open(f'{args.results_dir}/config.yaml'))
@@ -45,25 +54,12 @@ if __name__=="__main__":
     num_train_files = data_config['num_train_files']
     num_val_files = data_config['num_val_files']
     num_test_files=int(args.num_test_files)
-    
-    try:
-        num_test_files = data_config['num_test_files']
-        num_test_files=int(args.num_test_files)
-        print('num_test_files inside try', num_test_files)
-        
-    except:
-        if (args.test_dir is None):
-            print("\nNEED TO RUN with --test_dir \n")
-            exit()
-        else:
-            test_dir = args.test_dir
-            print(f"Test files in = {args.test_dir}")
+    test_dir = args.test_dir
 
-        if (args.num_test_files is not None):
-            num_test_files = int(args.num_test_files)
-        else:
-            num_test_files = len(glob.glob(test_dir+'/*root'))
-        print('num _test files -----------------------------', num_test_files)
+    
+    print(' here is test directory   ', test_dir)
+    print('Number of files used ', num_test_files)
+    print('XXXXXXXXXXXXXXXXXXXXXXXXXX')
     batch_size = data_config['batch_size']
     shuffle = data_config['shuffle']
     num_procs = data_config['num_procs']
@@ -77,13 +73,14 @@ if __name__=="__main__":
     print(already_preprocessed, ' already preprocessed -------')
     #already_preprocessed = True
     calc_stats = False
+    config['test_dir']=test_dir
 
     learning_rate = train_config['learning_rate']
 
     yaml.dump(config, open(save_dir + '/config_inference.yaml', 'w'))
 
 
-    root_test_files = np.sort(glob.glob(data_dir+'*root'))[:num_test_files]
+    root_test_files = np.sort(glob.glob(test_dir+'*root'))[:num_test_files]
 
     #Loads the files from test_dir if specified.
     #Note: if not specified, takes vals from CONFIG
@@ -380,3 +377,4 @@ if __name__=="__main__":
     # np.save(save_dir+'/predictions_standalone.npy', all_outputs)
     # np.save(save_dir+'/targets_standalone.npy', all_targets)
 
+    
