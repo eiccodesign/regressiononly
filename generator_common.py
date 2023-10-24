@@ -30,11 +30,11 @@ NHITS_MIN=2
 # data_dir = '/pscratch/sd/f/fernando/regressiononly/pi0_data/'
 # out_dir = '/pscratch/sd/f/fernando/regression_common/regressiononly/preprocessed_pi0_1L/generator_test/'
 
-# data_dir = '/pscratch/sd/f/fernando/ECCE_data/'
-# out_dir = '/pscratch/sd/f/fernando/regression_common/regressiononly/preprocessed/generator_test/'
+data_dir = '/pscratch/sd/f/fernando/ECCE_data/'
+out_dir = '/pscratch/sd/f/fernando/regression_common/regressiononly/preprocessed/generator_test/'
 
-data_dir = '/usr/workspace/hip/eic/log10_Uniform_03-23/ECCE_HCAL_Files/hcal_pi+_log10discrete_1GeV-150GeV_10deg-30deg_07-23-23/'
-out_dir = '/usr/WS2/karande1/eic/gitrepos/regressiononly/preprocessed_data/train/'
+# data_dir = '/usr/workspace/hip/eic/log10_Uniform_03-23/ECCE_HCAL_Files/hcal_pi+_log10discrete_1GeV-150GeV_10deg-30deg_07-23-23/'
+# out_dir = '/usr/WS2/karande1/eic/gitrepos/regressiononly/preprocessed_data/train/'
 
 
 class MPGraphDataGenerator:
@@ -120,14 +120,19 @@ class MPGraphDataGenerator:
         # HCal Z-Segmentation (training, not conditioning):
         self.custom_z = False
         self.n_zsections = n_zsections
+
         if (self.n_zsections is not None):
             self.custom_z = True
+
             if self.custom_z and self.include_ecal:
                 sys.exit("ERROR: Custom Z and include ECal NOT supported")
+
             self.edgesX, self.edgesY, self.edgesZ \
             = self.get_cell_boundaries('HcalEndcapPHitsReco')
+
             self.z_layers = get_equidistant_layers(self.edgesZ,
                                                    self.n_zsections)
+
             self.z_centers = (self.z_layers[0:-1] + self.z_layers[1:])/2
 
             print(f'\nCell Boundaries = {self.edgesZ} [{len(self.edgesZ)}]')
@@ -400,7 +405,8 @@ class MPGraphDataGenerator:
             new_features = get_newZbinned_cells(np.ravel(cell_E),
                                                 cellZ, cellX, cellY, 
                                                 self.edgesX, self.edgesY,
-                                                n_zsections)
+                                                self.z_layers)
+                                                # n_zsections)
 
             # print("%"*30)
             # print("New Z = ",new_features[1])
