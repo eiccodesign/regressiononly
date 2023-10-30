@@ -125,7 +125,12 @@ if __name__=="__main__":
     def get_batch(data_iter):
         for graphs, targets, meta in data_iter:
             graphs = convert_to_tuple(graphs)
+            targets_length = len(targets)
             targets = tf.convert_to_tensor(targets, dtype=tf.float32)
+            # Convert targets to tf.tensor of shape (len(targets), 2, 1)
+            # i.e. [[[genP1], [gentheta1]], [[genP2], [gentheta2]],...]
+            # Done for weighting in loss function
+            targets = tf.reshape(targets, [targets_length, 2, 1])
             
             yield graphs, targets
    
@@ -217,15 +222,16 @@ if __name__=="__main__":
     mae_loss = tf.keras.losses.MeanAbsoluteError()
 
     def loss_fn(targets, predictions):
-            return mae_loss(targets, predictions) 
+            return mae_loss(targets, predictions, sample_weight=[[1.0,0.0]]) # First number is energy weight, second number is theta weight
     if output_dim==2:
-        provided_shape=[None,None]
+        provided_shape=[None,None,None,]
     elif output_dim==1:
         provided_shape=[None,]
     
     @tf.function(input_signature=[graph_spec, tf.TensorSpec(shape=provided_shape, dtype=tf.float32)])
     def val_step(graphs, targets):
             predictions = model(graphs).globals
+            predictions = tf.reshape(predictions, [len(predictions), 2, 1])
             loss = loss_fn(targets, predictions)
 
             return loss, predictions
@@ -261,7 +267,9 @@ if __name__=="__main__":
             losses_test, output_test = val_step(graph_data_test, targets_test)
 
             test_loss.append(losses_test.numpy())
+            targets_test = tf.reshape(targets_test, [len(targets_test), 2])
             targets_test = targets_test.numpy()
+            output_test = tf.reshape(output_test, [len(output_test), 2])
             output_test = output_test.numpy()
 
             output_test_scaled_ene = 10**(output_test[:,0]*stdvs_dict['genP'] + means_dict['genP'])

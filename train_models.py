@@ -1,6 +1,6 @@
 import numpy as np
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 import sys
 import glob
 import uproot as ur
@@ -216,10 +216,19 @@ if __name__=="__main__":
         return graph
 
     def get_batch(data_iter):
+        print("In get_batch")
         for graphs, targets, meta in data_iter:
+            # data_iter is triple of lists
             graphs = convert_to_tuple(graphs)
+            # Targets: list of tuples [(genP1, gentheta1), (genP2,Gentheta2),...]
+            # Convert targets to tf.tensor of shape (len(targets), 2)
+            # i.e. [[genP1, gentheta1], [genP2, gentheta2], ...]
+            targets_length = len(targets)
             targets = tf.convert_to_tensor(targets, dtype=tf.float32)
-
+            # Convert targets to tf.tensor of shape (len(targets), 2, 1)
+            # i.e. [[[genP1], [gentheta1]], [[genP2], [gentheta2]],...]
+            # Done for weighting in loss function
+            targets = tf.reshape(targets, [targets_length, 2, 1])
             yield graphs, targets
      
     samp_graph, samp_target = next(get_batch(data_gen_train.generator()))
@@ -229,9 +238,9 @@ if __name__=="__main__":
     mae_loss = tf.keras.losses.MeanAbsoluteError() # Check 
   
     def loss_fn(targets, predictions):
-        return mae_loss(targets, predictions)
+        return mae_loss(targets, predictions, sample_weight=[[0.7, 0.3]]) # First number is energy weight, second number is theta weight
     if output_dim==2:
-        provided_shape=[None,None]
+        provided_shape=[None,None,None,]
     elif output_dim==1:
         provided_shape=[None,]
 
@@ -239,6 +248,9 @@ if __name__=="__main__":
     def train_step(graphs, targets):
         with tf.GradientTape() as tape:
             predictions = model(graphs).globals
+            # predictions: [[Epred0, thetapred0], [Epred1, thetapred1], [Epred2, thetapred2], ...]
+            # predictions reshaped to [ [ [Epred0], [thetapred0] ], [ [Epred1], [thetapred1] ], [ [Epred2], [thetapred2] ], ...]
+            predictions = tf.reshape(predictions, [len(predictions), 2, 1])
             loss = loss_fn(targets, predictions)
 
         gradients = tape.gradient(loss, model.trainable_variables)
@@ -249,6 +261,7 @@ if __name__=="__main__":
     @tf.function(input_signature=[graph_spec, tf.TensorSpec(shape=provided_shape, dtype=tf.float32)])
     def val_step(graphs, targets):
         predictions = model(graphs).globals
+        predictions = tf.reshape(predictions, [len(predictions), 2, 1])
         loss = loss_fn(targets, predictions)
 
         return loss, predictions
@@ -300,8 +313,9 @@ if __name__=="__main__":
         start = time.time()
         for graph_data_val, targets_val in get_batch(data_gen_val.generator()):#val_iter):
             losses_val, output_vals = val_step(graph_data_val, targets_val)
-
+            targets_val = tf.reshape(targets_val, [len(targets_val), 2])
             targets_val = targets_val.numpy()
+            output_vals = tf.reshape(output_vals, [len(output_vals), 2])
             output_vals = output_vals.numpy().squeeze()
 
             val_loss.append(losses_val.numpy())
@@ -378,7 +392,9 @@ if __name__=="__main__":
          # This function is used for validation, but since THIS use block is outside of the training loop, 
          # the resulting loss and set of predictions are not used in the training at all.
 
+        targets_test = tf.reshape(targets_test, [len(targets_test), 2])
         targets_test = targets_test.numpy()
+        output_tests = tf.reshape(output_tests, [len(output_tests), 2])
         output_tests = output_tests.numpy().squeeze()
 
         test_loss.append(losses_test.numpy())
@@ -406,6 +422,3 @@ if __name__=="__main__":
               targets=all_targets, 
               outputs=all_outputs)
     np.savez(save_dir+'/test_loss', test=test_loss)
-    
-    
-   
