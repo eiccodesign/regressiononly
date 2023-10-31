@@ -8,8 +8,12 @@ data:
 
 
   ## ECCE CONFIG 4W + 60 Fe
-  data_dir: /media/miguel/Elements/ECCE_HCAL/hcal_pi+_log10continuous_1GeV-150GeV_10deg-30deg_07-21-23/ ## 246 = 184   60 11  1
+  #data_dir: /media/miguel/Elements/ECCE_HCAL/hcal_pi+_log10continuous_1GeV-150GeV_10deg-30deg_07-21-23/ ## 246 = 184   60 11  1
   #data_dir: /media/miguel/Elements/ECCE_HCAL/hcal_ecal_ECCE_64Fe_pi+_log10continuous_1GeV-150GeV_10deg-30deg_09-27-23/   ###   156   =  112, 42, 1
+
+  ## HCAL ONLY $W + 60 Fe
+  #data_dir: /media/miguel/Elements/ECCE_HCAL/hcal_only_pi+_log10continuous_1GeV-150GeV_10deg-30deg_08-16-23/   ##145   > 105  39   1 
+
   ## ZDC FE H4 PI+  CONTINUOUS
   #data_dir: /media/miguel/Elements/zdc_data/zdc_neutron_log10continuous_10GeV-300GeV_0.0deg-0.5deg_staggered_h4_08_18/  #130 45  1
   #data_dir: /media/miguel/Elements/zdc_data/zdc_Pb_neutron_log10continuous_10GeV-300GeV_0.0deg-0.5deg_staggered_h4_09_23/  # 250  74 75
@@ -32,23 +36,23 @@ data:
   ## INSERT WITH 10W + 54 FE
   #data_dir: /media/miguel/Elements/ECCE_HCAL/insert_pi+_log10continuous_1GeV-150GeV_2.3deg-4.25deg_10-3-23/ ## total =96  =>  75, 20 1 
   ## INSERT WITH 0W + 64 FE
-  #data_dir: /media/miguel/Elements/ECCE_HCAL/insert_64Fe_pi+_log10continuous_1GeV-150GeV_2.3deg-4.25deg_10-8-23/  ## total = 196 =>  140   ##55 1
+  data_dir: /media/miguel/Elements/ECCE_HCAL/insert_64Fe_pi+_log10continuous_1GeV-150GeV_2.3deg-4.25deg_10-8-23/  ## total = 196 =>  140   ##55 1
   
   particle_type: pion  
-  num_train_files: 184
-  num_val_files:  60
+  num_train_files: 140 
+  num_val_files:  55
   num_test_files: 1  
   batch_size: 256  
   shuffle: True #
   num_procs: 2   ##
   preprocess: True
-  output_dir: /media/miguel/Elements/preprocessed_input4D_output2D_hcal_4W_60Fe_graphnet ## change this directory
+  output_dir: /media/miguel/Elements/ECCE_HCAL/ECCE_ECAL_HCAL_model_theta_10-30/new_models_1Doutput_09-08/preprocessed_input4D_output1D_0W_64Fe_insert_graphnet ## change this directory
   already_preprocessed: False
   calc_stats: True   ##
   num_features: 4
-  output_dim: 2
+  output_dim: 1
   k: 10
-  hadronic_detector: hcal  #hcal #zdc_Fe
+  hadronic_detector: insert  #hcal #zdc_Fe
   include_ecal: False
 model:
   block_type: graphnet
@@ -73,6 +77,6 @@ model:
   reducer: mean
   
 training:
-  epochs: 70
+  epochs: 60
   learning_rate: 1.e-3
-  save_dir: /media/miguel/Elements/results_4D_output2D_hcal_4W_60Fe_graphnet  ## change the name of this directory
+  save_dir: /media/miguel/Elements/ECCE_HCAL/ECCE_ECAL_HCAL_model_theta_10-30/new_models_1Doutput_09-08/results_4D_output1D_0W_64Fe_insert_graphnet  ## change the name of this directory

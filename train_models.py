@@ -1,6 +1,6 @@
 import numpy as np
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 import sys
 import glob
 import uproot as ur
@@ -229,7 +229,8 @@ if __name__=="__main__":
     mae_loss = tf.keras.losses.MeanAbsoluteError() # Check 
   
     def loss_fn(targets, predictions):
-        return mae_loss(targets, predictions)
+        #return mae_loss(targets, predictions)
+        return mae_loss(targets, predictions, sample_weight=[[0.7, 0.3]])
     if output_dim==2:
         provided_shape=[None,None]
     elif output_dim==1:

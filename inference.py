@@ -1,5 +1,6 @@
 import numpy as np
 import os
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 import sys
 import glob
 import uproot as ur
@@ -15,6 +16,7 @@ import yaml
 import compress_pickle as pickle
 
 from generator_common import MPGraphDataGenerator
+#from generators_zseg import MPGraphDataGenerator
 import block as models
 
 if __name__=="__main__":
@@ -66,11 +68,12 @@ if __name__=="__main__":
     preprocess = data_config['preprocess']
     output_dir = data_config['output_dir']
     num_features = data_config['num_features']
+    num_z_layers=data_config['num_z_layers']    ## CASES WHEN THEERE IS Z SEGMENTATION
     k = data_config['k']
     hadronic_detector = data_config['hadronic_detector']
     include_ecal = data_config['include_ecal']
     already_preprocessed = data_config['already_preprocessed']
-    print(already_preprocessed, ' already preprocessed -------')
+    print(already_preprocessed, ' already preprocessed -------', 'Num z_layers ', num_z_layers)
     #already_preprocessed = True
     calc_stats = False
     config['test_dir']=test_dir
@@ -205,6 +208,7 @@ if __name__=="__main__":
                                          hadronic_detector=hadronic_detector,
                                          include_ecal=include_ecal,
                                          output_dim=output_dim,
+                                         #num_z_layers=num_z_layers,     ### CASES WHEN THEERE IS Z SEGMENTATION
                                          k=k)
 
 

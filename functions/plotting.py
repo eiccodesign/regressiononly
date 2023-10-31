@@ -1496,9 +1496,12 @@ def read_start_stop_local(file_path, detector, NumEvents, include_ecal=True):
     genPy = event_data['MCParticles.momentum.y'][:,2]
     genPz = event_data['MCParticles.momentum.z'][:,2]
     mass = event_data["MCParticles.mass"][:,2]
+    
+    genPx, genPz = rotateY(genPx, genPz, .025)
+    
     root_gen_P = np.sqrt(genPx*genPx + genPy*genPy + genPz*genPz)
     mom=np.sqrt(genPx*genPx + genPy*genPy + genPz*genPz)
-    theta=np.arccos(genPz/mom)*1000  ## in mili radians
+    theta=np.degrees(np.arccos(genPz/mom))  ## in mili radians
     gen_energy=np.sqrt(root_gen_P**2 + mass**2)
     
     hit_e =event_data[f'{detector_name}.energy']
@@ -1533,4 +1536,11 @@ def read_start_stop_local(file_path, detector, NumEvents, include_ecal=True):
    
     
     return hit_e, posx, posy, posz, genPx, genPy, gen_energy, theta, cluster_sum_total , cluster_sum_hcal, cluster_sum_ecal 
+
+def rotateY(xdata, zdata, angle):
+    s = np.sin(angle)
+    c = np.cos(angle)
+    rotatedz = c*zdata - s*xdata
+    rotatedx = s*zdata + c*xdata
+    return rotatedx, rotatedz
      

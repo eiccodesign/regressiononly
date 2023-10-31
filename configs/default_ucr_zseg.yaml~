@@ -1,0 +1,60 @@
+data:
+  #data_dir: /media/miguel/Elements/Data_hcali/Data1/log10_Uniform_03-23/log10_pi+_Uniform_0-140Gev_17deg_1/ # 200, 99, 100
+  #data_dir: /media/miguel/Elements/Data_hcali/Data1/log10_Uniform_03-23/log10_pi+_100_10k_10-30deg_1/ # 108, 40, 50
+  #data_dir: /media/miguel/Elements/Data_hcali/Data1/log10_Uniform_03-23/log10_pi+_uniform_2.83deg_100_6k_1/
+  #data_dir: /media/miguel/Elements/Data_hcali/Data1/log10_Uniform_03-23/log10_pi+_100_10k_17deg_ECAL_1/   # 80, 36, 36
+  #data_dir: /media/miguel/Elements/Data_hcali/Data1/log10_Uniform_03-23/log10_pi+_100_10k_10-30-deg_ECAL_updated_1/  ## 85 30 49
+  #data_dir: /media/miguel/Elements/Data_hcali/Data1/ZDC_data/log10_ZDC_neutron_1_300GeV_0_0.5deg_staggered_h3/ ## 95 40 55
+  
+  #data_dir: /media/miguel/Elements/ECCE_HCAL/hcal_pi+_log10continuous_1GeV-150GeV_10deg-30deg_07-21-23/ #### 160 46 40
+  #data_dir: /media/miguel/Elements/zdc_data/zdc_neutron_log10continuous_10GeV-300GeV_0.0deg-0.5deg_staggered_h4_08_18/  #130 45  1 (total 176)
+
+  ## ECCE CONFIG 4W + 60 Fe
+  #data_dir: /media/miguel/Elements/ECCE_HCAL/hcal_pi+_log10continuous_1GeV-150GeV_10deg-30deg_07-21-23/ ## 246 = 184   60  1
+  data_dir: /media/miguel/Elements/ECCE_HCAL/hcal_ecal_ECCE_64Fe_pi+_log10continuous_1GeV-150GeV_10deg-30deg_09-27-23/   ###   156   =  112, 42, 1
+  particle_type: pion  #
+  num_train_files:  1 #12
+  num_val_files:  1 #42
+  num_test_files: 1 #35
+  batch_size: 256   ##
+  shuffle: false  #
+  num_procs: 2   ##
+  preprocess: True
+  output_dim: 1
+  #output_dir: /media/miguel/Elements/bishnu/zdc_models/preprocessed_input4D_output1D_ZDCFe_zseg32_new
+  output_dir: /media/miguel/Elements/ECCE_HCAL/ECCE_ECAL_HCAL_model_theta_10-30/new_models_1Doutput_09-08/preprocessed_input4D_output1D_Hcal_0W_64Fe_zseg8
+  already_preprocessed: False
+  calc_stats: True   ##
+  num_features: 4
+  k: 10
+  hadronic_detector: hcal
+  include_ecal: True
+  num_z_layers: 8
+model:
+  block_type: graphnet
+  concat_input: True
+  edge_block_opt:
+    use_edges: true
+    use_globals: true
+    use_receiver_nodes: true
+    use_sender_nodes: true
+  global_block_opt:
+    use_edges: false
+    use_globals: true
+    use_nodes: true
+  node_block_opt:
+    use_globals: true
+    use_nodes: true
+    use_received_edges: true
+    use_sent_edges: false # going out of the node , check get edges.
+  num_blocks: 1
+  num_layers: 4
+  latent_size: 64
+  reducer: mean
+  
+training:
+  epochs: 1 #70
+  learning_rate: 1.e-3
+  #save_dir: /media/miguel/Elements/bishnu/zdc_models/results_4D_output2D_ZDCFe_zseg32_new
+  save_dir: /media/miguel/Elements/ECCE_HCAL/ECCE_ECAL_HCAL_model_theta_10-30/new_models_1Doutput_09-08/results_4D_output1D_Hcal_0W_64Fe_zseg8
+  

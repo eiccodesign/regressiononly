@@ -12,6 +12,7 @@ import compress_pickle as pickle
 from scipy.stats import circmean
 from sklearn.neighbors import NearestNeighbors
 import random
+rotation_angle=0.025 ## rotation w.r.t prootn axis beam crossing angle is 25 mrad
 
 #MIP=0.0006 ## GeV
 MIP_ECAL=0.13
@@ -254,6 +255,8 @@ class MPGraphDataGenerator:
         genPx = event_data['MCParticles.momentum.x'][:,2]
         genPy = event_data['MCParticles.momentum.y'][:,2]
         genPz = event_data['MCParticles.momentum.z'][:,2]
+        genPx, genPz=self.rotateY(genPx, genPz, rotation_angle)
+        
         genP = np.log10(np.sqrt(genPx*genPx + genPy*genPy + genPz*genPz))
         mom=np.sqrt(genPx*genPx + genPy*genPy + genPz*genPz)
         theta=np.arccos(genPz/mom)*1000  ## in milli radians
@@ -475,6 +478,7 @@ class MPGraphDataGenerator:
         genPx = event_data['MCParticles.momentum.x'][event_ind,2]
         genPy = event_data['MCParticles.momentum.y'][event_ind,2]
         genPz = event_data['MCParticles.momentum.z'][event_ind,2]
+        genPx, genPz=self.rotateY(genPx, genPz, rotation_angle)
         mom=np.sqrt(genPx*genPx + genPy*genPy + genPz*genPz)
         theta=np.arccos(genPz/mom)*1000  #    *180/np.pi
         #gen_phi=(np.arctan2(genPy,genPx))*180/np.pi
@@ -530,6 +534,14 @@ class MPGraphDataGenerator:
             # batch_targets = np.reshape(np.array(batch_targets), [-1,2]).astype(np.float32)
 
             batch_queue.put((batch_graphs, batch_targets, batch_meta))
+
+    ### Make everything with respective to z' (w.r.t) proton axis        
+    def rotateY(self, xdata, zdata, angle):
+        s = np.sin(angle)
+        c = np.cos(angle)
+        rotatedz = c*zdata - s*xdata
+        rotatedx = s*zdata + c*xdata
+        return rotatedx, rotatedz
 
     def worker(self, worker_id, batch_queue):
         if self.preprocess:
