@@ -1066,9 +1066,9 @@ def get_cluster_sum_from_hits(detector, ur_tree):
         sampling_fraction=0.0224
         MIP_TH=MIP_TH_HCAL    
 
-    elif detector=="hcal_insert":
+    elif detector=="insert":
         detector_name= "HcalEndcapPInsertHitsReco"
-        sampling_fraction=0.0089
+        sampling_fraction=0.0203 # 0.0089
         MIP_TH=MIP_TH_HCAL
 
     elif detector =='ecal':
@@ -1198,7 +1198,7 @@ def get_hitE_genE_fromChain(detector, particle, start, stop):
         sampling_fraction=0.0139 #0.0224 (ATHENA CONFIG 0.0224 
         Mev_to_GeV=1
 
-    elif detector=="hcal_insert":
+    elif detector=="insert":
         detector_name= "HcalEndcapPInsertHitsReco"
         sampling_fraction=0.0089
         Mev_to_GeV=1

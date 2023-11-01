@@ -225,16 +225,33 @@ if __name__=="__main__":
     samp_graph, samp_target = next(get_batch(data_gen_train.generator()))
     data_gen_train.kill_procs()
     graph_spec = utils_tf.specs_from_graphs_tuple(samp_graph, True, True, True)
+
+
+
+
+    mae_loss_energy = tf.keras.losses.MeanAbsoluteError()
+    mae_loss_theta = tf.keras.losses.MeanAbsoluteError()
+    # Define weights for energy and thet
+    weight_energy = 0.8  # Adjust the weight as per your preference
+    weight_theta = 0.2  # Adjust the weight as per your preference
+
+    def custom_loss_fn(targets, predictions):
+        loss_energy = mae_loss_energy(targets[0], predictions[0]) * weight_energy
+        loss_theta = mae_loss_theta(targets[1], predictions[1]) * weight_theta
+        total_loss = loss_energy + loss_theta
+        return total_loss
     
     mae_loss = tf.keras.losses.MeanAbsoluteError() # Check 
   
-    def loss_fn(targets, predictions):
-        #return mae_loss(targets, predictions)
-        return mae_loss(targets, predictions, sample_weight=[[0.7, 0.3]])
+    def loss_fn_1D(targets, predictions):
+        return mae_loss(targets, predictions)
+        #return mae_loss(targets, predictions, sample_weight=[[0.7, 0.3]])
     if output_dim==2:
         provided_shape=[None,None]
+        loss_fn=custom_loss_fn
     elif output_dim==1:
         provided_shape=[None,]
+        loss_fn=loss_fn_1D
 
     @tf.function(input_signature=[graph_spec, tf.TensorSpec(shape=provided_shape, dtype=tf.float32)])
     def train_step(graphs, targets):

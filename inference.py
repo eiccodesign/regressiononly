@@ -68,12 +68,12 @@ if __name__=="__main__":
     preprocess = data_config['preprocess']
     output_dir = data_config['output_dir']
     num_features = data_config['num_features']
-    num_z_layers=data_config['num_z_layers']    ## CASES WHEN THEERE IS Z SEGMENTATION
+    #num_z_layers=data_config['num_z_layers']    ## CASES WHEN THEERE IS Z SEGMENTATION
     k = data_config['k']
     hadronic_detector = data_config['hadronic_detector']
     include_ecal = data_config['include_ecal']
     already_preprocessed = data_config['already_preprocessed']
-    print(already_preprocessed, ' already preprocessed -------', 'Num z_layers ', num_z_layers)
+    print(already_preprocessed, ' already preprocessed -------')
     #already_preprocessed = True
     calc_stats = False
     config['test_dir']=test_dir
