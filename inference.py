@@ -124,13 +124,17 @@ if __name__=="__main__":
 
     def get_batch(data_iter):
         for graphs, targets, meta in data_iter:
+            # data_iter is a triple of lists
+            # list of graphs, list of targets, list of meta data with
+            # Each entry of the lists has info for one event in the batch
             graphs = convert_to_tuple(graphs)
-            targets_length = len(targets)
+            # Targets structure: 
+            # For 1D: Just a list [ genP0, genP1, genP2, ...]
+            # For 2D: list of tuples [ (genP0, gentheta0), (genP1 ,Gentheta1),...]
+            # Convert targets to tf.tensor
+            # 1D shape (len(targets), ), i.e. [ genP0, genP1, genP2, ...]
+            # 2D shape (len(targets), 2), i.e. [ [genP0, gentheta0], [genP1, gentheta1], ...]
             targets = tf.convert_to_tensor(targets, dtype=tf.float32)
-            # Convert targets to tf.tensor of shape (len(targets), 2, 1)
-            # i.e. [[[genP1], [gentheta1]], [[genP2], [gentheta2]],...]
-            # Done for weighting in loss function
-            targets = tf.reshape(targets, [targets_length, 2, 1])
             
             yield graphs, targets
    
@@ -222,16 +226,28 @@ if __name__=="__main__":
     mae_loss = tf.keras.losses.MeanAbsoluteError()
 
     def loss_fn(targets, predictions):
-            return mae_loss(targets, predictions, sample_weight=[[1.0,0.0]]) # First number is energy weight, second number is theta weight
+        if output_dim == 2:
+            # Convert targets & predictions to tf.tensor of shape (len(targets), 2, 1)
+            # i.e. Targets: [ [ [genP0], [gentheta0] ], [ [genP1], [gentheta1] ], [ [genP2], [gentheta2] ], ...]
+            # Predictions: [ [ [Epred0], [thetapred0] ], [ [Epred1], [thetapred1] ], [ [Epred2], [thetapred2] ], ...]
+            # This shape is needed to give weights to energy and theta
+            targets_reshaped = tf.reshape(targets, [len(targets), 2, 1])
+            predictions_reshaped = tf.reshape(predictions, [len(predictions), 2, 1])
+            return mae_loss(targets_reshaped, predictions_reshaped, sample_weight=[[0.7, 0.3]]) # First number is energy weight, second number is theta weight
+        elif output_dim == 1:
+            return mae_loss(targets, predictions)
+
     if output_dim==2:
-        provided_shape=[None,None,None,]
+        provided_shape=[None,None]
     elif output_dim==1:
         provided_shape=[None,]
     
     @tf.function(input_signature=[graph_spec, tf.TensorSpec(shape=provided_shape, dtype=tf.float32)])
     def val_step(graphs, targets):
             predictions = model(graphs).globals
-            predictions = tf.reshape(predictions, [len(predictions), 2, 1])
+            # predictions structure:
+            # For 1D: predictions (type = tf.Tensor) structure: [ Epred0, Epred1, Epred2, ... ]
+            # For 2D: predictions (type = tf.Tensor) structure: [ [Epred0, thetapred0], [Epred1, thetapred1], [Epred2, thetapred2], ...]
             loss = loss_fn(targets, predictions)
 
             return loss, predictions
@@ -267,9 +283,7 @@ if __name__=="__main__":
             losses_test, output_test = val_step(graph_data_test, targets_test)
 
             test_loss.append(losses_test.numpy())
-            targets_test = tf.reshape(targets_test, [len(targets_test), 2])
             targets_test = targets_test.numpy()
-            output_test = tf.reshape(output_test, [len(output_test), 2])
             output_test = output_test.numpy()
 
             output_test_scaled_ene = 10**(output_test[:,0]*stdvs_dict['genP'] + means_dict['genP'])

@@ -218,17 +218,18 @@ if __name__=="__main__":
     def get_batch(data_iter):
         print("In get_batch")
         for graphs, targets, meta in data_iter:
-            # data_iter is triple of lists
+            # data_iter is a triple of lists
+            # list of graphs, list of targets, list of meta data with
+            # Each entry of the lists has info for one event in the batch
             graphs = convert_to_tuple(graphs)
-            # Targets: list of tuples [(genP1, gentheta1), (genP2,Gentheta2),...]
-            # Convert targets to tf.tensor of shape (len(targets), 2)
-            # i.e. [[genP1, gentheta1], [genP2, gentheta2], ...]
-            targets_length = len(targets)
+            # targets structure: 
+            # For 1D: Just a list [ genP0, genP1, genP2, ...]
+            # For 2D: list of tuples [ (genP0, gentheta0), (genP1 ,Gentheta1),...]
+            # Convert targets to tf.tensor
+            # 1D shape (len(targets), ), i.e. [ genP0, genP1, genP2, ...]
+            # 2D shape (len(targets), 2), i.e. [ [genP0, gentheta0], [genP1, gentheta1], ...]
             targets = tf.convert_to_tensor(targets, dtype=tf.float32)
-            # Convert targets to tf.tensor of shape (len(targets), 2, 1)
-            # i.e. [[[genP1], [gentheta1]], [[genP2], [gentheta2]],...]
-            # Done for weighting in loss function
-            targets = tf.reshape(targets, [targets_length, 2, 1])
+
             yield graphs, targets
      
     samp_graph, samp_target = next(get_batch(data_gen_train.generator()))
@@ -238,9 +239,19 @@ if __name__=="__main__":
     mae_loss = tf.keras.losses.MeanAbsoluteError() # Check 
   
     def loss_fn(targets, predictions):
-        return mae_loss(targets, predictions, sample_weight=[[0.7, 0.3]]) # First number is energy weight, second number is theta weight
+        if output_dim == 2:
+            # Convert targets & predictions to tf.tensor of shape (len(targets), 2, 1)
+            # i.e. Targets: [ [ [genP0], [gentheta0] ], [ [genP1], [gentheta1] ], [ [genP2], [gentheta2] ], ...]
+            # Predictions: [ [ [Epred0], [thetapred0] ], [ [Epred1], [thetapred1] ], [ [Epred2], [thetapred2] ], ...]
+            # This shape is needed to give weights to energy and theta
+            targets_reshaped = tf.reshape(targets, [len(targets), 2, 1])
+            predictions_reshaped = tf.reshape(predictions, [len(predictions), 2, 1])
+            return mae_loss(targets_reshaped, predictions_reshaped, sample_weight=[[0.7, 0.3]]) # First number is energy weight, second number is theta weight
+        elif output_dim == 1:
+            return mae_loss(targets, predictions)
+
     if output_dim==2:
-        provided_shape=[None,None,None,]
+        provided_shape=[None,None]
     elif output_dim==1:
         provided_shape=[None,]
 
@@ -248,9 +259,9 @@ if __name__=="__main__":
     def train_step(graphs, targets):
         with tf.GradientTape() as tape:
             predictions = model(graphs).globals
-            # predictions: [[Epred0, thetapred0], [Epred1, thetapred1], [Epred2, thetapred2], ...]
-            # predictions reshaped to [ [ [Epred0], [thetapred0] ], [ [Epred1], [thetapred1] ], [ [Epred2], [thetapred2] ], ...]
-            predictions = tf.reshape(predictions, [len(predictions), 2, 1])
+            # predictions structure:
+            # For 1D: predictions (type = tf.Tensor) structure: [ Epred0, Epred1, Epred2, ... ]
+            # For 2D: predictions (type = tf.Tensor) structure: [ [Epred0, thetapred0], [Epred1, thetapred1], [Epred2, thetapred2], ...]
             loss = loss_fn(targets, predictions)
 
         gradients = tape.gradient(loss, model.trainable_variables)
@@ -261,7 +272,6 @@ if __name__=="__main__":
     @tf.function(input_signature=[graph_spec, tf.TensorSpec(shape=provided_shape, dtype=tf.float32)])
     def val_step(graphs, targets):
         predictions = model(graphs).globals
-        predictions = tf.reshape(predictions, [len(predictions), 2, 1])
         loss = loss_fn(targets, predictions)
 
         return loss, predictions
@@ -313,9 +323,7 @@ if __name__=="__main__":
         start = time.time()
         for graph_data_val, targets_val in get_batch(data_gen_val.generator()):#val_iter):
             losses_val, output_vals = val_step(graph_data_val, targets_val)
-            targets_val = tf.reshape(targets_val, [len(targets_val), 2])
             targets_val = targets_val.numpy()
-            output_vals = tf.reshape(output_vals, [len(output_vals), 2])
             output_vals = output_vals.numpy().squeeze()
 
             val_loss.append(losses_val.numpy())
@@ -392,9 +400,7 @@ if __name__=="__main__":
          # This function is used for validation, but since THIS use block is outside of the training loop, 
          # the resulting loss and set of predictions are not used in the training at all.
 
-        targets_test = tf.reshape(targets_test, [len(targets_test), 2])
         targets_test = targets_test.numpy()
-        output_tests = tf.reshape(output_tests, [len(output_tests), 2])
         output_tests = output_tests.numpy().squeeze()
 
         test_loss.append(losses_test.numpy())
