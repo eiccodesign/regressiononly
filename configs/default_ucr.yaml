@@ -8,10 +8,10 @@ data:
 
 
   ## ECCE CONFIG 4W + 60 Fe
-  data_dir: /media/miguel/Elements/ECCE_HCAL/hcal_pi+_log10continuous_1GeV-150GeV_10deg-30deg_07-21-23/ ## 246 = 184   60 11  1
+  # data_dir: /media/miguel/Elements/ECCE_HCAL/hcal_pi+_log10continuous_1GeV-150GeV_10deg-30deg_07-21-23/ ## 246 = 184   60 11  1
   #data_dir: /media/miguel/Elements/ECCE_HCAL/hcal_ecal_ECCE_64Fe_pi+_log10continuous_1GeV-150GeV_10deg-30deg_09-27-23/   ###   156   =  112, 42, 1
   ## ZDC FE H4 PI+  CONTINUOUS
-  #data_dir: /media/miguel/Elements/zdc_data/zdc_neutron_log10continuous_10GeV-300GeV_0.0deg-0.5deg_staggered_h4_08_18/  #130 45  1
+  data_dir: /media/miguel/Elements/zdc_data/zdc_neutron_log10continuous_10GeV-300GeV_0.0deg-0.5deg_staggered_h4_08_18/  #130 45  1
   #data_dir: /media/miguel/Elements/zdc_data/zdc_Pb_neutron_log10continuous_10GeV-300GeV_0.0deg-0.5deg_staggered_h4_09_23/  # 250  74 75
   
   ## PION (0)  ###
@@ -35,20 +35,22 @@ data:
   #data_dir: /media/miguel/Elements/ECCE_HCAL/insert_64Fe_pi+_log10continuous_1GeV-150GeV_2.3deg-4.25deg_10-8-23/  ## total = 196 =>  140   ##55 1
   
   particle_type: pion  
-  num_train_files: 184
-  num_val_files:  60
+  num_train_files: 1
+  num_val_files:  1
   num_test_files: 1  
   batch_size: 256  
   shuffle: True #
   num_procs: 2   ##
   preprocess: True
-  output_dir: /media/miguel/Elements/preprocessed_input4D_output2D_hcal_4W_60Fe_graphnet ## change this directory
+  output_dir: /home/ryan/preprocessed_test ## change this directory
   already_preprocessed: False
   calc_stats: True   ##
   num_features: 4
   output_dim: 2
+  energy_weight: 0.7 # Weights are only used if output_dim == 2. Apply prefactors to energy & theta terms in loss function
+  theta_weight: 0.3
   k: 10
-  hadronic_detector: hcal  #hcal #zdc_Fe
+  hadronic_detector: zdc_Fe  #hcal #zdc_Fe
   include_ecal: False
 model:
   block_type: graphnet
@@ -73,6 +75,6 @@ model:
   reducer: mean
   
 training:
-  epochs: 70
+  epochs: 1
   learning_rate: 1.e-3
-  save_dir: /media/miguel/Elements/results_4D_output2D_hcal_4W_60Fe_graphnet  ## change the name of this directory
+  save_dir: /home/ryan/results_test   ## change the name of this directory

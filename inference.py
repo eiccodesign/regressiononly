@@ -49,6 +49,10 @@ if __name__=="__main__":
     model_config = config['model']
     train_config = config['training']
     output_dim=data_config['output_dim']
+    if output_dim == 2:
+        energy_weight = data_config['energy_weight']
+        theta_weight = data_config['theta_weight']
+    hadronic_detector = data_config['hadronic_detector']
     data_dir = data_config['data_dir']
 
     num_train_files = data_config['num_train_files']
@@ -230,10 +234,11 @@ if __name__=="__main__":
             # Convert targets & predictions to tf.tensor of shape (len(targets), 2, 1)
             # i.e. Targets: [ [ [genP0], [gentheta0] ], [ [genP1], [gentheta1] ], [ [genP2], [gentheta2] ], ...]
             # Predictions: [ [ [Epred0], [thetapred0] ], [ [Epred1], [thetapred1] ], [ [Epred2], [thetapred2] ], ...]
-            # This shape is needed to give weights to energy and theta
+            # This shape is needed to give weights to energy and theta. Gives prefactors to energy and theta.
+            # e.g. Loss contribution for event 0:  ( energy_weight * |Epred0 - genP0|  + theta_weight * |thetapred0 - gentheta0 | ) / 2
             targets_reshaped = tf.reshape(targets, [len(targets), 2, 1])
             predictions_reshaped = tf.reshape(predictions, [len(predictions), 2, 1])
-            return mae_loss(targets_reshaped, predictions_reshaped, sample_weight=[[0.7, 0.3]]) # First number is energy weight, second number is theta weight
+            return mae_loss(targets_reshaped, predictions_reshaped, sample_weight=[[energy_weight, theta_weight]]) # First number is energy weight, second number is theta weight
         elif output_dim == 1:
             return mae_loss(targets, predictions)
 
