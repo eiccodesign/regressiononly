@@ -99,9 +99,30 @@ class MPGraphDataGenerator:
             self.energy_TH=0.5*0.000393
             self.time_TH=275
             self.theta_max=4.0
-            
+        '''    
+        ### ____IN CASE IF WE HAVE MIXTURE OF W AND FE LET US FIND THE Z SECTIONS WITH FE AND W        
+        f_name=self.file_list[0]
+        event_tree = ur.open(f_name)['events']
+        num_events = event_tree.num_entries
+        event_data = event_tree.arrays()
+        position_z = event_data[self.detector_name+'.position.z']
+        position_z=ak.flatten(position_z)
+        self.z_min=np.min(position_z)
+        self.z_max=np.max(position_z)+0.5
         
-
+        print(self.z_min, '[ zmin, zmax] ', self.z_max)
+        z_array_from_1File=np.array(position_z)    
+        z_array_from_1File=np.sort(np.unique(z_array_from_1File))    
+        gap_between_adjacent_sc=np.diff(z_array_from_1File)
+        print('____________________')
+        print(z_array_from_1File)
+        #print(gap_between_adjacent_sc)
+        print(gap_between_adjacent_sc[0])
+        num_W_layers=4
+        z_value_for_Fe=num_W_layers*gap_between_adjacent_sc[0]+ 5 ## 5 mm is making sure that we are not chopping last Scintillator readout
+        '''
+        
+        print('output_dim-----------------', output_dim)        
         self.detector_ecal='EcalEndcapPHitsReco'
         self.nodeFeatureNames = [".energy", ".position.z", ".position.x", ".position.y",]
         if self.output_dim==1:
@@ -112,6 +133,10 @@ class MPGraphDataGenerator:
             self.scalar_keys = [self.detector_name+self.nodeFeatureNames[0]] + \
                            self.nodeFeatureNames[1:] + \
                            ["clusterE","genP", "theta"]
+
+        elif self.output_dim==3:
+            self.scalar_keys = [self.detector_name+self.nodeFeatureNames[0]] + \
+                self.nodeFeatureNames[1:] + ["clusterE","genP", "theta","phi"]    
         if self.include_ecal:
             self.scalar_keys = self.scalar_keys + [self.detector_ecal+self.nodeFeatureNames[0]]
 
@@ -255,18 +280,18 @@ class MPGraphDataGenerator:
         genPx = event_data['MCParticles.momentum.x'][:,2]
         genPy = event_data['MCParticles.momentum.y'][:,2]
         genPz = event_data['MCParticles.momentum.z'][:,2]
-        genPx, genPz=self.rotateY(genPx, genPz, rotation_angle)
-        
+        if not 'zdc' in self.hadronic_detector:
+            print('Rotation is not required  as I am ZDC')
+            genPx, genPz=self.rotateY(genPx, genPz, rotation_angle)
         genP = np.log10(np.sqrt(genPx*genPx + genPy*genPy + genPz*genPz))
-        mom=np.sqrt(genPx*genPx + genPy*genPy + genPz*genPz)
-        theta=np.arccos(genPz/mom)*1000  ## in milli radians
-
         
         if self.output_dim==1:
             file_means['genP'].append(ak.mean(genP))
             file_stdvs['genP'].append(ak.std(genP))
             
         if self.output_dim==2:
+            mom=np.sqrt(genPx*genPx + genPy*genPy + genPz*genPz)
+            theta=np.arccos(genPz/mom)*1000  ## in milli radians
             mask_theta=theta<self.theta_max
             theta=theta[mask_theta]
             genP=genP[mask_theta]
@@ -274,6 +299,22 @@ class MPGraphDataGenerator:
             file_stdvs['genP'].append(ak.std(genP))
             file_means['theta'].append(ak.mean(theta))
             file_stdvs['theta'].append(ak.std(theta))
+
+
+        if self.output_dim==3:
+            mom=np.sqrt(genPx*genPx + genPy*genPy + genPz*genPz)
+            theta=np.arccos(genPz/mom)*1000  ## in milli radians
+            gen_phi=(np.arctan2(genPy,genPx))*1000   ## milli radians
+            mask_theta=theta<self.theta_max
+            theta=theta[mask_theta]
+            genP=genP[mask_theta]
+            gen_phi=gen_phi[mask_theta]
+            file_means['genP'].append(ak.mean(genP))
+            file_stdvs['genP'].append(ak.std(genP))
+            file_means['theta'].append(ak.mean(theta))
+            file_stdvs['theta'].append(ak.std(theta))
+            file_means['phi'].append(ak.mean(gen_phi))
+            file_stdvs['phi'].append(ak.std(gen_phi))
         
         means.append(file_means)
         stdvs.append(file_stdvs)
@@ -309,8 +350,12 @@ class MPGraphDataGenerator:
             preprocessed_data = []
 
             for event_ind in range(num_events):
-            #for event_ind in range(6,20):    
-                if self.output_dim==2:
+            #for event_ind in range(6,70):
+                if self.output_dim==3:
+                    target = self.get_GenP_Theta_Phi(event_data,event_ind)
+                    if (target[1] * self.stdvs_dict["theta"] + self.means_dict["theta"])>self.theta_max:
+                        continue
+                elif self.output_dim==2:
                     target = self.get_GenP_Theta(event_data,event_ind)
                     if (target[1] * self.stdvs_dict["theta"] + self.means_dict["theta"])>self.theta_max:
                         continue
@@ -478,7 +523,8 @@ class MPGraphDataGenerator:
         genPx = event_data['MCParticles.momentum.x'][event_ind,2]
         genPy = event_data['MCParticles.momentum.y'][event_ind,2]
         genPz = event_data['MCParticles.momentum.z'][event_ind,2]
-        genPx, genPz=self.rotateY(genPx, genPz, rotation_angle)
+        if not 'zdc' in self.hadronic_detector:
+            genPx, genPz=self.rotateY(genPx, genPz, rotation_angle)
         mom=np.sqrt(genPx*genPx + genPy*genPy + genPz*genPz)
         theta=np.arccos(genPz/mom)*1000  #    *180/np.pi
         #gen_phi=(np.arctan2(genPy,genPx))*180/np.pi
@@ -489,6 +535,25 @@ class MPGraphDataGenerator:
         theta = (theta - self.means_dict["theta"]) / self.stdvs_dict["theta"]
         #gen_phi = (gen_phi - self.means_dict["phi"]) / self.stdvs_dict["phi"]
         return genP, theta
+
+
+    def get_GenP_Theta_Phi(self,event_data,event_ind):
+
+        genPx = event_data['MCParticles.momentum.x'][event_ind,2]
+        genPy = event_data['MCParticles.momentum.y'][event_ind,2]
+        genPz = event_data['MCParticles.momentum.z'][event_ind,2]
+        if not 'zdc' in self.hadronic_detector:
+            genPx, genPz=self.rotateY(genPx, genPz, rotation_angle)
+        mom=np.sqrt(genPx*genPx + genPy*genPy + genPz*genPz)
+        theta=np.arccos(genPz/mom)*1000  #    *180/np.pi
+        gen_phi=(np.arctan2(genPy,genPx))*1000    #mrad
+        #the generation has the parent praticle always at index 2
+
+        genP = np.log10(np.sqrt(genPx*genPx + genPy*genPy + genPz*genPz))
+        genP = (genP - self.means_dict["genP"]) / self.stdvs_dict["genP"]
+        theta = (theta - self.means_dict["theta"]) / self.stdvs_dict["theta"]
+        gen_phi = (gen_phi - self.means_dict["phi"]) / self.stdvs_dict["phi"]
+        return genP, theta, gen_phi
 
     def get_meta(self, event_data, event_ind):
         """ 
@@ -510,7 +575,7 @@ class MPGraphDataGenerator:
         while file_num < self.num_files:
             file_data = pickle.load(open(self.processed_file_list[file_num], 'rb'), compression='gzip')
 
-            # print("FILE DATA SHAPE = ",np.shape(file_data))
+            
 
             for i in range(len(file_data)):
                 batch_graphs.append(file_data[i][0])
@@ -538,7 +603,7 @@ class MPGraphDataGenerator:
     ### Make everything with respective to z' (w.r.t) proton axis        
     def rotateY(self, xdata, zdata, angle):
         s = np.sin(angle)
-        c = np.cos(angle)
+        c = np.cos(angle) 
         rotatedz = c*zdata - s*xdata
         rotatedx = s*zdata + c*xdata
         return rotatedx, rotatedz

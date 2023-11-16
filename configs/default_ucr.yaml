@@ -8,15 +8,19 @@ data:
 
 
   ## ECCE CONFIG 4W + 60 Fe
-  #data_dir: /media/miguel/Elements/ECCE_HCAL/hcal_pi+_log10continuous_1GeV-150GeV_10deg-30deg_07-21-23/ ## 246 = 184   60 1  
+  #data_dir: /media/miguel/Elements/ECCE_HCAL/hcal_pi+_log10continuous_1GeV-150GeV_10deg-30deg_07-21-23/ ## 246 = 184   60 1
+
+  ## ECCE CONFIG 0W + 64 Fe
   #data_dir: /media/miguel/Elements/ECCE_HCAL/hcal_ecal_ECCE_64Fe_pi+_log10continuous_1GeV-150GeV_10deg-30deg_09-27-23/   ###   156   =  112, 42, 1
 
-  ## HCAL ONLY $W + 60 Fe
-  #data_dir: /media/miguel/Elements/ECCE_HCAL/hcal_only_pi+_log10continuous_1GeV-150GeV_10deg-30deg_08-16-23/   ##145   > 105  39   1 
+  ## HCAL ONLY 4W + 60 Fe
+  data_dir: /media/miguel/Elements/ECCE_HCAL/hcal_only_pi+_log10continuous_1GeV-150GeV_10deg-30deg_08-16-23/   ##145   > 105  39   1 
 
   ## ZDC FE H4 PI+  CONTINUOUS
   #data_dir: /media/miguel/Elements/zdc_data/zdc_neutron_log10continuous_10GeV-300GeV_0.0deg-0.5deg_staggered_h4_08_18/  #130 45  1
-  #data_dir: /media/miguel/Elements/zdc_data/zdc_Pb_neutron_log10continuous_10GeV-300GeV_0.0deg-0.5deg_staggered_h4_09_23/  # 250  74 75
+
+  ## ZDC Pb H4 Neutron +  CONTINUOUS
+  #data_dir: /media/miguel/Elements/zdc_data/zdc_Pb_neutron_log10continuous_10GeV-300GeV_0.0deg-0.5deg_staggered_h4_09_23/  # 299 100
   
   ## PION (0)  ###
   #data_dir: /media/miguel/Elements/zdc_data/zdc_pi0_log10continuous_10GeV-300GeV_0.0deg-0.5deg_staggered_h4_10_23/ ##140  # 54  #1 
@@ -34,28 +38,28 @@ data:
   #data_dir: /media/miguel/Elements/calice_sim_data/calice_Fe_log10continuous_Size_equal_to_ECCE_HCAL_10_30deg_1_90Gev_09_20/ ##  160 50 33
 
   ## INSERT WITH 10W + 54 FE
-  data_dir: /media/miguel/Elements/ECCE_HCAL/insert_pi+_log10continuous_1GeV-150GeV_2.3deg-4.25deg_10-3-23/ ## total =96  =>  75, 20 1 
+  #data_dir: /media/miguel/Elements/ECCE_HCAL/insert_pi+_log10continuous_1GeV-150GeV_2.3deg-4.25deg_10-3-23/ ## total =96  =>  75, 20 1 
   ## INSERT WITH 0W + 64 FE
   #data_dir: /media/miguel/Elements/ECCE_HCAL/insert_64Fe_pi+_log10continuous_1GeV-150GeV_2.3deg-4.25deg_10-8-23/  ## total = 196 =>  140   ##55 1
   
   particle_type: pion  
-  num_train_files: 75 
-  num_val_files:  20
+  num_train_files: 105
+  num_val_files:  39
   num_test_files: 1  
   batch_size: 256  
   shuffle: True #
   num_procs: 2   ##
   preprocess: True
-  output_dir: /media/miguel/Elements/ECCE_HCAL/ECCE_ECAL_HCAL_model_theta_10-30/new_models_1Doutput_09-08/preprocessed_input4D_output2D_insert_10W_54Fe_graphnet_afterrotation ## change this directory
+  output_dir: /media/miguel/Elements/bishnu/Graphnet_models_Nov_2023/preprocessed_input4D_output3D_pi+_hcal_only_4W_64Fe_graphnet ## change this directory
   already_preprocessed: False
   calc_stats: True   ##
   num_features: 4
-  output_dim: 2
+  output_dim: 3
   k: 10
-  hadronic_detector: insert  #hcal #zdc_Fe
-  include_ecal: false
+  hadronic_detector: hcal  #hcal #zdc_Fe
+  include_ecal: False
 model:
-  block_type: graphnet
+  block_type: graphnet ##deepsets   ##graphnet
   concat_input: True
   edge_block_opt:
     use_edges: true
@@ -77,6 +81,6 @@ model:
   reducer: mean
   
 training:
-  epochs: 60
+  epochs: 70
   learning_rate: 1.e-3
-  save_dir: /media/miguel/Elements/ECCE_HCAL/ECCE_ECAL_HCAL_model_theta_10-30/new_models_1Doutput_09-08/results_4D_output2D_insert_10W_54Fe_graphnet_Ene0.8_theta0.2  ## change the name of this directory
+  save_dir: /media/miguel/Elements/bishnu/Graphnet_models_Nov_2023/results_4D_output3D_pi+_hcal_only_4W_64Fe_graphnet  ## change the name of this directory

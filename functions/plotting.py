@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.ticker import MultipleLocator
 from matplotlib.colors import LogNorm
 from copy import copy
 from matplotlib import cm
@@ -574,6 +575,7 @@ def read_start_stop(file_path, detector, entry_start, entry_stop):
     genPy = ur_tree.array('MCParticles.momentum.y',entrystart=entry_start, entrystop=entry_stop)[:,2]
     genPz = ur_tree.array('MCParticles.momentum.z',entrystart=entry_start, entrystop=entry_stop)[:,2]
     mass = ur_tree.array("MCParticles.mass", entrystart=entry_start      , entrystop=entry_stop)[:,2]
+    
     root_gen_P = np.sqrt(genPx*genPx + genPy*genPy + genPz*genPz)
     gen_energy=np.sqrt(root_gen_P**2 + mass**2)
 
@@ -595,7 +597,7 @@ def read_start_stop(file_path, detector, entry_start, entry_stop):
 
 def get_res_scale_fit_log10_log2(truth,pred, binning, nbins, data_type, particle, label='energy', fit='True', plot_range=3):   
     N_Bins=len(binning)
-    plot_range=3
+    
     FIT_SIGMA=3 ## fit within +- 3 sigma                                                                                                                                                                                                             
     row=math.ceil(np.sqrt(N_Bins-1))
     if (row**2-N_Bins)>1:
@@ -616,24 +618,29 @@ def get_res_scale_fit_log10_log2(truth,pred, binning, nbins, data_type, particle
     res_stdev_pred_median_arr=[]
     res_sigma_median_arr=[]
     
+    
+    
     if label=='energy':
-        xtitle='$E_{Pred}$'
+        xtitle='$E_{Pred}/E_{Truth}$'
         unit='GeV'
-        
-    elif label=='theta':
-        xtitle='Theta (Deg)'
-        unit='Deg'
-       
-    elif label=='phi':
-        xtitle='Phi (Deg)'
-        unit='Deg'    
+        y_ticks_size=14
+        x_ticks_size=14
+        major_x_locator=0.25
+           
     elif label=='theta-energy':
-        xtitle=r'$\Theta_{pred} - \Theta_{true}$' 
+        xtitle='$\\theta_{pred} - \\theta_{true}$[mrad]' 
         unit='GeV'
+        y_ticks_size=14
+        x_ticks_size=15
+        major_x_locator=0.5
+        
         
     elif label=='phi-energy':
-        xtitle=r'$\phi_{pred} - \phi_{true}$' 
-        unit='GeV'    
+        xtitle='$\phi_{pred} - \phi_{true}$ [mrad]' 
+        unit='GeV'  
+        y_ticks_size=14
+        x_ticks_size=14
+        major_x_locator=200   
        
         
     else:
@@ -685,7 +692,11 @@ def get_res_scale_fit_log10_log2(truth,pred, binning, nbins, data_type, particle
         #if truth[i]<=0:
         #    truth[i]=999
         pred_over_truth[bin] += pred[i]/truth[i]
-        scale_array[bin][counter[bin]] = pred[i]/truth[i]
+        if label=='energy':
+            scale_array[bin][counter[bin]] = pred[i]/truth[i]
+        elif (label=='theta-energy') or (label=='phi-energy'):
+            scale_array[bin][counter[bin]] = pred[i]
+        
         counter[bin]+=1
     counter[counter == 0] = 1
     
@@ -704,7 +715,8 @@ def get_res_scale_fit_log10_log2(truth,pred, binning, nbins, data_type, particle
     #print(avg_pred)
     
     for ii in range(0,N_Bins-1):
-        ## guess parameters for fitting                                                                                                                              
+        ## guess parameters for fitting      
+                                   
         mean_guess=avg_pred[ii]
         sigma_guess=stdev_pred[ii]
         #print(ii,'   mean guess.  ', mean_guess,'  binning ',binning[ii], ' - ', binning[ii+1])
@@ -716,10 +728,7 @@ def get_res_scale_fit_log10_log2(truth,pred, binning, nbins, data_type, particle
         if label=='energy':
             if min_range<0:
                 min_range=0.2
-        
-        #print(min_range, '      min and max.  ',  max_range)
-        ## mean value of range within which histogram is draw                                                                           print(                              
-        #mean_here=(min_range + max_range)/2.0
+    
 
         irow=int(ii/col)
         icol=int(ii%col)
@@ -760,11 +769,9 @@ def get_res_scale_fit_log10_log2(truth,pred, binning, nbins, data_type, particle
                 ax.set_ylabel("Entries",fontsize=15)
 
 
-            #plt.savefig(file_name)
-            #ax.set_xticks(fonstsize=20)
-            ax.tick_params(axis='x', labelsize=20)
-            ax.tick_params(axis='y', labelsize=14)
-            
+            #ax.xaxis.set_major_locator(MultipleLocator(major_x_locator))
+            ax.tick_params(axis='x', labelsize=x_ticks_size)
+            ax.tick_params(axis='y', labelsize=y_ticks_size)
             #scale_median=scale_median_comp[ii]
             #scale=mean/avg_truth[ii]
             scale=mean
@@ -774,15 +781,10 @@ def get_res_scale_fit_log10_log2(truth,pred, binning, nbins, data_type, particle
             #resolution=std
             
             if label=='energy':
-                resolution=(std/mean)/scale    #Scale corrected Strawman
+                resolution=(std/mean)  #/scale    #Scale corrected Strawman
                 
-                #resolution_scale_corr=(stdev_pred[ii]/avg_truth[ii])/scale_median  ## this is std vs median
-                #resolution_scale_corrected=np.nan_to_num(resolution_scale_corr)
-
-                #res_stdev_pred_median=stdev_pred[ii]/median_pred[ii]
-
-                #res_sigma_median=std/avg_truth[ii]
-                slices_pred_truth=  (slices[ii] - slices_truth[ii])/slices_truth[ii]
+                #slices_pred_truth=  (slices[ii] - slices_truth[ii])/slices_truth[ii]
+                slices_pred_truth=  scale_array[ii] #slices[ii] /slices_truth[ii]
 
                 
                 
@@ -952,8 +954,8 @@ def compare_energy_response_E_over_pred(files_pred_truth, Gen_Energy, data_type,
 
                 
                 if(ratio_E_pred):
-                    min_range=-0.5
-                    max_range=0.5
+                    min_range=-1
+                    max_range=3
                     
                     ytitle="$E_{Truth}$"
                     xlabel_title=r'$\frac{E_{Pred} - E_{Truth}}{E_{Truth}}$'
@@ -1468,8 +1470,8 @@ def read_start_stop_local(file_path, detector, NumEvents, include_ecal=True):
         sampling_fraction=0.0224
     elif detector=='ecal':
         detector_name = "EcalEndcapPHitsReco"
-        MIP_TH_ecal=0.5 * 0.13
-        Time_TH_ecal=150
+        MIP_TH=0.5 * 0.13
+        Time_TH=150
         theta_max=600.0
         sampling_fraction=1.0
         
@@ -1496,8 +1498,8 @@ def read_start_stop_local(file_path, detector, NumEvents, include_ecal=True):
     genPy = event_data['MCParticles.momentum.y'][:,2]
     genPz = event_data['MCParticles.momentum.z'][:,2]
     mass = event_data["MCParticles.mass"][:,2]
-    
-    genPx, genPz = rotateY(genPx, genPz, .025)
+    if detector != 'zdc':
+        genPx, genPz = rotateY(genPx, genPz, .025)
     
     root_gen_P = np.sqrt(genPx*genPx + genPy*genPy + genPz*genPz)
     mom=np.sqrt(genPx*genPx + genPy*genPy + genPz*genPz)

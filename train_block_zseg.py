@@ -1,6 +1,7 @@
+## USE THIS FOR THE Z SEGMENTATION STUDIES
 import numpy as np
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 import sys
 import glob
 import uproot as ur
@@ -55,7 +56,7 @@ if __name__=="__main__":
     learning_rate = train_config['learning_rate']
     
     
-    print('zzzzzzzzzzzzzzzzzz', num_z_layers)
+    print('zzzzzzzzzzzzzzzzzz', num_z_layers, '    ' , output_dir)
     #save_dir = train_config['save_dir'] + '/Block_'+time.strftime("%Y%m%d_%H%M")+'_concat'+str(concat_input)
     save_dir = train_config['save_dir'] + '/ECCE_'+time.strftime("%Y%m%d-%H%M_")+block_type+f'_{num_features:d}D'
     os.makedirs(save_dir, exist_ok=True)
@@ -126,23 +127,23 @@ if __name__=="__main__":
                                         k=k
     )
     
-    data_gen_test = MPGraphDataGenerator(file_list=root_test_files,
-                                         batch_size=batch_size,
-                                         shuffle=shuffle,
-                                         num_procs=num_procs,
-                                         calc_stats=calc_stats,
-                                         is_val=True, #decides to save mean and std
-                                         #data_set='test',
-                                         preprocess=preprocess,
-                                         already_preprocessed=already_preprocessed,
-                                         output_dir=test_output_dir,
-                                         hadronic_detector=hadronic_detector,
-                                         num_features=num_features,
-                                         include_ecal= include_ecal,
-                                         num_z_layers=num_z_layers,
-                                         output_dim=output_dim,
-                                         k=k
-    )
+    #data_gen_test = MPGraphDataGenerator(file_list=root_test_files,
+    #                                     batch_size=batch_size,
+    #                                     shuffle=shuffle,
+    #                                     num_procs=num_procs,
+    #                                     calc_stats=calc_stats,
+    #                                     is_val=True, #decides to save mean and std
+    #                                     #data_set='test',
+    #                                     preprocess=preprocess,
+    #                                     already_preprocessed=already_preprocessed,
+    #                                     output_dir=test_output_dir,
+    #                                     hadronic_detector=hadronic_detector,
+    #                                     num_features=num_features,
+    #                                     include_ecal= include_ecal,
+    #                                     num_z_layers=num_z_layers,
+    #                                     output_dim=output_dim,
+    #                                     k=k
+    #)
     
     optimizer = tf.keras.optimizers.Adam(learning_rate)
 
@@ -241,7 +242,7 @@ if __name__=="__main__":
         return mae_loss(targets, predictions) 
 
 
-    if output_dim==2:
+    if output_dim>1:
         provided_shape=[None, None]
     elif output_dim==1:
         provided_shape=[None,]
@@ -372,55 +373,55 @@ if __name__=="__main__":
 
 
     #Inference over Test Dataset
-    print('\nTest Predictions...')
-    i = 1
-    test_loss = []
-    all_targets = []
-    all_outputs = []
-    all_etas = []
-    start = time.time()
+    #print('\nTest Predictions...')
+    #i = 1
+    #test_loss = []
+    #all_targets = []
+    #all_outputs = []
+    #all_etas = []
+    #start = time.time()
 
-    checkpoint.restore(best_ckpt)
-    if best_ckpt is not None:
-        checkpoint.restore(best_ckpt)
-    elif os.path.exists(last_ckpt_path+'.index'):
-        checkpoint.read(last_ckpt_path)
+    #checkpoint.restore(best_ckpt)
+    #if best_ckpt is not None:
+    #    checkpoint.restore(best_ckpt)
+    #elif os.path.exists(last_ckpt_path+'.index'):
+    #    checkpoint.read(last_ckpt_path)
 
-    for graph_data_test, targets_test in get_batch(data_gen_test.generator()):#test_iter):
-        losses_test, output_tests = val_step(graph_data_test, targets_test) 
-        # val_step above simply evaluates the model with the inputs as the first argument. Returns predictions.
-        # This function is used for validation, but since THIS use block is outside of the training loop, 
-        # the resulting loss and set of predictions are not used in the training at all.
+    #for graph_data_test, targets_test in get_batch(data_gen_test.generator()):#test_iter):
+    #    losses_test, output_tests = val_step(graph_data_test, targets_test) 
+    #    # val_step above simply evaluates the model with the inputs as the first argument. Returns predictions.
+    #    # This function is used for validation, but since THIS use block is outside of the training loop, 
+    #    # the resulting loss and set of predictions are not used in the training at all.
 
-        targets_test = targets_test.numpy()
-        output_tests = output_tests.numpy().squeeze()
+    #    targets_test = targets_test.numpy()
+    #    output_tests = output_tests.numpy().squeeze()
 
-        test_loss.append(losses_test.numpy())
-        all_targets.append(targets_test)
-        all_outputs.append(output_tests)
+    #    test_loss.append(losses_test.numpy())
+    #    all_targets.append(targets_test)
+    #    all_outputs.append(output_tests)
 
 
-        if not (i)%50:
-            end = time.time()
-            print('Iter: {:03d}, Test_loss_curr: {:.4f}, Test_loss_mean: {:.4f}'. \
-                  format(i, test_loss[-1], np.mean(test_loss)), end='\t')
-            print('Took {:.3f} secs'.format(end-start))
-            start = time.time()
+    #    if not (i)%50:
+    #         end = time.time()
+    #        print('Iter: {:03d}, Test_loss_curr: {:.4f}, Test_loss_mean: {:.4f}'. \
+    #               format(i, test_loss[-1], np.mean(test_loss)), end='\t')
+    #        print('Took {:.3f} secs'.format(end-start))
+    #        start = time.time()
 
-        i += 1 
+    #    i += 1 
 
-    end = time.time()
-    print('Iter: {:03d}, Test_loss_curr: {:.4f}, Test_loss_mean: {:.4f}'. \
-          format(i, test_loss[-1], np.mean(test_loss)), end='\t')
-    print('Took {:.3f} secs'.format(end-start))
+    #end = time.time()
+    #print('Iter: {:03d}, Test_loss_curr: {:.4f}, Test_loss_mean: {:.4f}'. \
+    #      format(i, test_loss[-1], np.mean(test_loss)), end='\t')
+    #print('Took {:.3f} secs'.format(end-start))
 
-    epoch_end = time.time()
+    #epoch_end = time.time()
 
-    all_targets = np.concatenate(all_targets)
-    all_outputs = np.concatenate(all_outputs)
+    #all_targets = np.concatenate(all_targets)
+    #all_outputs = np.concatenate(all_outputs)
 
-    np.savez(save_dir+'/test_predictions', 
-             targets=all_targets, 
-             outputs=all_outputs)
-    np.savez(save_dir+'/test_loss', test=test_loss)
+    #np.savez(save_dir+'/test_predictions', 
+    #         targets=all_targets, 
+    #         outputs=all_outputs)
+    #np.savez(save_dir+'/test_loss', test=test_loss)
         

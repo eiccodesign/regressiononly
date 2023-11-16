@@ -96,7 +96,7 @@ if __name__=="__main__":
                                           output_dim=output_dim,
                                           k=k)
                                           
-        
+           
     data_gen_val = MPGraphDataGenerator(file_list=root_val_files,
                                         batch_size=batch_size,
                                         shuffle=shuffle,
@@ -112,23 +112,23 @@ if __name__=="__main__":
                                         output_dim=output_dim,
                                         k=k)
                                         
-        
-    data_gen_test = MPGraphDataGenerator(file_list=root_test_files,
-                                        batch_size=batch_size,
-                                          shuffle=shuffle,
-                                          num_procs=num_procs,
-                                          calc_stats=False,
-                                          is_val=True, #decides to save mean and std
-                                          preprocess=preprocess,
-                                          already_preprocessed=already_preprocessed,
-                                          output_dir=test_output_dir,
-                                          num_features=num_features,
-                                          hadronic_detector=hadronic_detector,
-                                          include_ecal=include_ecal,
-                                          output_dim=output_dim,
-                                          k=k)
-                                          
-    
+       
+    #data_gen_test = MPGraphDataGenerator(file_list=root_test_files,
+    #                                    batch_size=batch_size,
+    #                                      shuffle=shuffle,
+    #                                      num_procs=num_procs,
+    #                                      calc_stats=False,
+    #                                      is_val=True, #decides to save mean and std
+    #                                      preprocess=preprocess,
+    #                                      already_preprocessed=already_preprocessed,
+    #                                      output_dir=test_output_dir,
+    #                                      num_features=num_features,
+    #                                      hadronic_detector=hadronic_detector,
+    #                                      include_ecal=include_ecal,
+    #                                      output_dim=output_dim,
+    #                                      k=k)
+    #                                      
+   
     optimizer = tf.keras.optimizers.Adam(learning_rate)
 
     model = models.BlockModel(global_output_size=output_dim, model_config=model_config)
@@ -226,32 +226,28 @@ if __name__=="__main__":
     data_gen_train.kill_procs()
     graph_spec = utils_tf.specs_from_graphs_tuple(samp_graph, True, True, True)
 
-
-
-
-    mae_loss_energy = tf.keras.losses.MeanAbsoluteError()
-    mae_loss_theta = tf.keras.losses.MeanAbsoluteError()
-    # Define weights for energy and thet
-    weight_energy = 0.8  # Adjust the weight as per your preference
-    weight_theta = 0.2  # Adjust the weight as per your preference
-
-    def custom_loss_fn(targets, predictions):
-        loss_energy = mae_loss_energy(targets[0], predictions[0]) * weight_energy
-        loss_theta = mae_loss_theta(targets[1], predictions[1]) * weight_theta
-        total_loss = loss_energy + loss_theta
-        return total_loss
+    
+    #mae_loss_energy = tf.keras.losses.MeanAbsoluteError()
+    #mae_loss_theta = tf.keras.losses.MeanAbsoluteError()
+    
+    #def custom_loss_fn(targets, predictions):
+    #    loss_energy = mae_loss_energy(targets[0], predictions[0]) * weight_energy
+    #    loss_theta = mae_loss_theta(targets[1], predictions[1]) * weight_theta
+    #    total_loss = loss_energy + loss_theta
+    #    return total_loss
     
     mae_loss = tf.keras.losses.MeanAbsoluteError() # Check 
-  
-    def loss_fn_1D(targets, predictions):
+
+    def loss_fn(targets, predictions):
         return mae_loss(targets, predictions)
         #return mae_loss(targets, predictions, sample_weight=[[0.7, 0.3]])
-    if output_dim==2:
+            
+    if output_dim>1:
         provided_shape=[None,None]
-        loss_fn=custom_loss_fn
+        #loss_fn=loss_fn_1D
     elif output_dim==1:
         provided_shape=[None,]
-        loss_fn=loss_fn_1D
+        #loss_fn=loss_fn_1D
 
     @tf.function(input_signature=[graph_spec, tf.TensorSpec(shape=provided_shape, dtype=tf.float32)])
     def train_step(graphs, targets):
@@ -272,7 +268,7 @@ if __name__=="__main__":
         return loss, predictions
 
     curr_loss = 1e5
-      
+     
     #Main Epoch Loop
     for e in range(epochs):
 
@@ -308,7 +304,7 @@ if __name__=="__main__":
 
         training_loss_epoch.append(training_loss)
         training_end = time.time()
-
+        
         # validate
         print('\nValidation...')
         i = 1
@@ -375,55 +371,53 @@ if __name__=="__main__":
                 print('\nLearning rate would fall below 1e-6, setting to: {:.5e}'.format(optimizer.learning_rate.value()))
             else:
                 print('\nLearning rate decreased to: {:.5e}'.format(optimizer.learning_rate.value()))
-
+    
     
     # #Inference over Test Dataset
-    print('\nTest Predictions...')
-    i = 1
-    test_loss = []
-    all_targets = []
-    all_outputs = []
-    all_etas = []
-    start = time.time()
+    #print('\nTest Predictions...')
+    #i = 1
+    #test_loss = []
+    #all_targets = []
+    #all_outputs = []
+    #all_etas = []
+    #start = time.time()
 
-    best_ckpt = tf.train.latest_checkpoint(save_dir)
-    print(f'Restoring {best_ckpt}')
-    checkpoint.restore(best_ckpt)
+    #best_ckpt = tf.train.latest_checkpoint(save_dir)
+    #print(f'Restoring {best_ckpt}')
+    #checkpoint.restore(best_ckpt)
 
-    for graph_data_test, targets_test in get_batch(data_gen_test.generator()):#test_iter):
-        losses_test, output_tests = val_step(graph_data_test, targets_test) 
-         # val_step above simply evaluates the model with the inputs as the first argument. Returns predictions.
-         # This function is used for validation, but since THIS use block is outside of the training loop, 
-         # the resulting loss and set of predictions are not used in the training at all.
+    #for graph_data_test, targets_test in get_batch(data_gen_test.generator()):#test_iter):
+    #    losses_test, output_tests = val_step(graph_data_test, targets_test) 
+    #     # val_step above simply evaluates the model with the inputs as the first argument. Returns predictions.
+    #     # This function is used for validation, but since THIS use block is outside of the training loop, 
+    #     # the resulting loss and set of predictions are not used in the training at all.
 
-        targets_test = targets_test.numpy()
-        output_tests = output_tests.numpy().squeeze()
+    #    targets_test = targets_test.numpy()
+    #    output_tests = output_tests.numpy().squeeze()
 
-        test_loss.append(losses_test.numpy())
-        all_targets.append(targets_test)
-        all_outputs.append(output_tests)
+    #    test_loss.append(losses_test.numpy())
+    #    all_targets.append(targets_test)
+    #    all_outputs.append(output_tests)
 
-        if not (i)%100:
-            end = time.time()
-            print('Iter: {:03d}, Test_loss_curr: {:.4f}, Test_loss_mean: {:.4f}'.format(i, test_loss[-1], np.mean(test_loss)), end='  ')
-            print('Took {:.3f} secs'.format(end-start))
-            start = time.time()
+    #    if not (i)%100:
+    #        end = time.time()
+    #        print('Iter: {:03d}, Test_loss_curr: {:.4f}, Test_loss_mean: {:.4f}'.format(i, test_loss[-1], np.mean(test_loss)), end='  ')
+    #        print('Took {:.3f} secs'.format(end-start))
+    #        start = time.time()
 
-        i += 1 
+    #    i += 1 
 
-    end = time.time()
-    print('Iter: {:03d}, Test_loss_curr: {:.4f}, Test_loss_mean: {:.4f}'.format(i, test_loss[-1], np.mean(test_loss)), end='  ')
-    print('Took {:.3f} secs'.format(end-start))
+    #end = time.time()
+    #print('Iter: {:03d}, Test_loss_curr: {:.4f}, Test_loss_mean: {:.4f}'.format(i, test_loss[-1], np.mean(test_loss)), end='  ')
+    #print('Took {:.3f} secs'.format(end-start))
 
-    epoch_end = time.time()
+    #epoch_end = time.time()
 
-    all_targets = np.concatenate(all_targets)
-    all_outputs = np.concatenate(all_outputs)
+    #all_targets = np.concatenate(all_targets)
+    #all_outputs = np.concatenate(all_outputs)
 
-    np.savez(save_dir+'/test_predictions', 
-              targets=all_targets, 
-              outputs=all_outputs)
-    np.savez(save_dir+'/test_loss', test=test_loss)
+    #np.savez(save_dir+'/test_predictions', 
+    #          targets=all_targets, 
+    #          outputs=all_outputs)
+    #np.savez(save_dir+'/test_loss', test=test_loss)
     
-    
-   

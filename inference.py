@@ -1,6 +1,6 @@
 import numpy as np
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 import sys
 import glob
 import uproot as ur
@@ -73,8 +73,9 @@ if __name__=="__main__":
     hadronic_detector = data_config['hadronic_detector']
     include_ecal = data_config['include_ecal']
     already_preprocessed = data_config['already_preprocessed']
+    print('______________________________________________________________')
     print(already_preprocessed, ' already preprocessed -------')
-    #already_preprocessed = True
+    already_preprocessed = False
     calc_stats = False
     config['test_dir']=test_dir
 
@@ -102,7 +103,7 @@ if __name__=="__main__":
     #     print("Number of Test Files = ",num_test_files)
     #     root_test_files = test_files[:num_test_files]
 
-    # print("\n\n Test Files = ",root_test_files,"\n\n")
+    print("\n\n Test Files = ",root_test_files[0:1],"\n\n")
 
     # Get Data
     if preprocess:
@@ -219,13 +220,18 @@ if __name__=="__main__":
     graph_spec = utils_tf.specs_from_graphs_tuple(samp_graph, True, True, True)
 
     mae_loss = tf.keras.losses.MeanAbsoluteError()
-
+    def loss_fn_with_weights(targets, predictions):
+        return mae_loss(targets, predictions, sample_weight=[[0.7, 0.3]])
+    
     def loss_fn(targets, predictions):
             return mae_loss(targets, predictions) 
-    if output_dim==2:
+    if output_dim>1:
         provided_shape=[None,None]
+        #loss_fn=loss_fn_without_wts
     elif output_dim==1:
         provided_shape=[None,]
+        #loss_fn=loss_fn_without_wt
+        
     
     @tf.function(input_signature=[graph_spec, tf.TensorSpec(shape=provided_shape, dtype=tf.float32)])
     def val_step(graphs, targets):
@@ -244,7 +250,80 @@ if __name__=="__main__":
 
     means_dict = pickle.load(open(f"{output_dir}/means.p", 'rb'), compression='gzip')
     stdvs_dict = pickle.load(open(f"{output_dir}/stdvs.p", 'rb'), compression='gzip')
-    
+
+    def get_pred_3D(data_gen_test, means_dict, stdvs_dict):
+        print('Hello Hello')
+        i = 1
+        test_loss = []
+        all_targets = []
+        all_outputs = []
+        all_targets_scaled = []
+        all_outputs_scaled = []
+        all_targets_scaled_ene = []
+        all_outputs_scaled_ene = []
+        all_targets_scaled_theta = []
+        all_outputs_scaled_theta = []
+        all_targets_scaled_phi = []
+        all_outputs_scaled_phi = []
+        start = time.time()
+
+        for graph_data_test, targets_test in get_batch(data_gen_test.generator()):
+            losses_test, output_test = val_step(graph_data_test, targets_test)
+
+            test_loss.append(losses_test.numpy())
+            targets_test = targets_test.numpy()
+            output_test = output_test.numpy()
+
+            output_test_scaled_ene = 10**(output_test[:,0]*stdvs_dict['genP'] + means_dict['genP'])
+            targets_test_scaled_ene = 10**(targets_test[:,0]*stdvs_dict['genP'] + means_dict['genP'])
+
+            output_test_scaled_theta = (output_test[:,1]*stdvs_dict['theta'] + means_dict['theta'])
+            targets_test_scaled_theta = (targets_test[:,1]*stdvs_dict['theta'] + means_dict['theta'])
+
+            output_test_scaled_phi = (output_test[:,2]*stdvs_dict['phi'] + means_dict['phi'])
+            targets_test_scaled_phi = (targets_test[:,2]*stdvs_dict['phi'] + means_dict['phi'])
+
+            all_targets.append(targets_test)
+            all_outputs.append(output_test)
+
+            all_targets_scaled_ene.append(targets_test_scaled_ene)
+            all_outputs_scaled_ene.append(output_test_scaled_ene)
+
+            all_targets_scaled_theta.append(targets_test_scaled_theta)
+            all_outputs_scaled_theta.append(output_test_scaled_theta)
+          
+            all_targets_scaled_phi.append(targets_test_scaled_phi)
+            all_outputs_scaled_phi.append(output_test_scaled_phi)
+
+
+            if not (i)%100:
+                end = time.time()
+                print('Iter: {:03d}, Test_loss_curr: {:.4f}, Test_loss_mean: {:.4f}'. \
+                  format(i, test_loss[-1], np.mean(test_loss)), end='  ')
+                print('Took {:.3f} secs'.format(end-start))
+                start = time.time()
+
+            i += 1
+
+        end = time.time()
+        print('Iter: {:03d}, Test_loss_curr: {:.4f}, Test_loss_mean: {:.4f}'. \
+          format(i, test_loss[-1], np.mean(test_loss)), end='  ')
+        print('Took {:.3f} secs'.format(end-start))
+
+        epoch_end = time.time()
+        all_targets_scaled_theta=np.concatenate(all_targets_scaled_theta)
+        all_targets_scaled_ene=np.concatenate(all_targets_scaled_ene)
+        all_targets_scaled_phi=np.concatenate(all_targets_scaled_phi)
+        
+        all_outputs_scaled_theta=np.concatenate(all_outputs_scaled_theta)
+        all_outputs_scaled_ene=np.concatenate(all_outputs_scaled_ene)
+        all_outputs_scaled_phi=np.concatenate(all_outputs_scaled_phi)
+        all_targets_scaled=np.vstack((all_targets_scaled_ene, all_targets_scaled_theta, all_targets_scaled_phi)).T
+        all_outputs_scaled=np.vstack((all_outputs_scaled_ene, all_outputs_scaled_theta, all_outputs_scaled_phi)).T
+        return all_targets_scaled, all_outputs_scaled, all_targets, all_outputs
+
+
+            
     def get_pred_2D(data_gen_test, means_dict, stdvs_dict):
         print('Hello Hello')
         i = 1
@@ -357,8 +436,11 @@ if __name__=="__main__":
     if output_dim==1:
         all_targets_scaled, all_outputs_scaled, all_targets, all_outputs=get_pred_1D(data_gen_test, means_dict, stdvs_dict)
 
-    if output_dim==2:
+    elif output_dim==2:
         all_targets_scaled, all_outputs_scaled, all_targets, all_outputs=get_pred_2D(data_gen_test, means_dict, stdvs_dict)
+
+    elif output_dim==3:
+        all_targets_scaled, all_outputs_scaled, all_targets, all_outputs=get_pred_3D(data_gen_test, means_dict, stdvs_dict)    
 
     all_targets = np.concatenate(all_targets)
     all_outputs = np.concatenate(all_outputs)    
