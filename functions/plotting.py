@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.ticker import MultipleLocator
 from matplotlib.colors import LogNorm
 from copy import copy
 from matplotlib import cm
@@ -7,6 +8,8 @@ import awkward as ak
 import glob
 import math
 import json
+import os
+import random
 import compress_pickle as pickle
 from scipy.optimize import curve_fit
 import uproot3 as ur
@@ -61,8 +64,8 @@ def ClusterSum_vs_GenP(clusterSum, genP, label, take_log = False, ylabel="Cluste
     fig.text(0.95,-0.05,label,transform=ax.transAxes,fontsize=10)
 
 
-    path =label
-    plt.savefig(f"{path}/ClusterSum_vs_GenP_Colormap.pdf") 
+    #path =label
+    #plt.savefig(f"{path}/ClusterSum_vs_GenP_Colormap.pdf") 
 
 def energy_QA_plots(flat_hits_e, genP, cluster_sum, label):
 
@@ -436,7 +439,7 @@ def draw_plot_res_scale(var_X, var_Y,labels, title, xlimits,ylimits, particle, d
     greek_particle=get_greek_particle(particle)
     #plt.title("AI Codesign Scale",fontsize=25
     if title=='scale':
-        plt.ylabel("$(E_\mathrm{Pred}/E_\mathrm{Truth})$",fontsize=24)
+        plt.ylabel("$E_\mathrm{Pred}/E_\mathrm{Truth}$",fontsize=24)
         ylim_min=0.9
         title_head='Energy Scale for '+ greek_particle + ' in ' +' '+detector
     elif title=='resolution':
@@ -444,7 +447,17 @@ def draw_plot_res_scale(var_X, var_Y,labels, title, xlimits,ylimits, particle, d
         plt.ylabel("Resolution",fontsize=24)
         ylim_min=0
         title_head='Energy Resolution for '+ greek_particle + ' in' +' '+ detector
-
+    elif title=='angular-resolution-theta':
+        #plt.ylabel("$(\sigma_{E,\mathrm{Pred}}/E_\mathrm{Truth})$",fontsize=24)
+        plt.ylabel(r"$\sigma_{\theta} \quad [mrad]$",fontsize=24)
+        ylim_min=0
+        title_head='Angular Resolution  for '+ greek_particle + ' in' +' '+ detector
+        
+    elif title=='angular-resolution-phi':
+        #plt.ylabel("$(\sigma_{E,\mathrm{Pred}}/E_\mathrm{Truth})$",fontsize=24)
+        plt.ylabel(r"$\sigma_{\phi} \quad [mrad]$",fontsize=24)
+        ylim_min=0
+        title_head='Angular Resolution  for '+ greek_particle + ' in' +' '+ detector    
     plt.xlabel("$E_\mathrm{Truth}$ [GeV]",fontsize=24)
     plt.xticks(fontsize=20)
     plt.yticks(fontsize=20)
@@ -462,7 +475,7 @@ def draw_plot_res_scale(var_X, var_Y,labels, title, xlimits,ylimits, particle, d
     #plt.errorbar(straw_X,straw_Y,linewidth=2.0,marker="o",alpha=0.7,\
     #             label="Strawman")
     plt.legend(fontsize=15,loc=legend_position)
-    plt.title(title_head, fontsize=20)
+    #plt.title(title_head, fontsize=20)
 
 ### compare the loss and val loss for given directories    
 
@@ -548,6 +561,9 @@ def read_start_stop(file_path, detector, entry_start, entry_stop):
         
     elif detector=="hcal_insert":
         detector_name= "HcalEndcapPInsertHitsReco"
+        
+    elif detector=="zdc":
+        detector_name="ZDCHcalHitsReco"
     else:
         print("Please make sure you have picked right detector name")     
         print("Pick: hcal or hcal_insert for endcap calo/ hcal_insert for insert")
@@ -559,6 +575,7 @@ def read_start_stop(file_path, detector, entry_start, entry_stop):
     genPy = ur_tree.array('MCParticles.momentum.y',entrystart=entry_start, entrystop=entry_stop)[:,2]
     genPz = ur_tree.array('MCParticles.momentum.z',entrystart=entry_start, entrystop=entry_stop)[:,2]
     mass = ur_tree.array("MCParticles.mass", entrystart=entry_start      , entrystop=entry_stop)[:,2]
+    
     root_gen_P = np.sqrt(genPx*genPx + genPy*genPy + genPz*genPz)
     gen_energy=np.sqrt(root_gen_P**2 + mass**2)
 
@@ -580,7 +597,7 @@ def read_start_stop(file_path, detector, entry_start, entry_stop):
 
 def get_res_scale_fit_log10_log2(truth,pred, binning, nbins, data_type, particle, label='energy', fit='True', plot_range=3):   
     N_Bins=len(binning)
-    plot_range=3
+    
     FIT_SIGMA=3 ## fit within +- 3 sigma                                                                                                                                                                                                             
     row=math.ceil(np.sqrt(N_Bins-1))
     if (row**2-N_Bins)>1:
@@ -601,24 +618,29 @@ def get_res_scale_fit_log10_log2(truth,pred, binning, nbins, data_type, particle
     res_stdev_pred_median_arr=[]
     res_sigma_median_arr=[]
     
+    
+    
     if label=='energy':
-        xtitle='$E_{Pred}$'
+        xtitle='$E_{Pred}/E_{Truth}$'
         unit='GeV'
-        
-    elif label=='theta':
-        xtitle='Theta (Deg)'
-        unit='Deg'
-       
-    elif label=='phi':
-        xtitle='Phi (Deg)'
-        unit='Deg'    
+        y_ticks_size=14
+        x_ticks_size=14
+        major_x_locator=0.25
+           
     elif label=='theta-energy':
-        xtitle=r'$\Theta_{pred} - \Theta_{true}$' 
+        xtitle='$\\theta_{pred} - \\theta_{true}$[mrad]' 
         unit='GeV'
+        y_ticks_size=14
+        x_ticks_size=15
+        major_x_locator=0.5
+        
         
     elif label=='phi-energy':
-        xtitle=r'$\phi_{pred} - \phi_{true}$' 
-        unit='GeV'    
+        xtitle='$\phi_{pred} - \phi_{true}$ [mrad]' 
+        unit='GeV'  
+        y_ticks_size=14
+        x_ticks_size=14
+        major_x_locator=200   
        
         
     else:
@@ -633,6 +655,7 @@ def get_res_scale_fit_log10_log2(truth,pred, binning, nbins, data_type, particle
         #return
     if data_type=='discrete':
         truth=np.rint(truth)
+    
     indecies = np.digitize(truth,binning)-1 #Get the bin number each element belongs to.
     indecies=np.where(indecies < 0, 0, indecies)
     #if any(indecies<0): print(indicies)
@@ -669,7 +692,11 @@ def get_res_scale_fit_log10_log2(truth,pred, binning, nbins, data_type, particle
         #if truth[i]<=0:
         #    truth[i]=999
         pred_over_truth[bin] += pred[i]/truth[i]
-        scale_array[bin][counter[bin]] = pred[i]/truth[i]
+        if label=='energy':
+            scale_array[bin][counter[bin]] = pred[i]/truth[i]
+        elif (label=='theta-energy') or (label=='phi-energy'):
+            scale_array[bin][counter[bin]] = pred[i]
+        
         counter[bin]+=1
     counter[counter == 0] = 1
     
@@ -688,7 +715,8 @@ def get_res_scale_fit_log10_log2(truth,pred, binning, nbins, data_type, particle
     #print(avg_pred)
     
     for ii in range(0,N_Bins-1):
-        ## guess parameters for fitting                                                                                                                              
+        ## guess parameters for fitting      
+                                   
         mean_guess=avg_pred[ii]
         sigma_guess=stdev_pred[ii]
         #print(ii,'   mean guess.  ', mean_guess,'  binning ',binning[ii], ' - ', binning[ii+1])
@@ -700,10 +728,7 @@ def get_res_scale_fit_log10_log2(truth,pred, binning, nbins, data_type, particle
         if label=='energy':
             if min_range<0:
                 min_range=0.2
-        
-        #print(min_range, '      min and max.  ',  max_range)
-        ## mean value of range within which histogram is draw                                                                           print(                              
-        #mean_here=(min_range + max_range)/2.0
+    
 
         irow=int(ii/col)
         icol=int(ii%col)
@@ -744,11 +769,9 @@ def get_res_scale_fit_log10_log2(truth,pred, binning, nbins, data_type, particle
                 ax.set_ylabel("Entries",fontsize=15)
 
 
-            #plt.savefig(file_name)
-            #ax.set_xticks(fonstsize=20)
-            ax.tick_params(axis='x', labelsize=20)
-            ax.tick_params(axis='y', labelsize=14)
-            
+            #ax.xaxis.set_major_locator(MultipleLocator(major_x_locator))
+            ax.tick_params(axis='x', labelsize=x_ticks_size)
+            ax.tick_params(axis='y', labelsize=y_ticks_size)
             #scale_median=scale_median_comp[ii]
             #scale=mean/avg_truth[ii]
             scale=mean
@@ -758,15 +781,10 @@ def get_res_scale_fit_log10_log2(truth,pred, binning, nbins, data_type, particle
             #resolution=std
             
             if label=='energy':
-                resolution=(std/mean)/scale    #Scale corrected Strawman
+                resolution=(std/mean)  #/scale    #Scale corrected Strawman
                 
-                #resolution_scale_corr=(stdev_pred[ii]/avg_truth[ii])/scale_median  ## this is std vs median
-                #resolution_scale_corrected=np.nan_to_num(resolution_scale_corr)
-
-                #res_stdev_pred_median=stdev_pred[ii]/median_pred[ii]
-
-                #res_sigma_median=std/avg_truth[ii]
-                slices_pred_truth=  (slices[ii] - slices_truth[ii])/slices_truth[ii]
+                #slices_pred_truth=  (slices[ii] - slices_truth[ii])/slices_truth[ii]
+                slices_pred_truth=  scale_array[ii] #slices[ii] /slices_truth[ii]
 
                 
                 
@@ -813,7 +831,7 @@ def generate_file_name_dict(input_dims, latent_sizes,num_layers, learning_rates,
         
 def get_fit_parameters_strawman(root_file, detector, binning, particle, total_events, data_type, output_path, nbins, time_TH, MIP_TH_HCAL):
     if detector=='hcal': 
-        sampling_fraction=0.0224 
+        sampling_fraction=0.0139 #0.0224 (ATHENA CONFIG 0.0224 
     elif detector=='hcal_insert':
         sampling_fraction=0.0089 ## time 150 ns and MIP 0.5*MIP
        
@@ -936,8 +954,8 @@ def compare_energy_response_E_over_pred(files_pred_truth, Gen_Energy, data_type,
 
                 
                 if(ratio_E_pred):
-                    min_range=-0.5
-                    max_range=0.5
+                    min_range=-1
+                    max_range=3
                     
                     ytitle="$E_{Truth}$"
                     xlabel_title=r'$\frac{E_{Pred} - E_{Truth}}{E_{Truth}}$'
@@ -1042,7 +1060,7 @@ def get_cluster_sum_from_hits(detector, ur_tree):
     hit_e_arr=[]
     if detector=="hcal":
         detector_name = "HcalEndcapPHitsReco"
-        sampling_fraction=0.0224 
+        sampling_fraction= 0.0224 #0.0139 #0.0224 (ATHENA CONFIG 0.0224
         MIP_TH=MIP_TH_HCAL
         
     elif detector=="zdc":
@@ -1050,9 +1068,9 @@ def get_cluster_sum_from_hits(detector, ur_tree):
         sampling_fraction=0.0224
         MIP_TH=MIP_TH_HCAL    
 
-    elif detector=="hcal_insert":
+    elif detector=="insert":
         detector_name= "HcalEndcapPInsertHitsReco"
-        sampling_fraction=0.0089
+        sampling_fraction=0.0203 # 0.0089
         MIP_TH=MIP_TH_HCAL
 
     elif detector =='ecal':
@@ -1065,9 +1083,14 @@ def get_cluster_sum_from_hits(detector, ur_tree):
        
     hit_raw =ur_tree.array(f'{detector_name}.energy')
     time =ur_tree.array(f'{detector_name}.time')
+    condition1 = hit_raw > MIP_TH
+    condition2= time < time_TH
+    condition3= hit_raw < 1e10
+    combined_mask = condition1 & condition2 & condition3
 
-    mask = (hit_raw > MIP_TH) & (time < time_TH) & (hit_raw < 1e10)
-    hit_e=hit_raw[mask]
+    hit_e = ak.mask(hit_raw, combined_mask)
+    #mask = (ak.num(hit_raw) > MIP_TH) & (ak.num(time) < time_TH) & (ak.num(hit_raw) < 1e10)
+    #hit_e=hit_raw[mask]
         
     #PosRecoX_hcal = ur_tree.array(f'{detector_name}.position.x')/10.0
     #PosRecoY_hcal = ur_tree.array(f'{detector_name}.position.y')/10.0
@@ -1148,14 +1171,21 @@ def gaussian_fit_on_distribution(FIT_SIGMA, sigma_guess, mean_guess, binscenters
             error_counts=np.where(error_counts==0,1,error_counts)
         
             param_bounds=([-np.inf,-np.inf,-np.inf], [np.inf,np.inf,np.inf])
-            popt,pcov=curve_fit(gaussian,binscenters[mask],count[mask],p0=[np.max(count),mean_guess,sigma_guess],bounds=param_bounds)
-
-            ax.plot(binscenters[mask], gaussian(binscenters[mask], *popt), color='red', linewidth=2.5, label=r'F')
             
-            #ax.set_xlim(math.floor(min_range),math.ceil(max_range))
-            mean=popt[1]
-            std=popt[2]
+            try:
+                popt,pcov=curve_fit(gaussian,binscenters[mask],count[mask],p0=[np.max(count),mean_guess,sigma_guess],bounds=param_bounds)
+            except RuntimeError:
+            # Fitting failed, set mean and std to 9999
+                mean = 9999
+                std = 9999
+            else:    
+                ax.plot(binscenters[mask], gaussian(binscenters[mask], *popt), color='red', linewidth=2.5, label=r'F')
+            
+                #ax.set_xlim(math.floor(min_range),math.ceil(max_range))
+                mean=popt[1]
+                std=popt[2]
             return mean, std        
+        
         
         
 ####FOR MIP ANALYSIS SELECTS THE RIGHT FILE FOR GIVEN DETECTOR AND PARTICLE
@@ -1167,10 +1197,10 @@ def get_hitE_genE_fromChain(detector, particle, start, stop):
     gen_energy_arr=[]
     if detector=="hcal":
         detector_name = "HcalEndcapPHitsReco"
-        sampling_fraction=0.0224 
+        sampling_fraction=0.0139 #0.0224 (ATHENA CONFIG 0.0224 
         Mev_to_GeV=1
 
-    elif detector=="hcal_insert":
+    elif detector=="insert":
         detector_name= "HcalEndcapPInsertHitsReco"
         sampling_fraction=0.0089
         Mev_to_GeV=1
@@ -1225,9 +1255,15 @@ def get_hitE_genE_fromChain(detector, particle, start, stop):
         hit_raw =ur_tree.array(f'{detector_name}.energy')/Mev_to_GeV
         
         time =ur_tree.array(f'{detector_name}.time')
-  
-        mask = (hit_raw > MIP_TH_HCAL) & (time < time_TH) & (hit_raw < 1e10)
-        hit_e=hit_raw[mask]
+        condition1 = hit_raw > MIP_TH
+        condition2= time < time_TH
+        condition3= hit_raw < 1e10
+        combined_mask = condition1 & condition2 & condition3
+
+    
+        hit_e = ak.mask(hit_raw, combined_mask)
+        #mask = (hit_raw > MIP_TH_HCAL) & (time < time_TH) & (hit_raw < 1e10)
+        #hit_e=hit_raw[mask]
         
         
         hit_e=hit_e.astype(float)
@@ -1278,7 +1314,7 @@ def get_resolution_fit_terms(energies, resolutions,  xpos, ypos, text_size, titl
     plt.ylabel(ylabel, fontsize=25)
     
     popt, pcov = curve_fit(fit_resolution_curve, energies, resolutions)
-    plt.plot(energies, fit_resolution_curve(energies, *popt), color='red', linewidth=2.5, label=r'F')
+    plt.plot(energies, fit_resolution_curve(energies, *popt), color='red', linewidth=2.5, label=r'Fit to Insert data')
     stochastic_term, const_term=popt
     plt.text(xpos, ypos, f'$\sigma/E $ =  {stochastic_term:.2f}/$\sqrt{{E}} \quad \oplus$ {const_term:.2e} ', fontsize=text_size)     
     
@@ -1288,7 +1324,7 @@ def get_resolution_fit_terms(energies, resolutions,  xpos, ypos, text_size, titl
     plt.yticks(fontsize=20)
     
     
-def get_3D_inference_from_discrete_data(path_to_result, path_to_stat, file="test_predictions.npz"):
+def get_3D_inference_from_discrete_data(path_to_result, path_to_stat, granularity, file="test_predictions.npz"):
 
     npz_unpacked = np.load(f'{path_to_result}/{file}')
 
@@ -1302,12 +1338,16 @@ def get_3D_inference_from_discrete_data(path_to_result, path_to_stat, file="test
     
     ### True ENERGY
     targets_ene = targets_arr[:,0]*stdvs['genP'] + means['genP']
-    targets_ene_plt = 10**targets_ene
-
     ### PREDICTED ENERGY
     prediction_ene=predictions_arr[:,0]*stdvs['genP'] + means['genP']
-    prediction_ene_plt=10**prediction_ene
-
+    
+    if granularity=='full_cell_hits':
+        targets_ene_plt = 10**targets_ene
+        prediction_ene_plt=10**prediction_ene
+        
+    elif granularity=='z_sections':
+        targets_ene_plt = targets_ene
+        prediction_ene_plt=prediction_ene
 
     ### True Theta
     targets_theta= targets_arr[:,1]*stdvs['theta'] + means['theta']
@@ -1400,5 +1440,109 @@ def get_loss_curve_from_training_hcal(path_to_deepset_models, granularity, outpu
     else:
         final_model_path= f'{path_to_deepset_models}/{model_dir}/{result_dir}/{block_name}'
         
-    return final_model_path    
+    return final_model_path   
+
+
+def read_start_stop_local(file_path, detector, NumEvents, include_ecal=True):
+    import uproot as ur
+    MIP_TH_ecal=0.5 * 0.13
+    Time_TH_ecal=150
+    root_files = os.listdir(file_path)
+    selected_file = random.choice(root_files)
+    file = os.path.join(file_path, selected_file)
+    
+    ur_tree = ur.open(file)['events']
+    #ur_tree = ur_file['events']
+    num_entries = ur_tree.num_entries
+    if (NumEvents==-1) or (NumEvents>num_entries):
+        NumEvents=num_entries
+    event_data=ur_tree.arrays(entry_stop=NumEvents)
+    #num_entries=int(train_frac*num_entriesss)
+    print("Total Entries ", num_entries)
+    
+    #print(means.shape,'      ',stds.shape)
+    #print("PRINT  DETECTOR ", detector)    
+    if detector=="hcal":
+        detector_name = "HcalEndcapPHitsReco"
+        MIP_TH=0.5 * 0.0006
+        Time_TH=150
+        theta_max=600.0
+        sampling_fraction=0.0224
+    elif detector=='ecal':
+        detector_name = "EcalEndcapPHitsReco"
+        MIP_TH=0.5 * 0.13
+        Time_TH=150
+        theta_max=600.0
+        sampling_fraction=1.0
+        
+    elif detector=="insert":
+        detector_name= "HcalEndcapPInsertHitsReco"
+        MIP_TH=0.5 * 0.0006
+        Time_TH=150.0
+        theta_max=600.0
+        sampling_fraction=0.0224
+        
+    elif detector=="zdc":
+        detector_name="ZDCHcalHitsReco"
+        MIP_TH=0.5 * 0.000393
+        Time_TH=275.0
+        theta_max=10.0
+        sampling_fraction=0.0216
+        
+    else:
+        print("Please make sure you have picked right detector name")     
+        print("Pick: hcal or hcal_insert for endcap calo/ hcal_insert for insert")
+            
+    
+    genPx = event_data['MCParticles.momentum.x'][:,2]
+    genPy = event_data['MCParticles.momentum.y'][:,2]
+    genPz = event_data['MCParticles.momentum.z'][:,2]
+    mass = event_data["MCParticles.mass"][:,2]
+    if detector != 'zdc':
+        genPx, genPz = rotateY(genPx, genPz, .025)
+    
+    root_gen_P = np.sqrt(genPx*genPx + genPy*genPy + genPz*genPz)
+    mom=np.sqrt(genPx*genPx + genPy*genPy + genPz*genPz)
+    theta=np.degrees(np.arccos(genPz/mom))  ## in mili radians
+    gen_energy=np.sqrt(root_gen_P**2 + mass**2)
+    
+    hit_e =event_data[f'{detector_name}.energy']
+    time =event_data[f'{detector_name}.time']
+    posx =event_data[f'{detector_name}.position.x']/10.
+    posy =event_data[f'{detector_name}.position.y']/10.
+    posz =event_data[f'{detector_name}.position.z']/10.
+    
+    mask=np.logical_and(hit_e>MIP_TH , time<Time_TH)
+    hit_e = hit_e[mask]
+    posx=posx[mask]
+    posy=posy[mask]
+    posz=posz[mask]
+    cluster_sum_hcal=(np.sum(hit_e, axis=-1))/sampling_fraction
+
+    
+    if include_ecal==True:
+        detector_name='EcalEndcapPHitsReco'
+        hit_e_ecal =event_data[f'{detector_name}.energy']
+        time_ecal =event_data[f'{detector_name}.time']
+        mask_ecal=np.logical_and(hit_e_ecal>MIP_TH_ecal , time_ecal<Time_TH_ecal)
+        hit_e_ecal = hit_e_ecal[mask_ecal]
+        cluster_sum_ecal=np.sum(hit_e_ecal, axis=-1)
+        cluster_sum_total=cluster_sum_hcal + cluster_sum_ecal
+        
+        
+    else:
+        cluster_sum_total=cluster_sum_hcal
+        cluster_sum_ecal=None
+        
+    
+   
+    
+    return hit_e, posx, posy, posz, genPx, genPy, gen_energy, theta, cluster_sum_total , cluster_sum_hcal, cluster_sum_ecal 
+
+def rotateY(xdata, zdata, angle):
+    s = np.sin(angle)
+    c = np.cos(angle)
+    rotatedz = c*zdata - s*xdata
+    rotatedx = s*zdata + c*xdata
+    return rotatedx, rotatedz
      
