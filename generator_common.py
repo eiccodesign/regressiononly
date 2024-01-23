@@ -30,11 +30,11 @@ NHITS_MIN=2
 # data_dir = '/pscratch/sd/f/fernando/regressiononly/pi0_data/'
 # out_dir = '/pscratch/sd/f/fernando/regression_common/regressiononly/preprocessed_pi0_1L/generator_test/'
 
-# data_dir = '/pscratch/sd/f/fernando/ECCE_data/'
-# out_dir = '/pscratch/sd/f/fernando/regression_common/regressiononly/preprocessed/generator_test/'
+data_dir = '/pscratch/sd/f/fernando/ECCE_data/'
+out_dir = '/pscratch/sd/f/fernando/regression_common/regressiononly/preprocessed/generator_test/'
 
-data_dir = '/usr/workspace/hip/eic/log10_Uniform_03-23/ECCE_HCAL_Files/hcal_pi+_log10discrete_1GeV-150GeV_10deg-30deg_07-23-23/'
-out_dir = '/usr/WS2/karande1/eic/gitrepos/regressiononly/preprocessed_data/train/'
+# data_dir = '/usr/workspace/hip/eic/log10_Uniform_03-23/ECCE_HCAL_Files/hcal_pi+_log10discrete_1GeV-150GeV_10deg-30deg_07-23-23/'
+# out_dir = '/usr/WS2/karande1/eic/gitrepos/regressiononly/preprocessed_data/train/'
 
 
 class MPGraphDataGenerator:
@@ -374,7 +374,12 @@ class MPGraphDataGenerator:
         # nodes = self.get_cell_data(event_data[event_ind])
         cluster_num_nodes = len(nodes)
 
-        return nodes, np.array([global_node]), cluster_num_nodes
+        # return nodes, np.array([global_node]), cluster_num_nodes
+
+        if not self.condition_zsections:
+            global_node = np.array([global_node])
+
+        return nodes, global_node, cluster_num_nodes
 
 
     def get_cell_data(self,event_data, n_zsections=None):
@@ -486,7 +491,7 @@ class MPGraphDataGenerator:
         #global node feature later
         
         if self.include_ecal:
-            cell_E_ecal = event_data[self.detector_name+".energy"]
+            cell_E_ecal = event_data[self.detector_ecal+".energy"]
             cluster_calib_E_ecal = np.sum(cell_E_ecal,axis=-1)
             cluster_calib_E += cluster_calib_E_ecal
 
