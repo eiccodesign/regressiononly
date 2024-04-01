@@ -36,7 +36,6 @@ if __name__=="__main__":
     data_dir = data_config['data_dir']
     num_train_files = data_config['num_train_files']
     num_val_files = data_config['num_val_files']
-    num_test_files = data_config['num_test_files']
     batch_size = data_config['batch_size']
     shuffle = data_config['shuffle']
     num_procs = data_config['num_procs']
@@ -95,11 +94,8 @@ if __name__=="__main__":
         train_start = 0
         train_end = train_start + num_train_files
         val_end = train_end + num_val_files
-        # test_end = val_end + num_test_files
-
-    root_train_files = root_files[train_start:train_end]
-    root_val_files = root_files[train_end:val_end]
-    root_test_files = root_files[val_end:test_end]
+        root_train_files = root_files[train_start:train_end]
+        root_val_files = root_files[train_end:val_end]
 
     train_output_dir = None
     val_output_dir = None
@@ -108,7 +104,6 @@ if __name__=="__main__":
     if preprocess:
         train_output_dir = output_dir + '/train/'
         val_output_dir = output_dir + '/val/'
-        test_output_dir = output_dir + '/test/'
      
     
     #Generators
@@ -144,24 +139,6 @@ if __name__=="__main__":
                                         output_dim=output_dim,
                                         k=k,
                                         classification=use_classification)
-                                        
-        
-    data_gen_test = MPGraphDataGenerator(file_list=root_test_files,
-                                        batch_size=batch_size,
-                                          shuffle=shuffle,
-                                          num_procs=num_procs,
-                                          calc_stats=False,
-                                          is_val=True, #decides to save mean and std
-                                          preprocess=preprocess,
-                                          already_preprocessed=already_preprocessed,
-                                          output_dir=test_output_dir,
-                                          num_features=num_features,
-                                          hadronic_detector=hadronic_detector,
-                                          include_ecal=include_ecal,
-                                          output_dim=output_dim,
-                                          k=k,
-                                          classification=use_classification)
-                                          
     
     optimizer = tf.keras.optimizers.Adam(learning_rate)
 
@@ -427,52 +404,3 @@ if __name__=="__main__":
                 print('\nLearning rate would fall below 1e-6, setting to: {:.5e}'.format(optimizer.learning_rate.value()))
             else:
                 print('\nLearning rate decreased to: {:.5e}'.format(optimizer.learning_rate.value()))
-
-    
-    # #Inference over Test Dataset
-    print('\nTest Predictions...')
-    i = 1
-    test_loss = []
-    all_targets = []
-    all_outputs = []
-    all_etas = []
-    start = time.time()
-
-    best_ckpt = tf.train.latest_checkpoint(save_dir)
-    print(f'Restoring {best_ckpt}')
-    checkpoint.restore(best_ckpt)
-
-    for graph_data_test, targets_test in get_batch(data_gen_test.generator()):#test_iter):
-        losses_test, output_tests = val_step(graph_data_test, targets_test) 
-         # val_step above simply evaluates the model with the inputs as the first argument. Returns predictions.
-         # This function is used for validation, but since THIS use block is outside of the training loop, 
-         # the resulting loss and set of predictions are not used in the training at all.
-
-        targets_test = targets_test.numpy()
-        output_tests = output_tests.numpy().squeeze()
-
-        test_loss.append(losses_test.numpy())
-        all_targets.append(targets_test)
-        all_outputs.append(output_tests)
-
-        if not (i)%100:
-            end = time.time()
-            print('Iter: {:03d}, Test_loss_curr: {:.4f}, Test_loss_mean: {:.4f}'.format(i, test_loss[-1], np.mean(test_loss)), end='  ')
-            print('Took {:.3f} secs'.format(end-start))
-            start = time.time()
-
-        i += 1 
-
-    end = time.time()
-    print('Iter: {:03d}, Test_loss_curr: {:.4f}, Test_loss_mean: {:.4f}'.format(i, test_loss[-1], np.mean(test_loss)), end='  ')
-    print('Took {:.3f} secs'.format(end-start))
-
-    epoch_end = time.time()
-
-    all_targets = np.concatenate(all_targets)
-    all_outputs = np.concatenate(all_outputs)
-
-    np.savez(save_dir+'/test_predictions', 
-              targets=all_targets, 
-              outputs=all_outputs)
-    np.savez(save_dir+'/test_loss', test=test_loss)
