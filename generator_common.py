@@ -407,7 +407,7 @@ class MPGraphDataGenerator:
         cluster_calib_E = np.sum(cell_E,axis=-1)/self.sampling_fraction #global node feature later
         
         if self.include_ecal:
-            cell_E_ecal = event_data[self.detector_name+".energy"]
+            cell_E_ecal = event_data[self.detector_ecal+".energy"]
             cluster_calib_E_ecal = np.sum(cell_E_ecal,axis=-1)
             cluster_calib_E += cluster_calib_E_ecal
 
