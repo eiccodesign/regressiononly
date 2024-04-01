@@ -253,9 +253,18 @@ class MPGraphDataGenerator:
         file_means['clusterE'].append(np.mean(cluster_calib_E))
         file_stdvs['clusterE'].append(np.std(cluster_calib_E))
 
-        genPx = event_data['MCParticles.momentum.x'][:,2]
-        genPy = event_data['MCParticles.momentum.y'][:,2]
-        genPz = event_data['MCParticles.momentum.z'][:,2]
+        incident_mask = event_data["MCParticles.generatorStatus"]==1 # Mask to select the incident, generated particle
+        num_particles = len(event_data["MCParticles.PDG"][incident_mask][0]) # Number of incident particles in first event
+        if num_particles > 1:
+            # Summing the momenta of the particles in each event
+            genPx = ak.sum(event_data['MCParticles.momentum.x'][incident_mask], 1) 
+            genPy = ak.sum(event_data['MCParticles.momentum.y'][incident_mask], 1)
+            genPz = ak.sum(event_data['MCParticles.momentum.z'][incident_mask], 1)
+        elif num_particles == 1:
+            # Getting the incident particle momenta
+            genPx = ak.flatten(event_data['MCParticles.momentum.x'][incident_mask])
+            genPy = ak.flatten(event_data['MCParticles.momentum.y'][incident_mask])
+            genPz = ak.flatten(event_data['MCParticles.momentum.z'][incident_mask])
         genP = np.log10(np.sqrt(genPx*genPx + genPy*genPy + genPz*genPz))
         mom=np.sqrt(genPx*genPx + genPy*genPy + genPz*genPz)
         theta=np.arccos(genPz/mom)*1000  ## in milli radians
@@ -465,10 +474,16 @@ class MPGraphDataGenerator:
 
     def get_GenP(self,event_data,event_ind):
 
-        genPx = event_data['MCParticles.momentum.x'][event_ind,2]
-        genPy = event_data['MCParticles.momentum.y'][event_ind,2]
-        genPz = event_data['MCParticles.momentum.z'][event_ind,2]
-        #the generation has the parent praticle always at index 2
+        incident_mask = event_data["MCParticles.generatorStatus"]==1
+        num_particles = len(event_data["MCParticles.PDG"][incident_mask][event_ind])
+        if num_particles > 1:
+            genPx = ak.sum(event_data['MCParticles.momentum.x'][incident_mask][event_ind])
+            genPy = ak.sum(event_data['MCParticles.momentum.y'][incident_mask][event_ind])
+            genPz = ak.sum(event_data['MCParticles.momentum.z'][incident_mask][event_ind])
+        elif num_particles == 1:
+            genPx = event_data['MCParticles.momentum.x'][incident_mask][event_ind, 0]
+            genPy = event_data['MCParticles.momentum.y'][incident_mask][event_ind, 0]
+            genPz = event_data['MCParticles.momentum.z'][incident_mask][event_ind, 0]
 
         genP = np.log10(np.sqrt(genPx*genPx + genPy*genPy + genPz*genPz))
         genP = (genP - self.means_dict["genP"]) / self.stdvs_dict["genP"]
@@ -478,18 +493,22 @@ class MPGraphDataGenerator:
     
     def get_GenP_Theta(self,event_data,event_ind):
 
-        genPx = event_data['MCParticles.momentum.x'][event_ind,2]
-        genPy = event_data['MCParticles.momentum.y'][event_ind,2]
-        genPz = event_data['MCParticles.momentum.z'][event_ind,2]
+        incident_mask = event_data["MCParticles.generatorStatus"]==1
+        num_particles = len(event_data["MCParticles.PDG"][incident_mask][event_ind])
+        if num_particles > 1:
+            genPx = ak.sum(event_data['MCParticles.momentum.x'][incident_mask][event_ind])
+            genPy = ak.sum(event_data['MCParticles.momentum.y'][incident_mask][event_ind])
+            genPz = ak.sum(event_data['MCParticles.momentum.z'][incident_mask][event_ind])
+        elif num_particles == 1:
+            genPx = event_data['MCParticles.momentum.x'][incident_mask][event_ind, 0]
+            genPy = event_data['MCParticles.momentum.y'][incident_mask][event_ind, 0]
+            genPz = event_data['MCParticles.momentum.z'][incident_mask][event_ind, 0]
         mom=np.sqrt(genPx*genPx + genPy*genPy + genPz*genPz)
-        theta=np.arccos(genPz/mom)*1000  #    *180/np.pi
-        #gen_phi=(np.arctan2(genPy,genPx))*180/np.pi
-        #the generation has the parent praticle always at index 2
+        theta=np.arccos(genPz/mom)*1000
 
         genP = np.log10(np.sqrt(genPx*genPx + genPy*genPy + genPz*genPz))
         genP = (genP - self.means_dict["genP"]) / self.stdvs_dict["genP"]
         theta = (theta - self.means_dict["theta"]) / self.stdvs_dict["theta"]
-        #gen_phi = (gen_phi - self.means_dict["phi"]) / self.stdvs_dict["phi"]
         return genP, theta
 
     # Gets incident particle and returns 0 if it's a photon, 1 f it's a pi0
@@ -500,6 +519,11 @@ class MPGraphDataGenerator:
         if particle_id == 22 and len(event_data["MCParticles.PDG"][incident_mask][event_index]) == 1:
             return 0
         elif particle_id == 111 and len(event_data["MCParticles.PDG"][incident_mask][event_index]) == 1:
+            return 1
+        # If the pi0 decays before firing, i.e. incident particles are two photons
+        elif len(event_data["MCParticles.PDG"][incident_mask][event_index]) == 2\
+        and event_data["MCParticles.PDG"][incident_mask][event_index, 0] == 22\
+        and event_data["MCParticles.PDG"][incident_mask][event_index, 1] == 22:
             return 1
         else:
             print("Incident particle is not a photon or pi0. Classification not supported -- program will exit")
