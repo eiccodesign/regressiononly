@@ -92,7 +92,7 @@ class MPGraphDataGenerator:
             self.sampling_fraction =0.0203   ## CHANGE THIS NUMBER?
             self.energy_TH=0.5*0.000472
             self.time_TH=275
-            self.theta_max=4.0
+            self.theta_max=10.0 # Setting to 10 mrad so events with all angles are accepted
             
         elif(self.hadronic_detector=='zdc_Pb'):  ##added by smoran
             self.detector_name = "ZDCHcalHitsReco"
