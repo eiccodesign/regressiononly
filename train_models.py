@@ -47,11 +47,21 @@ if __name__=="__main__":
     num_features = data_config['num_features']
     k = data_config['k']
     output_dim = data_config['output_dim']
+    model_output_size = output_dim
     if output_dim == 2:
         energy_weight = data_config['energy_weight']
         theta_weight = data_config['theta_weight']
     hadronic_detector = data_config['hadronic_detector']
     include_ecal = data_config['include_ecal']
+    use_classification = data_config['use_classification']
+    if use_classification:
+        regression_weight = data_config['regression_weight']
+        classification_weight = data_config['classification_weight']
+        model_output_size += 1
+        num_pi0_val_files = data_config['num_pi0_val_files']
+        num_photon_val_files = data_config['num_photon_val_files']
+        num_pi0_train_files = data_config['num_pi0_train_files']
+        num_photon_train_files = data_config['num_photon_train_files']
     
     #num_z_layers=data_config['num_z_layers']
     block_type = model_config['block_type']
@@ -63,11 +73,29 @@ if __name__=="__main__":
     os.makedirs(save_dir, exist_ok=True)
     yaml.dump(config, open(save_dir + '/config.yaml', 'w'))
 
-    root_files = np.sort(glob.glob(data_dir+'*root'))
-    train_start = 0
-    train_end = train_start + num_train_files
-    val_end = train_end + num_val_files
-    test_end = val_end + num_test_files
+    root_files = glob.glob(data_dir+'*root')
+
+    def list_filter(string_list, substring_list):
+        return [str for str in string_list if any(sub in str for sub in substring_list)]
+    if use_classification:
+        pi0_filter = ['pi0']
+        photon_filter = ['gamma']
+        pi0_val_files = list_filter(root_files, pi0_filter)[:num_pi0_val_files]
+        photon_val_files = list_filter(root_files, photon_filter)[:num_photon_val_files]
+        root_val_files = pi0_val_files + photon_val_files
+        np.random.shuffle(root_val_files)
+        root_files = [i for i in root_files if i not in root_val_files]
+        np.random.shuffle(root_files)
+        train_start = 0
+        train_end = train_start + num_pi0_train_files + num_photon_train_files
+        root_train_files = root_files[train_start:train_end]
+
+    else:
+        root_files = np.sort(root_files)
+        train_start = 0
+        train_end = train_start + num_train_files
+        val_end = train_end + num_val_files
+        # test_end = val_end + num_test_files
 
     root_train_files = root_files[train_start:train_end]
     root_val_files = root_files[train_end:val_end]
@@ -97,7 +125,8 @@ if __name__=="__main__":
                                           include_ecal=include_ecal,
                                           num_features=num_features,
                                           output_dim=output_dim,
-                                          k=k)
+                                          k=k,
+                                          classification=use_classification)
                                           
         
     data_gen_val = MPGraphDataGenerator(file_list=root_val_files,
@@ -113,7 +142,8 @@ if __name__=="__main__":
                                         include_ecal=include_ecal,
                                         num_features=num_features,
                                         output_dim=output_dim,
-                                        k=k)
+                                        k=k,
+                                        classification=use_classification)
                                         
         
     data_gen_test = MPGraphDataGenerator(file_list=root_test_files,
@@ -129,12 +159,13 @@ if __name__=="__main__":
                                           hadronic_detector=hadronic_detector,
                                           include_ecal=include_ecal,
                                           output_dim=output_dim,
-                                          k=k)
+                                          k=k,
+                                          classification=use_classification)
                                           
     
     optimizer = tf.keras.optimizers.Adam(learning_rate)
 
-    model = models.BlockModel(global_output_size=output_dim, model_config=model_config)
+    model = models.BlockModel(global_output_size=model_output_size, model_config=model_config)
 
     training_loss_epoch = []
     val_loss_epoch = []
@@ -240,8 +271,9 @@ if __name__=="__main__":
     graph_spec = utils_tf.specs_from_graphs_tuple(samp_graph, True, True, True)
     
     mae_loss = tf.keras.losses.MeanAbsoluteError() # Check 
-  
-    def loss_fn(targets, predictions):
+    classification_loss =  tf.keras.losses.BinaryCrossentropy()
+
+    def mae_loss_fn(targets, predictions):
         if output_dim == 2:
             # Convert targets & predictions to tf.tensor of shape (len(targets), 2, 1)
             # i.e. Targets: [ [ [genP0], [gentheta0] ], [ [genP1], [gentheta1] ], [ [genP2], [gentheta2] ], ...]
@@ -253,7 +285,8 @@ if __name__=="__main__":
             return mae_loss(targets_reshaped, predictions_reshaped, sample_weight=[[energy_weight, theta_weight]]) # First number is energy weight, second number is theta weight
         elif output_dim == 1:
             return mae_loss(targets, predictions)
-
+    def classification_loss_fn(targets, predictions):
+        return classification_loss(targets, predictions)
     if output_dim==2:
         provided_shape=[None,None]
     elif output_dim==1:
@@ -266,17 +299,29 @@ if __name__=="__main__":
             # predictions structure:
             # For 1D: predictions (type = tf.Tensor) structure: [ Epred0, Epred1, Epred2, ... ]
             # For 2D: predictions (type = tf.Tensor) structure: [ [Epred0, thetapred0], [Epred1, thetapred1], [Epred2, thetapred2], ...]
-            loss = loss_fn(targets, predictions)
+            # For 2D + classification: predictions (type = tf.Tensor) structure: [ [Epred0, thetapred0, ptype0], [Epred1, thetapred1, ptype1], [Epred2, thetapred2, ptype2], ...]
+            if use_classification:
+                # Classification info is stored at the back of the list
+                predictions_regression, predictions_classification = predictions[:, :-1], predictions[:, -1:]
+                targets_regression, targets_classification = targets[:, :-1], targets[:, -1:]
+                loss = regression_weight*mae_loss_fn(targets_regression, predictions_regression) + classification_weight*classification_loss_fn(targets_classification, tf.math.sigmoid(predictions_classification))
+            else:
+                loss = mae_loss_fn(targets, predictions)
 
         gradients = tape.gradient(loss, model.trainable_variables)
         optimizer.apply_gradients(zip(gradients, model.trainable_variables))
-
         return loss
 
     @tf.function(input_signature=[graph_spec, tf.TensorSpec(shape=provided_shape, dtype=tf.float32)])
     def val_step(graphs, targets):
         predictions = model(graphs).globals
-        loss = loss_fn(targets, predictions)
+        if use_classification:
+            # Classification info is stored at the back of the list
+            predictions_regression, predictions_classification = predictions[:, :-1], predictions[:, -1:]
+            targets_regression, targets_classification = targets[:, :-1], targets[:, -1:]
+            loss = regression_weight*mae_loss_fn(targets_regression, predictions_regression) + classification_weight*classification_loss_fn(targets_classification, tf.math.sigmoid(predictions_classification))
+        else:
+            loss = mae_loss_fn(targets, predictions)
 
         return loss, predictions
 
@@ -284,7 +329,6 @@ if __name__=="__main__":
       
     #Main Epoch Loop
     for e in range(epochs):
-
         print('\n\nStarting epoch: {}'.format(e))
         epoch_start = time.time()
 

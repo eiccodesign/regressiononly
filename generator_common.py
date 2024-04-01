@@ -45,7 +45,8 @@ class MPGraphDataGenerator:
                  output_dim: int = 2,
                  hadronic_detector: str = None,
                  include_ecal: bool = True,
-                 k: int = 5):
+                 k: int = 5,
+                 classification: bool = False):
         """Initialization"""
 
         self.preprocess = preprocess
@@ -70,6 +71,7 @@ class MPGraphDataGenerator:
         
         self.num_procs = num_procs
         self.procs = []
+        self.use_classification = classification
 
         if(self.hadronic_detector=='hcal'):
             self.detector_name = "HcalEndcapPHitsReco"
@@ -314,6 +316,10 @@ class MPGraphDataGenerator:
                 elif self.output_dim==1:
                     target = self.get_GenP(event_data,event_ind)
 
+                # Getting the incident particle type for the event and storing it in target ntuple
+                if self.use_classification:
+                    particle_type = self.GetParticleType(event_data, event_ind, f_name)
+                    target = target + (particle_type,)
                 nodes, global_node, cluster_num_nodes = self.get_nodes(event_data, event_ind)
                 if cluster_num_nodes<2:
                     senders, receivers, edges = None, None, None
@@ -485,6 +491,19 @@ class MPGraphDataGenerator:
         theta = (theta - self.means_dict["theta"]) / self.stdvs_dict["theta"]
         #gen_phi = (gen_phi - self.means_dict["phi"]) / self.stdvs_dict["phi"]
         return genP, theta
+
+    # Gets incident particle and returns 0 if it's a photon, 1 f it's a pi0
+    def GetParticleType(self, event_data, event_index, file_name):
+
+        incident_mask = event_data["MCParticles.generatorStatus"]==1
+        particle_id = event_data["MCParticles.PDG"][incident_mask][event_index, 0]
+        if particle_id == 22 and len(event_data["MCParticles.PDG"][incident_mask][event_index]) == 1:
+            return 0
+        elif particle_id == 111 and len(event_data["MCParticles.PDG"][incident_mask][event_index]) == 1:
+            return 1
+        else:
+            print("Incident particle is not a photon or pi0. Classification not supported -- program will exit")
+            exit()
 
     def get_meta(self, event_data, event_ind):
         """ 

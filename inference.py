@@ -1,5 +1,6 @@
 import numpy as np
 import os
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 import sys
 import glob
 import uproot as ur
@@ -49,6 +50,7 @@ if __name__=="__main__":
     model_config = config['model']
     train_config = config['training']
     output_dim=data_config['output_dim']
+    model_output_size = output_dim
     if output_dim == 2:
         energy_weight = data_config['energy_weight']
         theta_weight = data_config['theta_weight']
@@ -73,6 +75,11 @@ if __name__=="__main__":
     k = data_config['k']
     hadronic_detector = data_config['hadronic_detector']
     include_ecal = data_config['include_ecal']
+    use_classification = data_config['use_classification']
+    if use_classification:
+        regression_weight = data_config['regression_weight']
+        classification_weight = data_config['classification_weight']
+        model_output_size += 1
     already_preprocessed = data_config['already_preprocessed']
     print(already_preprocessed, ' already preprocessed -------')
     #already_preprocessed = True
@@ -84,8 +91,8 @@ if __name__=="__main__":
     yaml.dump(config, open(save_dir + '/config_inference.yaml', 'w'))
 
 
-    root_test_files = np.sort(glob.glob(test_dir+'*root'))[:num_test_files]
-
+    root_test_files = glob.glob(test_dir+'*root')[:num_test_files]
+    np.random.shuffle(root_test_files)
     #Loads the files from test_dir if specified.
     #Note: if not specified, takes vals from CONFIG
     # if (args.test_dir is not None):
@@ -110,7 +117,7 @@ if __name__=="__main__":
         test_output_dir = output_dir + '/test/'
 
     ### MODEL READ 
-    model = models.BlockModel(global_output_size=output_dim, model_config=model_config)
+    model = models.BlockModel(global_output_size=model_output_size, model_config=model_config)
     checkpoint = tf.train.Checkpoint(module=model)
 
     best_ckpt_prefix = os.path.join(save_dir, '/best_model')
@@ -218,8 +225,8 @@ if __name__=="__main__":
                                          hadronic_detector=hadronic_detector,
                                          include_ecal=include_ecal,
                                          output_dim=output_dim,
-                                         k=k)
-
+                                         k=k,
+                                         classification=use_classification)
 
 
     #samp_graph, samp_target = next(get_batch(data_gen_train.generator()))
@@ -227,9 +234,10 @@ if __name__=="__main__":
     data_gen_test.kill_procs()
     graph_spec = utils_tf.specs_from_graphs_tuple(samp_graph, True, True, True)
 
-    mae_loss = tf.keras.losses.MeanAbsoluteError()
+    mae_loss = tf.keras.losses.MeanAbsoluteError() # Check 
+    classification_loss =  tf.keras.losses.BinaryCrossentropy()
 
-    def loss_fn(targets, predictions):
+    def mae_loss_fn(targets, predictions):
         if output_dim == 2:
             # Convert targets & predictions to tf.tensor of shape (len(targets), 2, 1)
             # i.e. Targets: [ [ [genP0], [gentheta0] ], [ [genP1], [gentheta1] ], [ [genP2], [gentheta2] ], ...]
@@ -241,6 +249,8 @@ if __name__=="__main__":
             return mae_loss(targets_reshaped, predictions_reshaped, sample_weight=[[energy_weight, theta_weight]]) # First number is energy weight, second number is theta weight
         elif output_dim == 1:
             return mae_loss(targets, predictions)
+    def classification_loss_fn(targets, predictions):
+        return classification_loss(targets, predictions)
 
     if output_dim==2:
         provided_shape=[None,None]
@@ -249,13 +259,17 @@ if __name__=="__main__":
     
     @tf.function(input_signature=[graph_spec, tf.TensorSpec(shape=provided_shape, dtype=tf.float32)])
     def val_step(graphs, targets):
-            predictions = model(graphs).globals
-            # predictions structure:
-            # For 1D: predictions (type = tf.Tensor) structure: [ Epred0, Epred1, Epred2, ... ]
-            # For 2D: predictions (type = tf.Tensor) structure: [ [Epred0, thetapred0], [Epred1, thetapred1], [Epred2, thetapred2], ...]
-            loss = loss_fn(targets, predictions)
-
-            return loss, predictions
+        predictions = model(graphs).globals
+        if use_classification:
+            # Classification info is stored at the back of the list
+            predictions_regression, predictions_classification = predictions[:, :-1], tf.math.sigmoid(predictions[:, -1:])
+            predictions = tf.concat([predictions_regression, predictions_classification], -1) # Predictions will now contain the sigmoid version of classification prediction
+            targets_regression, targets_classification = targets[:, :-1], targets[:, -1:]
+            loss = regression_weight*mae_loss_fn(targets_regression, predictions_regression) + classification_weight*classification_loss_fn(targets_classification, predictions_classification)
+        else:
+            loss = mae_loss_fn(targets, predictions)
+        
+        return loss, predictions
 
     #i = 1
     #test_loss = []
@@ -325,8 +339,6 @@ if __name__=="__main__":
         all_targets_scaled_ene=np.concatenate(all_targets_scaled_ene)
         all_outputs_scaled_theta=np.concatenate(all_outputs_scaled_theta)
         all_outputs_scaled_ene=np.concatenate(all_outputs_scaled_ene)
-
-
         all_targets_scaled=np.vstack((all_targets_scaled_ene, all_targets_scaled_theta)).T
         all_outputs_scaled=np.vstack((all_outputs_scaled_ene, all_outputs_scaled_theta)).T
 

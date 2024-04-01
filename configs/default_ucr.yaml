@@ -11,9 +11,13 @@ data:
   # data_dir: /media/miguel/Elements/ECCE_HCAL/hcal_pi+_log10continuous_1GeV-150GeV_10deg-30deg_07-21-23/ ## 246 = 184   60 11  1
   #data_dir: /media/miguel/Elements/ECCE_HCAL/hcal_ecal_ECCE_64Fe_pi+_log10continuous_1GeV-150GeV_10deg-30deg_09-27-23/   ###   156   =  112, 42, 1
   ## ZDC FE H4 PI+  CONTINUOUS
-  data_dir: /media/miguel/Elements/zdc_data/zdc_neutron_log10continuous_10GeV-300GeV_0.0deg-0.5deg_staggered_h4_08_18/  #130 45  1
+  # data_dir: /media/miguel/Elements/zdc_data/zdc_neutron_log10continuous_10GeV-300GeV_0.0deg-0.3deg_staggered_h4_01_26_2024/  #113  37
+  # data_dir: /media/miguel/Elements/zdc_data/zdc_neutron_log10continuous_10GeV-1000GeV_0.0deg-0.3deg_staggered_h4_03_18_2024/ #150 50
   #data_dir: /media/miguel/Elements/zdc_data/zdc_Pb_neutron_log10continuous_10GeV-300GeV_0.0deg-0.5deg_staggered_h4_09_23/  # 250  74 75
   
+  ## ZDC FE H4 PI0 & Gamma  CONTINUOUS 
+  data_dir:  /media/miguel/Elements/zdc_data/classification_data/zdc_photon_pion0_log10continuous_10GeV-300GeV-0.0deg-0.23deg_staggered_h4_11_2023/ #266 total, 200 training, 66 validation
+  # Each pi0 file has 8000 events, each gamma file has 10,000 events
   ## PION (0)  ###
   #data_dir: /media/miguel/Elements/zdc_data/zdc_pi0_log10continuous_10GeV-300GeV_0.0deg-0.5deg_staggered_h4_10_23/ ##140  # 54  #1 
   ## Gamma ####
@@ -52,6 +56,14 @@ data:
   k: 10
   hadronic_detector: zdc_Fe  #hcal #zdc_Fe
   include_ecal: False
+  use_classification: False
+  regression_weight: 0.75
+  classification_weight: 0.25
+  num_pi0_train_files: 110
+  num_pi0_val_files: 38
+  num_photon_train_files: 88
+  num_photon_val_files: 30
+
 model:
   block_type: graphnet
   concat_input: True
@@ -75,6 +87,6 @@ model:
   reducer: mean
   
 training:
-  epochs: 1
+  epochs: 100
   learning_rate: 1.e-3
   save_dir: /home/ryan/results_test   ## change the name of this directory
