@@ -1,19 +1,12 @@
 data:
-  #data_dir: /media/miguel/Elements/Data_hcali/Data1/log10_Uniform_03-23/log10_pi+_Uniform_0-140Gev_17deg_1/ # 200, 99, 100
-  #data_dir: /media/miguel/Elements/Data_hcali/Data1/log10_Uniform_03-23/log10_pi+_100_10k_10-30deg_1/ # 108, 40, 50
-  #data_dir: /media/miguel/Elements/Data_hcali/Data1/log10_Uniform_03-23/log10_pi+_uniform_2.83deg_100_6k_1/
-  #data_dir: /media/miguel/Elements/Data_hcali/Data1/log10_Uniform_03-23/log10_pi+_100_10k_17deg_ECAL_1/   # 80, 36, 36
-  #data_dir: /media/miguel/Elements/Data_hcali/Data1/log10_Uniform_03-23/log10_pi+_100_10k_10-30-deg_ECAL_updated_1/  ## 85 30 49
-  #data_dir: /media/miguel/Elements/Data_hcali/Data1/ZDC_data/log10_ZDC_neutron_1_300GeV_0_0.5deg_staggered_h3/ ## 95 40 55
-
-
+  # Uncomment the data directory you want to use for training.
+  
   ## ECCE CONFIG 4W + 60 Fe
   # data_dir: /media/miguel/Elements/ECCE_HCAL/hcal_pi+_log10continuous_1GeV-150GeV_10deg-30deg_07-21-23/ ## 246 = 184   60 11  1
   #data_dir: /media/miguel/Elements/ECCE_HCAL/hcal_ecal_ECCE_64Fe_pi+_log10continuous_1GeV-150GeV_10deg-30deg_09-27-23/   ###   156   =  112, 42, 1
   ## ZDC FE H4 PI+  CONTINUOUS
   # data_dir: /media/miguel/Elements/zdc_data/zdc_neutron_log10continuous_10GeV-300GeV_0.0deg-0.3deg_staggered_h4_01_26_2024/  #113  37
   # data_dir: /media/miguel/Elements/zdc_data/zdc_neutron_log10continuous_10GeV-1000GeV_0.0deg-0.3deg_staggered_h4_03_18_2024/ #150 50
-  #data_dir: /media/miguel/Elements/zdc_data/zdc_Pb_neutron_log10continuous_10GeV-300GeV_0.0deg-0.5deg_staggered_h4_09_23/  # 250  74 75
   
   ## ZDC FE H4 PI0 & Gamma  CONTINUOUS 
   data_dir:  /media/miguel/Elements/zdc_data/classification_data/zdc_photon_pion0_log10continuous_10GeV-300GeV-0.0deg-0.23deg_staggered_h4_11_2023/ #266 total, 200 training, 66 validation
@@ -38,34 +31,41 @@ data:
   ## INSERT WITH 0W + 64 FE
   #data_dir: /media/miguel/Elements/ECCE_HCAL/insert_64Fe_pi+_log10continuous_1GeV-150GeV_2.3deg-4.25deg_10-8-23/  ## total = 196 =>  140   ##55 1
   
-  particle_type: pion  
+  particle_type: pion  # Currently unused
+
+  # Divide the datasets into about 75% training data, 25% validation. 
+  # e.g. for 100 total continuous files, use 75 for num_train_files and 25 for num_val_files
+  # num_train_files & num_val_files are unused when use_classification is True. 
   num_train_files: 1
   num_val_files:  1
-  num_test_files: 1  
   batch_size: 256  
   shuffle: True #
-  num_procs: 2   ##
+  num_procs: 2   # Number of multiple processes used while preprocessing. Should use 1 or 2 when using the UCR computer to be nice to others using the CPU :)
   preprocess: True
-  output_dir: /home/ryan/preprocessed_test ## change this directory
-  already_preprocessed: False
-  calc_stats: True   ##
+  output_dir: /home/ryan/preprocessed_test # Change this directory. Where the preprocessed data will be stored
+  already_preprocessed: False # If True, will use the already preprocessed data in output_dir
+  calc_stats: True   # If true, will calculate the means + stds of the data. If False, will use means.p from output_dir
   num_features: 4
-  output_dim: 2
+  output_dim: 2 # For now, 1 = energy regression, 2 = energy + theta regression
   energy_weight: 0.7 # Weights are only used if output_dim == 2. Apply prefactors to energy & theta terms in loss function
   theta_weight: 0.3
-  k: 10
+  k: 10 # number of nearest neighbors used in graph
   hadronic_detector: zdc_Fe  #hcal #zdc_Fe
-  include_ecal: False
-  use_classification: False
-  regression_weight: 0.75
-  classification_weight: 0.25
-  num_pi0_train_files: 110
+  include_ecal: False # Should be false for ZDC
+  use_classification: False # If True, will use classification for pi0/gamma events. Will use the num file variables below instead of num_train_files, num_val_files above
+  regression_weight: 0.75 # Weight given to regression in loss function when classification is True
+  classification_weight: 0.25 # Weight given to classification in loss function when classification is True
+
+  # Should use about the same amount of data for pi0 & gamma for training and validation
+  # With 110 pi0 training files + 88 photon training files, get ~880k events for each particle
+  # With 38 pi0 validation files + 30 photon validation files, get ~300k events for each particle
+  num_pi0_train_files: 110 
   num_pi0_val_files: 38
   num_photon_train_files: 88
   num_photon_val_files: 30
 
 model:
-  block_type: graphnet
+  block_type: graphnet # Should be deepsets or graphnet. graphnet is the primary usecase
   concat_input: True
   edge_block_opt:
     use_edges: true
@@ -87,6 +87,6 @@ model:
   reducer: mean
   
 training:
-  epochs: 100
+  epochs: 100 # Number of loops while training. Should be about 100, but usually see convergence around 70 epochs
   learning_rate: 1.e-3
-  save_dir: /home/ryan/results_test   ## change the name of this directory
+  save_dir: /home/ryan/results_test   # Change this directory. Where the ML models + predictions data will be stored
