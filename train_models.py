@@ -19,8 +19,6 @@ from generator_common import MPGraphDataGenerator
 import block as models
 sns.set_context('poster')
 
-# include HCAL and ECAL as in training_block.py
-
 if __name__=="__main__":
 
     parser = argparse.ArgumentParser()
@@ -62,7 +60,6 @@ if __name__=="__main__":
         num_pi0_train_files = data_config['num_pi0_train_files']
         num_photon_train_files = data_config['num_photon_train_files']
     
-    #num_z_layers=data_config['num_z_layers']
     block_type = model_config['block_type']
     print('From the train block model ',num_features, 'output _dim ',  output_dim)
     epochs = train_config['epochs']
@@ -105,7 +102,8 @@ if __name__=="__main__":
         train_output_dir = output_dir + '/train/'
         val_output_dir = output_dir + '/val/'
 
-    #Generators
+    # Generators used to get data
+    # Uses generator_common.py to preprocess the data and loads the preprocessed data
     data_gen_train = MPGraphDataGenerator(file_list=root_train_files,
                                           batch_size=batch_size,
                                           shuffle=shuffle,
@@ -153,9 +151,6 @@ if __name__=="__main__":
     best_ckpt = tf.train.latest_checkpoint(save_dir)
     last_ckpt_path = save_dir + '/last_saved_model'
     
-    # if best_ckpt is not None:
-    #     print(f'Restoring {best_ckpt}')
-    #     checkpoint.restore(best_ckpt)
     if os.path.exists(last_ckpt_path+'.index'):
         print(f'Restoring {last_ckpt_path}')
         checkpoint.read(last_ckpt_path)
@@ -167,7 +162,7 @@ if __name__=="__main__":
 
         nodes = []
         edges = []
-        globals = [] # may collide.
+        globals = []
 
         senders = []
         receivers = []
@@ -245,7 +240,7 @@ if __name__=="__main__":
     data_gen_train.kill_procs()
     graph_spec = utils_tf.specs_from_graphs_tuple(samp_graph, True, True, True)
     
-    mae_loss = tf.keras.losses.MeanAbsoluteError() # Check 
+    mae_loss = tf.keras.losses.MeanAbsoluteError()
     classification_loss =  tf.keras.losses.BinaryCrossentropy()
 
     def mae_loss_fn(targets, predictions):
@@ -312,10 +307,9 @@ if __name__=="__main__":
 
         # Train
         print('Training...')
-        i = 0 # 1 change
+        i = 0
         start = time.time()
         for graph_data_tr, targets_tr, meta_tr in get_batch(data_gen_train.generator()):#train_iter):
-            #if i==1:
             losses_tr = train_step(graph_data_tr, targets_tr)
             training_loss.append(losses_tr.numpy())
 

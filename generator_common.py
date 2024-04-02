@@ -7,25 +7,15 @@ import uproot as ur
 import awkward as ak
 import time
 from multiprocessing import Process, Queue, Manager, set_start_method
-# from multiprocess import Process, Queue, Manager, set_start_method
 import compress_pickle as pickle
 from scipy.stats import circmean
 from sklearn.neighbors import NearestNeighbors
 import random
 
-#MIP=0.0006 ## GeV
 MIP_ECAL=0.13
-
-#theta_max=4.0
-#energy_TH=0.5*MIP
 energy_TH_ECAL=0.5*MIP_ECAL
-#NHITS_MIN=2
 
-#Change these for your usecase!
-
-# data_dir = '/clusterfs/ml4hep_nvme2/ftoralesacosta/regressiononly/data/'
-# out_dir = '/clusterfs/ml4hep_nvme2/ftoralesacosta/regressiononly/preprocessed_data/'
-
+# These aren't used when generator_common is called from the training/inference scripts
 data_dir = '/usr/workspace/hip/eic/log10_Uniform_03-23/ECCE_HCAL_Files/hcal_pi+_log10discrete_1GeV-150GeV_10deg-30deg_07-23-23/'
 out_dir = '/usr/WS2/karande1/eic/gitrepos/regressiononly/preprocessed_data/train/'
 
@@ -80,23 +70,23 @@ class MPGraphDataGenerator:
             self.time_TH=150
             self.theta_max=1000.0
             
-        elif(self.hadronic_detector=='insert'):    #'Insert' after the 'P'
+        elif(self.hadronic_detector=='insert'):
             self.detector_name = "HcalEndcapPInsertHitsReco"
             self.sampling_fraction =0.0089
             self.energy_TH=0.5*0.0006
             self.time_TH=150
             self.theta_max=76.0
 
-        elif(self.hadronic_detector=='zdc_Fe'):  ##added by smoran
+        elif(self.hadronic_detector=='zdc_Fe'):
             self.detector_name = "ZDCHcalHitsReco"
-            self.sampling_fraction =0.0203   ## CHANGE THIS NUMBER?
+            self.sampling_fraction =0.0203
             self.energy_TH=0.5*0.000472
             self.time_TH=275
             self.theta_max=10.0 # Setting to 10 mrad so events with all angles are accepted
             
-        elif(self.hadronic_detector=='zdc_Pb'):  ##added by smoran
+        elif(self.hadronic_detector=='zdc_Pb'): 
             self.detector_name = "ZDCHcalHitsReco"
-            self.sampling_fraction =0.0216   ## CHANGE THIS NUMBER?
+            self.sampling_fraction =0.0216 
             self.energy_TH=0.5*0.000393
             self.time_TH=275
             self.theta_max=4.0
@@ -108,7 +98,7 @@ class MPGraphDataGenerator:
         if self.output_dim==1:
             self.scalar_keys = [self.detector_name+self.nodeFeatureNames[0]] + \
                            self.nodeFeatureNames[1:] + \
-                           ["clusterE","genP"] #, "theta"]
+                           ["clusterE","genP"]
         elif self.output_dim==2:
             self.scalar_keys = [self.detector_name+self.nodeFeatureNames[0]] + \
                            self.nodeFeatureNames[1:] + \
@@ -123,15 +113,13 @@ class MPGraphDataGenerator:
         print(f'Using features: {self.nodeFeatureNames}') 
         print(f'######################################\n')
         self.num_nodeFeatures = len(self.nodeFeatureNames)
-        self.num_targetFeatures = 1 #Regression on Energy only for now
 
         self.edgeCreationFeatures = [".position.x", ".position.y", ".position.z", ]
         self.k = k
         self.num_edgeFeatures = 1   # edge length
 
-        # if not self.is_val and self.calc_stats:
         if self.calc_stats:
-            n_scalar_files = 8 #num files to use for scaler calculation
+            n_scalar_files = 8 #num files to use for scalar calculation
             self.preprocess_scalar(n_scalar_files)
         else:
             self.means_dict = pickle.load(open(f"{self.stats_dir}/means.p", 'rb'), compression='gzip')
@@ -156,8 +144,8 @@ class MPGraphDataGenerator:
         self.n_calcs = min(n_calcs,self.num_files)
 
         with Manager() as manager:
-            means = manager.list()  # dict({k:[] for k in self.scalar_keys})
-            stdvs = manager.list()  # dict({k:[] for k in self.scalar_keys})
+            means = manager.list()
+            stdvs = manager.list()
 
             for i in range(self.n_calcs):
                 p = Process(target=self.scalar_processor,
@@ -167,9 +155,6 @@ class MPGraphDataGenerator:
 
             for p in self.procs:
                 p.join()
-
-            # means = np.mean(means,axis=0) #avg means along file dimension
-            # stdvs = np.mean(stdvs,axis=0) #avg stdvs from files
 
             means_dict = dict({k:[] for k in self.scalar_keys})
             stdvs_dict = dict({k:[] for k in self.scalar_keys})
@@ -197,13 +182,11 @@ class MPGraphDataGenerator:
 
         file_num = worker_id
 
-        # while file_num < self.n_calcs:
         print(f"Mean + Stdev Calc. file number {file_num}")
         f_name = self.file_list[file_num]
         event_tree = ur.open(f_name)['events']
         num_events = event_tree.num_entries
         event_data = event_tree.arrays() #need to use awkward
-        #event_data = event_tree.arrays(entry_stop=500) #need to use awkward
         print('____________XXXXXXXXXXXXXXXXXXXXXX', num_events)
         
         file_means = {k:[] for k in self.scalar_keys}
@@ -219,7 +202,6 @@ class MPGraphDataGenerator:
             mask_ecal = (cell_E_ecal > energy_TH_ECAL) & (time_ecal<self.time_TH) & (cell_E_ecal<1e10) 
 
         for k in self.scalar_keys:
-            # print(k)
             if 'position' in k:
                 feature_data = event_data[self.detector_name+k][mask]
                 if self.include_ecal:
@@ -240,12 +222,11 @@ class MPGraphDataGenerator:
             else:
                 continue
 
-        cluster_sum_E_hcal = ak.sum(cell_E[mask],axis=-1) #global node feature later
+        cluster_sum_E_hcal = ak.sum(cell_E[mask],axis=-1)
         total_calib_E = cluster_sum_E_hcal / self.sampling_fraction
-        #total_calib_E=total_calib_E[mask_theta]
         if self.include_ecal:
             cluster_sum_E_ecal = ak.sum(cell_E_ecal[mask_ecal],axis=-1)
-            total_calib_E = total_calib_E + cluster_sum_E_ecal ## sampling fractionn crrrection is already done
+            total_calib_E = total_calib_E + cluster_sum_E_ecal ## sampling fractionn crrrection is already done for Ecal
 
         mask = total_calib_E > 0.0
         cluster_calib_E = np.log10(total_calib_E[mask])
@@ -285,8 +266,6 @@ class MPGraphDataGenerator:
         
         means.append(file_means)
         stdvs.append(file_stdvs)
-        # print(f'\nMeans: {means}')
-        # print(f'Stds: {stdvs}')
 
     def preprocess_data(self):
         print(f'\nPreprocessing and saving data to {os.path.realpath(self.output_dir)}')
@@ -317,7 +296,6 @@ class MPGraphDataGenerator:
             preprocessed_data = []
 
             for event_ind in range(num_events):
-            #for event_ind in range(6,20):    
                 if self.output_dim==2:
                     target = self.get_GenP_Theta(event_data,event_ind)
                     if (target[1] * self.stdvs_dict["theta"] + self.means_dict["theta"])>self.theta_max:
@@ -419,7 +397,7 @@ class MPGraphDataGenerator:
         """ Calibrate Clusters Energy """
 
         cell_E = event_data[self.detector_name+".energy"]
-        cluster_calib_E = np.sum(cell_E,axis=-1)/self.sampling_fraction #global node feature later
+        cluster_calib_E = np.sum(cell_E,axis=-1)/self.sampling_fraction
         
         if self.include_ecal:
             cell_E_ecal = event_data[self.detector_ecal+".energy"]
@@ -463,7 +441,6 @@ class MPGraphDataGenerator:
         # Using kNN on x, y, z for creating graph
         curr_k = np.min([self.k, num_nodes])
 
-        # nbrs = NearestNeighbors(n_neighbors=curr_k, algorithm='ball_tree').fit(nodes[:, 2:5])
         nbrs = NearestNeighbors(n_neighbors=curr_k, algorithm='ball_tree').fit(nodes_NN_feats)
         distances, indices = nbrs.kneighbors(nodes_NN_feats)
         
@@ -549,7 +526,6 @@ class MPGraphDataGenerator:
         while file_num < self.num_files:
             file_data = pickle.load(open(self.processed_file_list[file_num], 'rb'), compression='gzip')
 
-            # print("FILE DATA SHAPE = ",np.shape(file_data))
 
             for i in range(len(file_data)):
                 batch_graphs.append(file_data[i][0])
@@ -607,7 +583,6 @@ class MPGraphDataGenerator:
             except:
                 continue
 
-            #FIXME: Print Batches here too
             yield batch
 
         for p in self.procs:

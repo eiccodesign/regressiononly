@@ -82,7 +82,6 @@ if __name__=="__main__":
         model_output_size += 1
     already_preprocessed = data_config['already_preprocessed']
     print(already_preprocessed, ' already preprocessed -------')
-    #already_preprocessed = True
     calc_stats = False
     config['test_dir']=test_dir
 
@@ -93,24 +92,6 @@ if __name__=="__main__":
 
     root_test_files = glob.glob(test_dir+'*root')[:num_test_files]
     np.random.shuffle(root_test_files)
-    #Loads the files from test_dir if specified.
-    #Note: if not specified, takes vals from CONFIG
-    # if (args.test_dir is not None):
-    #     test_dir = args.test_dir
-
-    #     # if not os.path.exists(test_dir+'.root'):
-    #     if not any(fname.endswith('.root') for fname in os.listdir(test_dir)):
-    #         print(f"\n\nNo ROOT files found in {test_dir}")
-    #         print("EXITING\n\n")
-    #         exit()
-
-    #     test_files = np.sort(glob.glob(test_dir+'*root'))
-    #     print("data_dir = ",data_dir)
-    #     print("Test Dir = ",test_dir)
-    #     print("Number of Test Files = ",num_test_files)
-    #     root_test_files = test_files[:num_test_files]
-
-    # print("\n\n Test Files = ",root_test_files,"\n\n")
 
     # Get Data
     if preprocess:
@@ -154,7 +135,7 @@ if __name__=="__main__":
 
         nodes = []
         edges = []
-        globals = [] # may collide.
+        globals = []
 
         senders = []
         receivers = []
@@ -217,7 +198,7 @@ if __name__=="__main__":
                                          shuffle=shuffle,
                                          num_procs=num_procs,
                                          calc_stats=False,
-                                         is_val=True, #decides to save mean and std
+                                         is_val=True,
                                          preprocess=preprocess,
                                          already_preprocessed=already_preprocessed,
                                          output_dir=test_output_dir,
@@ -229,12 +210,11 @@ if __name__=="__main__":
                                          classification=use_classification)
 
 
-    #samp_graph, samp_target = next(get_batch(data_gen_train.generator()))
     samp_graph, samp_target, samp_meta = next(get_batch(data_gen_test.generator()))
     data_gen_test.kill_procs()
     graph_spec = utils_tf.specs_from_graphs_tuple(samp_graph, True, True, True)
 
-    mae_loss = tf.keras.losses.MeanAbsoluteError() # Check 
+    mae_loss = tf.keras.losses.MeanAbsoluteError()
     classification_loss =  tf.keras.losses.BinaryCrossentropy()
 
     def mae_loss_fn(targets, predictions):
@@ -271,19 +251,10 @@ if __name__=="__main__":
         
         return loss, predictions
 
-    #i = 1
-    #test_loss = []
-    #all_targets = []
-    #all_outputs = []
-    #all_targets_scaled = []
-    #all_outputs_scaled = []
-
-
     means_dict = pickle.load(open(f"{output_dir}/means.p", 'rb'), compression='gzip')
     stdvs_dict = pickle.load(open(f"{output_dir}/stdvs.p", 'rb'), compression='gzip')
     
     def get_pred_2D(data_gen_test, means_dict, stdvs_dict):
-        print('Hello Hello')
         i = 1
         test_loss = []
         all_targets = []
@@ -348,7 +319,6 @@ if __name__=="__main__":
 
 
     def get_pred_1D(data_gen_test, means_dict, stdvs_dict):
-        print('Hello Hello')
         i = 1
         test_loss = []
         all_targets = []
@@ -371,7 +341,7 @@ if __name__=="__main__":
             all_targets.append(targets_test)
             all_outputs.append(output_test)
             all_meta.append(meta_test)
-            
+
             all_targets_scaled.append(targets_test_scaled)
             all_outputs_scaled.append(output_test_scaled)
 
@@ -407,21 +377,7 @@ if __name__=="__main__":
 
 
     print(f"\n Done. Completed {np.shape(all_targets)}\n")
-    # print("IGNORE ERROR BELOW")
-    # print("       |  |")
-    # print("       |  |")
-    # print("      \    /")
-    # print("       \  /")
-    # print("        \/\n")
-           
-    #np.savez(save_dir+'/predictions_appended_'+'_'.join(save_dir.split('/')[-2].split('_')[-2:])+'.npz', 
-    #         targets=all_targets, targets_scaled=all_targets_scaled,
-    #         outputs=all_outputs, outputs_scaled=all_outputs_scaled)
     np.savez(save_dir+'/predictions_appended_test.npz',
              targets=all_targets, targets_scaled=all_targets_scaled,
              outputs=all_outputs, outputs_scaled=all_outputs_scaled,
              meta=all_meta)
-    # np.save(save_dir+'/predictions_standalone.npy', all_outputs)
-    # np.save(save_dir+'/targets_standalone.npy', all_targets)
-
-    
