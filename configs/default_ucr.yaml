@@ -47,8 +47,8 @@ data:
   calc_stats: True   # If true, will calculate the means + stds of the data. If False, will use means.p from output_dir
   num_features: 4
   output_dim: 2 # For now, 1 = energy regression, 2 = energy + theta regression
-  energy_weight: 0.7 # Weights are only used if output_dim == 2. Apply prefactors to energy & theta terms in loss function
-  theta_weight: 0.3
+  energy_weight: 0.5 # Weights are only used if output_dim == 2. Apply prefactors to energy & theta terms in loss function
+  theta_weight: 0.5
   k: 10 # number of nearest neighbors used in graph
   hadronic_detector: zdc_Fe  #hcal #zdc_Fe
   include_ecal: False # Should be false for ZDC
