@@ -104,8 +104,7 @@ if __name__=="__main__":
     if preprocess:
         train_output_dir = output_dir + '/train/'
         val_output_dir = output_dir + '/val/'
-     
-    
+
     #Generators
     data_gen_train = MPGraphDataGenerator(file_list=root_train_files,
                                           batch_size=batch_size,
@@ -240,10 +239,9 @@ if __name__=="__main__":
             # 1D shape (len(targets), ), i.e. [ genP0, genP1, genP2, ...]
             # 2D shape (len(targets), 2), i.e. [ [genP0, gentheta0], [genP1, gentheta1], ...]
             targets = tf.convert_to_tensor(targets, dtype=tf.float32)
-
-            yield graphs, targets
-     
-    samp_graph, samp_target = next(get_batch(data_gen_train.generator()))
+            yield graphs, targets, meta
+    
+    samp_graph, samp_target, samp_meta = next(get_batch(data_gen_train.generator()))
     data_gen_train.kill_procs()
     graph_spec = utils_tf.specs_from_graphs_tuple(samp_graph, True, True, True)
     
@@ -316,10 +314,9 @@ if __name__=="__main__":
         print('Training...')
         i = 0 # 1 change
         start = time.time()
-        for graph_data_tr, targets_tr in get_batch(data_gen_train.generator()):#train_iter):
+        for graph_data_tr, targets_tr, meta_tr in get_batch(data_gen_train.generator()):#train_iter):
             #if i==1:
             losses_tr = train_step(graph_data_tr, targets_tr)
-
             training_loss.append(losses_tr.numpy())
 
             if not (i)%100:
@@ -345,8 +342,9 @@ if __name__=="__main__":
         all_targets = []
         all_outputs = []
         all_etas = []
+        all_meta = []
         start = time.time()
-        for graph_data_val, targets_val in get_batch(data_gen_val.generator()):#val_iter):
+        for graph_data_val, targets_val, meta_val in get_batch(data_gen_val.generator()):#val_iter):
             losses_val, output_vals = val_step(graph_data_val, targets_val)
             targets_val = targets_val.numpy()
             output_vals = output_vals.numpy().squeeze()
@@ -354,6 +352,7 @@ if __name__=="__main__":
             val_loss.append(losses_val.numpy())
             all_targets.append(targets_val)
             all_outputs.append(output_vals)
+            all_meta.append(meta_val)
 
             if not (i)%100:
                 end = time.time()
@@ -373,6 +372,7 @@ if __name__=="__main__":
 
         all_targets = np.concatenate(all_targets)
         all_outputs = np.concatenate(all_outputs)
+        all_meta = np.concatenate(all_meta)
 
         val_loss_epoch.append(val_loss)
 
@@ -392,7 +392,8 @@ if __name__=="__main__":
             curr_loss = np.mean(val_loss)
             np.savez(save_dir+'/predictions', 
                      targets=all_targets, 
-                     outputs=all_outputs)
+                     outputs=all_outputs,
+                     meta=all_meta)
             checkpoint.save(best_ckpt_prefix)
         else:
             print('\nLoss did not decrease from {:.6f}'.format(curr_loss))

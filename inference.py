@@ -147,7 +147,7 @@ if __name__=="__main__":
             # 2D shape (len(targets), 2), i.e. [ [genP0, gentheta0], [genP1, gentheta1], ...]
             targets = tf.convert_to_tensor(targets, dtype=tf.float32)
             
-            yield graphs, targets
+            yield graphs, targets, meta
    
 
     def convert_to_tuple(graphs):
@@ -230,7 +230,7 @@ if __name__=="__main__":
 
 
     #samp_graph, samp_target = next(get_batch(data_gen_train.generator()))
-    samp_graph, samp_target = next(get_batch(data_gen_test.generator()))
+    samp_graph, samp_target, samp_meta = next(get_batch(data_gen_test.generator()))
     data_gen_test.kill_procs()
     graph_spec = utils_tf.specs_from_graphs_tuple(samp_graph, True, True, True)
 
@@ -294,11 +294,11 @@ if __name__=="__main__":
         all_outputs_scaled_ene = []
         all_targets_scaled_theta = []
         all_outputs_scaled_theta = []
+        all_meta = []
         start = time.time()
 
 
-
-        for graph_data_test, targets_test in get_batch(data_gen_test.generator()):
+        for graph_data_test, targets_test, meta_test in get_batch(data_gen_test.generator()):
             losses_test, output_test = val_step(graph_data_test, targets_test)
 
             test_loss.append(losses_test.numpy())
@@ -313,6 +313,7 @@ if __name__=="__main__":
 
             all_targets.append(targets_test)
             all_outputs.append(output_test)
+            all_meta.append(meta_test)
 
             all_targets_scaled_ene.append(targets_test_scaled_ene)
             all_outputs_scaled_ene.append(output_test_scaled_ene)
@@ -341,8 +342,9 @@ if __name__=="__main__":
         all_outputs_scaled_ene=np.concatenate(all_outputs_scaled_ene)
         all_targets_scaled=np.vstack((all_targets_scaled_ene, all_targets_scaled_theta)).T
         all_outputs_scaled=np.vstack((all_outputs_scaled_ene, all_outputs_scaled_theta)).T
+        all_meta = np.concatenate(all_meta)
 
-        return all_targets_scaled, all_outputs_scaled, all_targets, all_outputs
+        return all_targets_scaled, all_outputs_scaled, all_targets, all_outputs, all_meta
 
 
     def get_pred_1D(data_gen_test, means_dict, stdvs_dict):
@@ -353,9 +355,10 @@ if __name__=="__main__":
         all_outputs = []
         all_targets_scaled = []
         all_outputs_scaled = []
+        all_meta = []
         start = time.time()
 
-        for graph_data_test, targets_test in get_batch(data_gen_test.generator()):
+        for graph_data_test, targets_test, meta_test in get_batch(data_gen_test.generator()):
             losses_test, output_test = val_step(graph_data_test, targets_test)
             test_loss.append(losses_test.numpy())
             targets_test = targets_test.numpy()
@@ -367,6 +370,8 @@ if __name__=="__main__":
 
             all_targets.append(targets_test)
             all_outputs.append(output_test)
+            all_meta.append(meta_test)
+            
             all_targets_scaled.append(targets_test_scaled)
             all_outputs_scaled.append(output_test_scaled)
 
@@ -387,16 +392,18 @@ if __name__=="__main__":
         epoch_end = time.time()
         all_targets_scaled = np.concatenate(all_targets_scaled)
         all_outputs_scaled = np.concatenate(all_outputs_scaled)
+        all_meta = np.concatenate(all_meta)
 
-        return all_targets_scaled, all_outputs_scaled, all_targets, all_outputs
+        return all_targets_scaled, all_outputs_scaled, all_targets, all_outputs, all_meta
     if output_dim==1:
-        all_targets_scaled, all_outputs_scaled, all_targets, all_outputs=get_pred_1D(data_gen_test, means_dict, stdvs_dict)
+        all_targets_scaled, all_outputs_scaled, all_targets, all_outputs, all_meta=get_pred_1D(data_gen_test, means_dict, stdvs_dict)
 
     if output_dim==2:
-        all_targets_scaled, all_outputs_scaled, all_targets, all_outputs=get_pred_2D(data_gen_test, means_dict, stdvs_dict)
+        all_targets_scaled, all_outputs_scaled, all_targets, all_outputs, all_meta=get_pred_2D(data_gen_test, means_dict, stdvs_dict)
 
     all_targets = np.concatenate(all_targets)
-    all_outputs = np.concatenate(all_outputs)    
+    all_outputs = np.concatenate(all_outputs)
+    all_meta = np.concatenate(all_meta)
 
 
     print(f"\n Done. Completed {np.shape(all_targets)}\n")
@@ -412,7 +419,8 @@ if __name__=="__main__":
     #         outputs=all_outputs, outputs_scaled=all_outputs_scaled)
     np.savez(save_dir+'/predictions_appended_test.npz',
              targets=all_targets, targets_scaled=all_targets_scaled,
-             outputs=all_outputs, outputs_scaled=all_outputs_scaled)
+             outputs=all_outputs, outputs_scaled=all_outputs_scaled,
+             meta=all_meta)
     # np.save(save_dir+'/predictions_standalone.npy', all_outputs)
     # np.save(save_dir+'/targets_standalone.npy', all_targets)
 
