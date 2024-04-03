@@ -85,7 +85,6 @@ if __name__=="__main__":
         train_start = 0
         train_end = train_start + num_pi0_train_files + num_photon_train_files
         root_train_files = root_files[train_start:train_end]
-
     else:
         root_files = np.sort(root_files)
         train_start = 0
