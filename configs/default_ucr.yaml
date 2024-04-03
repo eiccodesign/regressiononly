@@ -42,7 +42,7 @@ data:
   shuffle: True #
   num_procs: 2   # Number of multiple processes used while preprocessing. Should use 1 or 2 when using the UCR computer to be nice to others using the CPU :)
   preprocess: True
-  output_dir: /home/ryan/preprocessed_test # Change this directory. Where the preprocessed data will be stored
+  output_dir: /home/ryan/zdc_commits/preprocessed_test # Change this directory. Where the preprocessed data will be stored
   already_preprocessed: False # If True, will use the already preprocessed data in output_dir
   calc_stats: True   # If true, will calculate the means + stds of the data. If False, will use means.p from output_dir
   num_features: 4
@@ -52,7 +52,7 @@ data:
   k: 10 # number of nearest neighbors used in graph
   hadronic_detector: zdc_Fe  #hcal #zdc_Fe
   include_ecal: False # Should be false for ZDC
-  use_classification: False # If True, will use classification for pi0/gamma events. Will use the num file variables below instead of num_train_files, num_val_files above
+  use_classification: True # If True, will use classification for pi0/gamma events. Will use the num file variables below instead of num_train_files, num_val_files above
   regression_weight: 0.75 # Weight given to regression in loss function when classification is True
   classification_weight: 0.25 # Weight given to classification in loss function when classification is True
 
@@ -89,4 +89,4 @@ model:
 training:
   epochs: 100 # Number of loops while training. Should be about 100, but usually see convergence around 70 epochs
   learning_rate: 1.e-3
-  save_dir: /home/ryan/results_test   # Change this directory. Where the ML models + predictions data will be stored
+  save_dir: /home/ryan//zdc_commits/results_test   # Change this directory. Where the ML models + predictions data will be stored
