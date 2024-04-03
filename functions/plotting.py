@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.ticker import MultipleLocator
 from matplotlib.colors import LogNorm
 from copy import copy
 from matplotlib import cm
@@ -12,8 +13,9 @@ import random
 import compress_pickle as pickle
 from scipy.optimize import curve_fit
 import uproot3 as ur
+import uproot
 def gaussian(x, amp, mean, sigma):
-    return amp * np.exp( -0.5*((x - mean)/sigma)**2) /sigma
+    return amp * np.exp( -0.5*((x - mean)/sigma)**2) / sigma
 import sys  
 glob_Nbin=64
 #sys.path.insert(0, 'functions')
@@ -574,6 +576,7 @@ def read_start_stop(file_path, detector, entry_start, entry_stop):
     genPy = ur_tree.array('MCParticles.momentum.y',entrystart=entry_start, entrystop=entry_stop)[:,2]
     genPz = ur_tree.array('MCParticles.momentum.z',entrystart=entry_start, entrystop=entry_stop)[:,2]
     mass = ur_tree.array("MCParticles.mass", entrystart=entry_start      , entrystop=entry_stop)[:,2]
+    
     root_gen_P = np.sqrt(genPx*genPx + genPy*genPy + genPz*genPz)
     gen_energy=np.sqrt(root_gen_P**2 + mass**2)
 
@@ -582,27 +585,19 @@ def read_start_stop(file_path, detector, entry_start, entry_stop):
     
     return hit_e, time, gen_energy    
     
-
-    
-    
-    
-    
-
-
 ## Fits the prediction distrubution 
 ## get the resolution and energy scale 
 ## using fit parameter and media
 
 def get_res_scale_fit_log10_log2(truth,pred, binning, nbins, data_type, particle, label='energy', fit='True', plot_range=3):   
     N_Bins=len(binning)
-    plot_range=3
+    
     FIT_SIGMA=3 ## fit within +- 3 sigma                                                                                                                                                                                                             
-    row=math.ceil(np.sqrt(N_Bins-1))
-    if (row**2-N_Bins)>1:
+    row=math.ceil(np.sqrt(N_Bins))
+    if (row**2-N_Bins)>row:
         col=row-1
     else:
         col=row
-
     resolution_arr=[]
     mean_arr=[]
     resolution_cor_arr=[]
@@ -616,24 +611,29 @@ def get_res_scale_fit_log10_log2(truth,pred, binning, nbins, data_type, particle
     res_stdev_pred_median_arr=[]
     res_sigma_median_arr=[]
     
+    
+    
     if label=='energy':
-        xtitle='$E_{Pred}$'
+        xtitle='$E_{Pred}/E_{Truth}$'
         unit='GeV'
-        
-    elif label=='theta':
-        xtitle='Theta (Deg)'
-        unit='Deg'
-       
-    elif label=='phi':
-        xtitle='Phi (Deg)'
-        unit='Deg'    
+        y_ticks_size=14
+        x_ticks_size=14
+        major_x_locator=0.25
+           
     elif label=='theta-energy':
-        xtitle=r'$\Theta_{pred} - \Theta_{true}$' 
+        xtitle='$\\theta_{pred} - \\theta_{true}$[mrad]' 
         unit='GeV'
+        y_ticks_size=14
+        x_ticks_size=15
+        major_x_locator=0.5
+        
         
     elif label=='phi-energy':
-        xtitle=r'$\phi_{pred} - \phi_{true}$' 
-        unit='GeV'    
+        xtitle='$\phi_{pred} - \phi_{true}$ [mrad]' 
+        unit='GeV'  
+        y_ticks_size=14
+        x_ticks_size=14
+        major_x_locator=200   
        
         
     else:
@@ -650,10 +650,10 @@ def get_res_scale_fit_log10_log2(truth,pred, binning, nbins, data_type, particle
         truth=np.rint(truth)
     
     indecies = np.digitize(truth,binning)-1 #Get the bin number each element belongs to.
-    indecies=np.where(indecies < 0, 0, indecies)
-    #if any(indecies<0): print(indicies)
-    max_count = np.bincount(indecies).max()
-    slices = np.empty((N_Bins,max_count))
+    indecies=np.where(indecies < 0, 0, indecies) # Returns array with # of entries in each bin [num bin0, num bin1, ..., num N_Bins-1]
+    if any(indecies<0): print(indicies)
+    max_count = np.max(np.bincount(indecies)) # Grabs the number of entries that's the most
+    slices = np.empty((N_Bins,max_count)) # Slices is an array of N_Bins length, each with max_count entries
     
     slices_truth=np.empty((N_Bins,max_count))
     slices_truth.fill(np.nan)
@@ -670,7 +670,7 @@ def get_res_scale_fit_log10_log2(truth,pred, binning, nbins, data_type, particle
     avg_truth = np.zeros(N_Bins,float)
     pred_over_truth = np.zeros(N_Bins,float)
     xticks=np.linspace(0,100,6)
-    one_ytics=round(max_count,-3)## round to thousand                                                                                                                
+    one_ytics=round(max_count,-3)## round to thousands place                                                                                                            
     yticks=np.linspace(0,one_ytics,6)
     
     #print(binning)
@@ -685,7 +685,11 @@ def get_res_scale_fit_log10_log2(truth,pred, binning, nbins, data_type, particle
         #if truth[i]<=0:
         #    truth[i]=999
         pred_over_truth[bin] += pred[i]/truth[i]
-        scale_array[bin][counter[bin]] = pred[i]/truth[i]
+        if label=='energy':
+            scale_array[bin][counter[bin]] = pred[i]/truth[i]
+        elif (label=='theta-energy') or (label=='phi-energy'):
+            scale_array[bin][counter[bin]] = pred[i]
+        
         counter[bin]+=1
     counter[counter == 0] = 1
     
@@ -703,8 +707,9 @@ def get_res_scale_fit_log10_log2(truth,pred, binning, nbins, data_type, particle
     #median_scale = np.nanmedian(scale_array,axis=-1)
     #print(avg_pred)
     
-    for ii in range(0,N_Bins-1):
-        ## guess parameters for fitting                                                                                                                              
+    for ii in range(0,N_Bins):
+        ## guess parameters for fitting      
+                                   
         mean_guess=avg_pred[ii]
         sigma_guess=stdev_pred[ii]
         #print(ii,'   mean guess.  ', mean_guess,'  binning ',binning[ii], ' - ', binning[ii+1])
@@ -712,18 +717,15 @@ def get_res_scale_fit_log10_log2(truth,pred, binning, nbins, data_type, particle
         ## min and max range for histogram to be fitted to extract resolution/scale                                                                                  
         min_range=mean_guess - plot_range*sigma_guess
         max_range=mean_guess + plot_range*sigma_guess
+
         
         if label=='energy':
             if min_range<0:
                 min_range=0.2
-        
-        #print(min_range, '      min and max.  ',  max_range)
-        ## mean value of range within which histogram is draw                                                                           print(                              
-        #mean_here=(min_range + max_range)/2.0
+    
 
         irow=int(ii/col)
         icol=int(ii%col)
-        
         if irow<row:
             
             ax = axs[irow,icol]
@@ -751,6 +753,7 @@ def get_res_scale_fit_log10_log2(truth,pred, binning, nbins, data_type, particle
                 ax.set_title("{0:.1f} - {1:.1f} {2} ".format(binning[ii],  binning[ii+1], unit ) , fontsize=15)
             else: 
                 ax.set_title("{0} {1}".format(binning[ii], unit), fontsize=15)
+                # ax.set_title("{0} 100 GeV neutrons".format(ii+1), fontsize=15)
         
             
             if ((irow==row-1) & (icol==int(col/2))):
@@ -760,11 +763,9 @@ def get_res_scale_fit_log10_log2(truth,pred, binning, nbins, data_type, particle
                 ax.set_ylabel("Entries",fontsize=15)
 
 
-            #plt.savefig(file_name)
-            #ax.set_xticks(fonstsize=20)
-            ax.tick_params(axis='x', labelsize=20)
-            ax.tick_params(axis='y', labelsize=14)
-            
+            #ax.xaxis.set_major_locator(MultipleLocator(major_x_locator))
+            ax.tick_params(axis='x', labelsize=x_ticks_size)
+            ax.tick_params(axis='y', labelsize=y_ticks_size)
             #scale_median=scale_median_comp[ii]
             #scale=mean/avg_truth[ii]
             scale=mean
@@ -774,15 +775,10 @@ def get_res_scale_fit_log10_log2(truth,pred, binning, nbins, data_type, particle
             #resolution=std
             
             if label=='energy':
-                resolution=(std/mean)/scale    #Scale corrected Strawman
+                resolution=(std/mean)  #/scale    #Scale corrected Strawman
                 
-                #resolution_scale_corr=(stdev_pred[ii]/avg_truth[ii])/scale_median  ## this is std vs median
-                #resolution_scale_corrected=np.nan_to_num(resolution_scale_corr)
-
-                #res_stdev_pred_median=stdev_pred[ii]/median_pred[ii]
-
-                #res_sigma_median=std/avg_truth[ii]
-                slices_pred_truth=  (slices[ii] - slices_truth[ii])/slices_truth[ii]
+                #slices_pred_truth=  (slices[ii] - slices_truth[ii])/slices_truth[ii]
+                slices_pred_truth=  scale_array[ii] #slices[ii] /slices_truth[ii]
 
                 
                 
@@ -806,6 +802,199 @@ def get_res_scale_fit_log10_log2(truth,pred, binning, nbins, data_type, particle
             
         else:
             continue
+    fig.add_subplot(111, frameon=False)
+    plt.tick_params(labelcolor='none', which='both', top=False, bottom=False, left=False, right=False)
+    plt.xlabel("$E_{pred} (GeV)$", fontsize=24, labelpad=20)
+
+    if label=='energy' or label=='theta-energy' or label=='phi-energy':      
+        return resolution_arr, scale_arr, avg_truth_arr, slices_arr, slices_pred_truth_arr
+    else:
+        return avg_truth_arr, resolution_arr, scale_arr, mean_arr
+    
+    #return avg_truth, mean_arr
+
+def get_res_specific_particle(truth, pred, true_pid, binning, nbins, particle_id, label='energy', fit=True, plot_range=3):   
+    N_Bins=len(binning)
+    FIT_SIGMA=3 ## fit within +- 3 sigma                                                                                                                                                                                                             
+    row=math.ceil(np.sqrt(N_Bins-1))
+    if (row**2-N_Bins)>1:
+        col=row-1
+    else:
+        col=row
+
+    resolution_arr=[]
+    mean_arr=[]
+    resolution_cor_arr=[]
+    scale_arr=[]
+    avg_truth_arr=[]
+    slices_arr=[]
+    slices_pred_truth_arr=[]
+    slices_truth_arr=[]
+    scale_median_arr=[]
+    
+    res_stdev_pred_median_arr=[]
+    res_sigma_median_arr=[]
+    
+    
+    
+    if label=='energy':
+        xtitle='$E_{Pred}/E_{Truth}$'
+        unit='GeV'
+        y_ticks_size=14
+        x_ticks_size=14
+        major_x_locator=0.25
+           
+    elif label=='theta-energy':
+        xtitle='$\\theta_{pred} - \\theta_{true}$[mrad]' 
+        unit='GeV'
+        y_ticks_size=14
+        x_ticks_size=15
+        major_x_locator=0.5
+        
+        
+    elif label=='phi-energy':
+        xtitle='$\phi_{pred} - \phi_{true}$ [mrad]' 
+        unit='GeV'  
+        y_ticks_size=14
+        x_ticks_size=14
+        major_x_locator=200   
+       
+        
+    else:
+        print('PLEASE PROVIDE THE VARIABLE YOU WANT TO REGRESS')
+        return
+    
+    fig,axs = plt.subplots(row,col, figsize=(18, 15),sharex=False)#,constrained_layout=True)
+    plt.subplots_adjust(wspace=0, hspace=0.3)
+    if (len(truth) != len(pred)):
+        print("truth and prediction arrays must be same length")
+        #return
+    truth=np.rint(truth)
+    
+    indecies = np.digitize(truth,binning)-1 #Get the bin number each element belongs to.
+    indecies=np.where(indecies < 0, 0, indecies) # Returns array with # of entries in each bin [num bin0, num bin1, ..., num N_Bins-1]
+    max_count = np.bincount(indecies).max() # Grabs the number of entries that's the most
+
+    slices = np.empty((N_Bins,max_count+1)) # Slices is an array of N_Bins length, each with max_count entries
+    slices.fill(np.nan)
+    slices_truth=np.empty((N_Bins,max_count+1))
+    slices_truth.fill(np.nan)
+    slices_pid = np.empty((N_Bins,max_count+1)) # Slices is an array of N_Bins length, each with max_count entries
+    slices_pid.fill(np.nan)
+    
+    
+    scale_array = np.empty((N_Bins,max_count+1))
+    scale_array.fill(np.nan)
+
+    counter = np.zeros(N_Bins,int) #for getting mean from sum, and incrementing element number in bin                                                                
+    avg_truth = np.zeros(N_Bins,float)
+    pred_over_truth = np.zeros(N_Bins,float)
+    xticks=np.linspace(0,100,6)
+    one_ytics=round(max_count,-3)## round to thousands place                                                                                                            
+    yticks=np.linspace(0,one_ytics,6)
+    
+    #print(binning)
+    
+    for i in range(len(pred)):
+        bin = indecies[i]
+        if (bin>=N_Bins): continue
+        slices[bin][counter[bin]] = pred[i] #slice_array[bin number][element number inside bin] = pred[i]                                                            
+        slices_truth[bin][counter[bin]] = truth[i]
+        slices_pid[bin][counter[bin]] = true_pid[i]    
+        
+        avg_truth[bin]+=truth[i]
+        pred_over_truth[bin] += pred[i]/truth[i]
+
+        if label=='energy':
+            scale_array[bin][counter[bin]] = pred[i]/truth[i]
+        elif (label=='theta-energy') or (label=='phi-energy'):
+            scale_array[bin][counter[bin]] = pred[i]
+        
+        counter[bin]+=1
+    counter[counter == 0] = 1
+    
+    avg_truth = avg_truth/counter
+
+    stdev_pred = np.nanstd(scale_array,axis=1)
+    avg_pred   = np.nanmean(scale_array,axis=1)
+    
+    stdev_truth = np.nanstd(slices_truth,axis=1)
+    scale_median_comp=np.nanmedian(scale_array,axis=-1)
+    median_pred=np.nanmedian(slices,axis=-1)
+    
+    for ii in range(0,N_Bins):
+        ## guess parameters for fitting      
+                                   
+        mean_guess=avg_pred[ii]
+        sigma_guess=stdev_pred[ii]
+        #print(ii,'   mean guess.  ', mean_guess,'  binning ',binning[ii], ' - ', binning[ii+1])
+        
+        ## min and max range for histogram to be fitted to extract resolution/scale                                                                                  
+        min_range=mean_guess - plot_range*sigma_guess
+        max_range=mean_guess + plot_range*sigma_guess
+        
+        if label=='energy':
+            if min_range<0:
+                min_range=0.2
+    
+
+        irow=int(ii/col)
+        icol=int(ii%col)
+        if irow<row:
+            
+            ax = axs[irow,icol]
+            count, bins,_=ax.hist(scale_array[ii].ravel()[slices_pid[ii].ravel()==particle_id],bins=nbins,alpha=0.5,range=(min_range,max_range),label='HCAL',color='b',linewidth=8)
+            
+            count=count[~np.isnan(count)]
+            bins=bins[~np.isnan(bins)]
+            
+            binscenters = np.array([0.5 * (bins[i] + bins[i+1]) for i in range(len(bins)-1)])
+            
+          
+            # PARAMETER BOUNDS ARE NOT USED FOR NOW
+            if fit:
+                mean, std=gaussian_fit_on_distribution(FIT_SIGMA, sigma_guess, mean_guess, binscenters,  count,ax, min_range, max_range)
+                #, binning[i], binning[i+1])
+            else:
+                mean=mean_guess
+                std=sigma_guess
+        
+            for_plot=round(avg_truth[ii])
+            y_text_val=int(np.max(count))*0.7
+            
+            ax.set_title("{0} {1}".format(binning[ii], unit), fontsize=15)
+        
+            
+            if ((irow==row-1) & (icol==int(col/2))):
+                ax.set_xlabel('{0}'.format(xtitle),fontsize=25) 
+    
+            if icol==0:
+                ax.set_ylabel("Entries",fontsize=15)
+
+
+            ax.tick_params(axis='x', labelsize=x_ticks_size)
+            ax.tick_params(axis='y', labelsize=y_ticks_size)
+            scale=mean
+            
+            mean_arr.append(mean)
+            avg_truth_arr.append(avg_truth[ii])
+            
+            if label=='energy':
+                resolution=(std/mean)  #/scale    #Scale corrected Strawman
+                
+                slices_pred_truth=  scale_array[ii] #slices[ii] /slices_truth[ii]
+                scale_arr.append(scale)
+                slices_arr.append(slices[ii])
+                slices_pred_truth_arr.append(slices_pred_truth)
+            elif label=='theta' or label=='phi' or label =='theta-energy' or label =='phi-energy':
+                 resolution=std
+                
+            else:
+                print("Please provide the right label like energy or theta")
+            resolution_arr.append(resolution)
+            
+        else:
+            continue
             
     if label=='energy' or label=='theta-energy' or label=='phi-energy':      
         return resolution_arr, scale_arr, avg_truth_arr, slices_arr, slices_pred_truth_arr
@@ -814,6 +1003,176 @@ def get_res_scale_fit_log10_log2(truth,pred, binning, nbins, data_type, particle
     
     #return avg_truth, mean_arr
 
+
+def plot_classification(energies, truth, pred, binning, nbins, id_cut):   
+    # id_cut is the number below which the model number will be called a photon, above which it is a pi0
+    N_Bins=len(binning)
+    row=math.ceil(np.sqrt(N_Bins-1))
+    if (row**2-N_Bins)>1:
+        col=row-1
+    else:
+        col=row
+
+    xtitle='Predicted particle'
+    y_ticks_size=14
+    x_ticks_size=14
+    
+    fig,axs = plt.subplots(row,col, figsize=(24, 20),sharex=False)#,constrained_layout=True)
+    plt.subplots_adjust(wspace=0, hspace=0.35)
+    if (len(truth) != len(pred)):
+        print("truth and prediction arrays must be same length")
+    energies=np.rint(energies)
+    indecies = np.digitize(energies,binning)-1 #Get the bin number each element belongs to.
+    indecies=np.where(indecies < 0, 0, indecies) # Returns array with # of entries in each bin [num bin0, num bin1, ..., num N_Bins-1]
+
+    max_count = np.bincount(indecies).max() # Grabs the number of entries that's the most
+    slices = np.empty((N_Bins,max_count+1)) # Slices is an array of N_Bins length, each with max_count entries
+    slices.fill(np.nan)
+    slices_truth=np.empty((N_Bins,max_count+1))
+    slices_truth.fill(np.nan)
+    
+    counter = np.zeros(N_Bins,int) #for getting mean from sum, and incrementing element number in bin                                                                
+    
+    for i in range(len(energies)):
+        bin = indecies[i]
+        if (bin>=N_Bins): continue
+        slices[bin][counter[bin]] = pred[i] #slice_array[bin number][element number inside bin] = pred[i]                                                            
+        slices_truth[bin][counter[bin]] = truth[i]        
+        counter[bin]+=1
+    
+    counter[counter == 0] = 1
+    photon_id_accuracy = np.zeros(N_Bins)
+    pi0_id_accuracy = np.zeros(N_Bins)
+    total_id_accuracy = np.zeros(N_Bins)
+    photon_misidentification = np.zeros(N_Bins)
+    pi0_misidentification = np.zeros(N_Bins)
+    total_misidentification = np.zeros(N_Bins)
+
+    for ii in range(N_Bins):
+                                   
+        irow=int(ii/col)
+        icol=int(ii%col)
+        
+        if irow<row:
+            
+            ax = axs[irow,icol]
+            count_photons, bins_photons,_ = ax.hist(slices[ii].ravel()[slices_truth[ii].ravel()==0],bins=nbins,alpha=0.5,range=(0,1),label='photon',color='b',linewidth=8)
+            count_pi0, bins_pi0, _ = ax.hist(slices[ii].ravel()[slices_truth[ii].ravel()==1],bins=nbins,alpha=0.5,range=(0,1),label='pi0',color='r',linewidth=8)
+
+            count_photons=count_photons[~np.isnan(count_photons)]
+            bins_photons=bins_photons[~np.isnan(bins_photons)]
+            binscenters_photons = np.array([0.5 * (bins_photons[i] + bins_photons[i+1]) for i in range(len(bins_photons)-1)])
+           
+            count_pi0=count_pi0[~np.isnan(count_pi0)]
+            bins_pi0=bins_pi0[~np.isnan(bins_pi0)]
+            binscenters_pi0 = np.array([0.5 * (bins_pi0[i] + bins_pi0[i+1]) for i in range(len(bins_pi0)-1)])
+            if not np.array_equal(binscenters_photons, binscenters_pi0):
+                print("Binning between pi0 and photons is not the same!")
+            
+            total_photon_events = np.sum(count_photons)
+            total_pi0_events = np.sum(count_pi0)
+
+            for i_bin, bin_value in enumerate(binscenters_photons):
+                if bin_value < id_cut or bin_value == id_cut:                    
+                    photon_id_accuracy[ii] += count_photons[i_bin]
+                    total_id_accuracy[ii] += count_photons[i_bin]
+                    pi0_misidentification[ii] += count_pi0[i_bin]
+                    total_misidentification[ii] += count_pi0[i_bin]
+                elif bin_value > id_cut:
+                    pi0_id_accuracy[ii] += count_pi0[i_bin]
+                    total_id_accuracy[ii] += count_pi0[i_bin]
+                    photon_misidentification[ii] += count_photons[i_bin]
+
+            photon_id_accuracy[ii] /= total_photon_events
+            pi0_id_accuracy[ii] /= total_pi0_events
+            total_id_accuracy[ii] /= (total_photon_events + total_pi0_events)
+            photon_misidentification[ii] /= total_photon_events
+            pi0_misidentification[ii] /= total_pi0_events
+            total_misidentification[ii] /= (total_photon_events + total_pi0_events)
+
+            ax.legend(title="Incident particle")
+            ax.set_title("{0} GeV".format(binning[ii]), fontsize=15)
+            ax.tick_params(axis='x', labelsize=x_ticks_size)
+            ax.tick_params(axis='y', labelsize=y_ticks_size)
+        else:
+            continue
+    fig.add_subplot(111, frameon=False)
+    plt.tick_params(labelcolor='none', which='both', top=False, bottom=False, left=False, right=False)
+    plt.xlabel("Predicted particle", fontsize=24, labelpad=20)
+    plt.ylabel("Entries", fontsize=24, labelpad=20)
+            
+    return photon_id_accuracy, pi0_id_accuracy, total_id_accuracy, photon_misidentification, pi0_misidentification, total_misidentification
+
+def plot_num_photons(energies, num_photons, binning):   
+    N_Bins=len(binning)
+    row=math.ceil(np.sqrt(N_Bins-1))
+    if (row**2-N_Bins)>1:
+        col=row-1
+    else:
+        col=row
+    y_ticks_size=14
+    x_ticks_size=14
+    
+    fig,axs = plt.subplots(row,col, figsize=(24, 20),sharex=False)#,constrained_layout=True)
+    plt.subplots_adjust(wspace=0, hspace=0.35)
+    energies=np.rint(energies)
+    indecies = np.digitize(energies,binning)-1 #Get the bin number each element belongs to.
+    indecies=np.where(indecies < 0, 0, indecies) # Returns array with # of entries in each bin [num bin0, num bin1, ..., num N_Bins-1]
+    max_count = np.max(np.bincount(indecies)) # Grabs the number of entries that's the most
+    slices = np.empty((N_Bins,max_count+1)) # Slices is an array of N_Bins length, each with max_count entries
+    slices.fill(np.nan)
+    slices_truth=np.empty((N_Bins,max_count+1))
+    slices_truth.fill(np.nan)
+    
+    counter = np.zeros(N_Bins,int) #for getting mean from sum, and incrementing element number in bin                                                                
+    
+    for i in range(len(energies)):
+        bin = indecies[i]
+        if (bin>=N_Bins): continue
+        slices[bin][counter[bin]] = num_photons[i] #slice_array[bin number][element number inside bin] = pred[i]                                                            
+        counter[bin]+=1
+    
+    counter[counter == 0] = 1
+    fraction_two_photon_events = np.zeros(N_Bins)
+    fraction_one_photon_events = np.zeros(N_Bins)
+    fraction_zero_photon_events = np.zeros(N_Bins)
+
+    for ii in range(N_Bins):
+                                   
+        irow=int(ii/col)
+        icol=int(ii%col)
+        num_photons_per_event = slices[ii].ravel()[~np.isnan(slices[ii].ravel())] 
+        for entry in num_photons_per_event:
+            if entry == 2:
+                fraction_two_photon_events[ii] += 1
+            elif entry == 1:
+                fraction_one_photon_events[ii] += 1
+            elif entry == 0:
+                fraction_zero_photon_events[ii] += 1
+        fraction_two_photon_events[ii] = fraction_two_photon_events[ii] / len(num_photons_per_event) if len(num_photons_per_event) != 0 else 0 
+        fraction_one_photon_events[ii] = fraction_one_photon_events[ii] / len(num_photons_per_event) if len(num_photons_per_event) != 0 else 0 
+        fraction_zero_photon_events[ii] = fraction_zero_photon_events[ii] / len(num_photons_per_event) if len(num_photons_per_event) != 0 else 0 
+
+        if irow<row:
+            
+            ax = axs[irow,icol]
+            count_photons, bins_photons,_ = ax.hist(slices[ii].ravel(),bins=3,alpha=0.5,range=(0,3),color='b',linewidth=8)
+
+            count_photons=count_photons[~np.isnan(count_photons)]
+            bins_photons=bins_photons[~np.isnan(bins_photons)]
+            binscenters_photons = np.array([0.5 * (bins_photons[i] + bins_photons[i+1]) for i in range(len(bins_photons)-1)])
+
+            ax.set_title("{0} GeV".format(binning[ii]), fontsize=15)
+            ax.tick_params(axis='x', labelsize=x_ticks_size)
+            ax.tick_params(axis='y', labelsize=y_ticks_size)
+        else:
+            continue
+    fig.add_subplot(111, frameon=False)
+    plt.tick_params(labelcolor='none', which='both', top=False, bottom=False, left=False, right=False)
+    plt.xlabel("Number of photons", fontsize=24, labelpad=20)
+    plt.ylabel("Entries", fontsize=24, labelpad=20)
+            
+    return fraction_two_photon_events, fraction_one_photon_events, fraction_zero_photon_events
 def generate_file_name_dict(input_dims, latent_sizes,num_layers, learning_rates, folders_used, data_types,labels, particles):
     file_name_dict = {}
     path_to_result_dir='/media/miguel/Elements/Data_hcali/Data1/log10_Uniform_03-23/DeepSets_output'
@@ -952,8 +1311,8 @@ def compare_energy_response_E_over_pred(files_pred_truth, Gen_Energy, data_type,
 
                 
                 if(ratio_E_pred):
-                    min_range=-0.5
-                    max_range=0.5
+                    min_range=-1
+                    max_range=3
                     
                     ytitle="$E_{Truth}$"
                     xlabel_title=r'$\frac{E_{Pred} - E_{Truth}}{E_{Truth}}$'
@@ -1063,12 +1422,12 @@ def get_cluster_sum_from_hits(detector, ur_tree):
         
     elif detector=="zdc":
         detector_name= "ZDCHcalHitsReco"
-        sampling_fraction=0.0224
+        sampling_fraction=0.02
         MIP_TH=MIP_TH_HCAL    
 
-    elif detector=="hcal_insert":
+    elif detector=="insert":
         detector_name= "HcalEndcapPInsertHitsReco"
-        sampling_fraction=0.0089
+        sampling_fraction=0.0203 # 0.0089
         MIP_TH=MIP_TH_HCAL
 
     elif detector =='ecal':
@@ -1129,7 +1488,7 @@ def read_root_files_chain(data_dir, hadronic_detector, start,total_files, ecal_h
         root_gen_P = np.sqrt(genPx*genPx + genPy*genPy + genPz*genPz)
         gen_energy=np.sqrt(root_gen_P**2 + mass**2)
         theta = np.arccos(genPz/root_gen_P)*180/np.pi
-        
+
         cluster_sum_hcal= get_cluster_sum_from_hits(hadronic_detector, ur_tree)
         if ecal_hcal_both:
             cluster_sum_ecal= get_cluster_sum_from_hits('ecal', ur_tree)
@@ -1160,9 +1519,78 @@ def read_root_files_chain(data_dir, hadronic_detector, start,total_files, ecal_h
         combined_cluster_sums_ecal=combined_cluster_sums_hcal ## if there is not ecal then hcal = ecal for easy ness
         return combined_genP, combined_thetas, combined_cluster_sums_hcal,  None, combined_total_energy
     
+def read_pi0_files_chain(data_dir, start,total_files):
+   
+    root_files_total = np.sort(glob.glob(data_dir+'*root'))
+    file_list=root_files_total[start:total_files]
+    genP=[]
+    thetas=[]
+    num_photons_in_zdc=[]
+    zdc_energy=[] 
 
-      
-        
+    zdc_zmin = 3750.0 # in cm
+    zdc_width = 59.6 # in cm
+    zdc_height = 59.7485 # in cm
+    zdc_xmin = -zdc_width/2 # in cm
+    zdc_xmax = zdc_width/2 # in cm
+    zdc_ymin = -zdc_height/2 # in cm
+    zdc_ymax = zdc_height/2 # in cm
+
+    for file_name in file_list:
+        event_tree=uproot.open(file_name)['events']
+        num_entries=event_tree.num_entries
+        event_data = event_tree.arrays()
+        print("Total Entries. == ", num_entries)
+        incident_mask = event_data['MCParticles.generatorStatus']==1
+        genPx = event_data['MCParticles.momentum.x'][incident_mask]
+        genPy = event_data['MCParticles.momentum.y'][incident_mask]
+        genPz = event_data['MCParticles.momentum.z'][incident_mask]
+        vertexX = event_data['MCParticles.vertex.x'][incident_mask]
+        vertexY = event_data['MCParticles.vertex.y'][incident_mask]
+        vertexZ = event_data['MCParticles.vertex.z'][incident_mask]
+        end_x = vertexX + genPx/genPz*zdc_zmin
+        end_y = vertexY + genPy/genPz*zdc_zmin
+        hits_zdc_mask = (end_x > zdc_xmin) & (end_x < zdc_xmax) & (end_y > zdc_ymin) & (end_y < zdc_ymax)
+        hits_zdc_photons = end_x[hits_zdc_mask]
+        num_photons_in_zdc_per_event = np.asarray([len(i) for i in hits_zdc_photons])
+
+        event_genPx = ak.sum(genPx, 1) 
+        event_genPy = ak.sum(genPy, 1)
+        event_genPz = ak.sum(genPz, 1)
+        event_genP = np.sqrt(event_genPx*event_genPx + event_genPy*event_genPy + event_genPz*event_genPz)
+        event_theta=np.arccos(event_genPz/event_genP)*1000  ## in milli radians
+    
+        genP.append(event_genP)
+        thetas.append(event_theta)
+        num_photons_in_zdc.append(num_photons_in_zdc_per_event)
+
+        detector_name= "ZDCHcalHitsReco"
+        sampling_fraction=0.021
+        MIP_TH=MIP_TH_HCAL    
+       
+        hit_raw =event_data[f'{detector_name}.energy']
+        time =event_data[f'{detector_name}.time']
+        condition1 = hit_raw > MIP_TH
+        condition2= time < time_TH
+        condition3= hit_raw < 1e10
+        combined_mask = condition1 & condition2 & condition3
+
+        hit_e = ak.mask(hit_raw, combined_mask)
+
+        cluster_raw = ak.sum(hit_e, axis=-1)
+        cluster_sum_temp = ak.to_numpy(cluster_raw)
+        cluster_sum=np.divide(cluster_sum_temp,sampling_fraction)
+        zdc_energy.append(cluster_sum)
+
+    
+    combined_genP = np.concatenate(genP)
+    combined_thetas=np.concatenate(thetas)
+    combined_num_photons_in_zdc = np.concatenate(num_photons_in_zdc)
+    combined_zdc_energies = np.concatenate(zdc_energy)
+
+    return combined_genP, combined_thetas, combined_num_photons_in_zdc, combined_zdc_energies
+    
+    
 def gaussian_fit_on_distribution(FIT_SIGMA, sigma_guess, mean_guess, binscenters,  count, ax, min_range, max_range):
             mask=(binscenters>(mean_guess-FIT_SIGMA*sigma_guess)) & (binscenters<(mean_guess+FIT_SIGMA*sigma_guess))
             error_counts=np.sqrt(count)
@@ -1198,7 +1626,7 @@ def get_hitE_genE_fromChain(detector, particle, start, stop):
         sampling_fraction=0.0139 #0.0224 (ATHENA CONFIG 0.0224 
         Mev_to_GeV=1
 
-    elif detector=="hcal_insert":
+    elif detector=="insert":
         detector_name= "HcalEndcapPInsertHitsReco"
         sampling_fraction=0.0089
         Mev_to_GeV=1
@@ -1468,8 +1896,8 @@ def read_start_stop_local(file_path, detector, NumEvents, include_ecal=True):
         sampling_fraction=0.0224
     elif detector=='ecal':
         detector_name = "EcalEndcapPHitsReco"
-        MIP_TH_ecal=0.5 * 0.13
-        Time_TH_ecal=150
+        MIP_TH=0.5 * 0.13
+        Time_TH=150
         theta_max=600.0
         sampling_fraction=1.0
         
@@ -1496,9 +1924,12 @@ def read_start_stop_local(file_path, detector, NumEvents, include_ecal=True):
     genPy = event_data['MCParticles.momentum.y'][:,2]
     genPz = event_data['MCParticles.momentum.z'][:,2]
     mass = event_data["MCParticles.mass"][:,2]
+    if detector != 'zdc':
+        genPx, genPz = rotateY(genPx, genPz, .025)
+    
     root_gen_P = np.sqrt(genPx*genPx + genPy*genPy + genPz*genPz)
     mom=np.sqrt(genPx*genPx + genPy*genPy + genPz*genPz)
-    theta=np.arccos(genPz/mom)*1000  ## in mili radians
+    theta=np.degrees(np.arccos(genPz/mom))  ## in mili radians
     gen_energy=np.sqrt(root_gen_P**2 + mass**2)
     
     hit_e =event_data[f'{detector_name}.energy']
@@ -1533,4 +1964,11 @@ def read_start_stop_local(file_path, detector, NumEvents, include_ecal=True):
    
     
     return hit_e, posx, posy, posz, genPx, genPy, gen_energy, theta, cluster_sum_total , cluster_sum_hcal, cluster_sum_ecal 
+
+def rotateY(xdata, zdata, angle):
+    s = np.sin(angle)
+    c = np.cos(angle)
+    rotatedz = c*zdata - s*xdata
+    rotatedx = s*zdata + c*xdata
+    return rotatedx, rotatedz
      
