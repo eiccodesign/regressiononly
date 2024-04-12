@@ -14,6 +14,9 @@ import argparse
 import yaml
 import compress_pickle as pickle
 
+import tf2onnx
+import onnx
+
 from generator_common import MPGraphDataGenerator
 import block as models
 
@@ -68,9 +71,20 @@ if __name__=="__main__":
     output_dir = data_config['output_dir']
     num_features = data_config['num_features']
     k = data_config['k']
+
+    z_segmentations = None
+    condition_zsections = data_config['condition_zsections']
+    print("\n","="*10, "Conditon on Z", condition_zsections, "="*10)
+
+    if condition_zsections:
+        z_segmentations = data_config['n_zsections']
+        print("\n","="*10, "N Z-sections =", z_segmentations, "="*10)
+
     hadronic_detector = data_config['hadronic_detector']
     include_ecal = data_config['include_ecal']
+
     # already_preprocessed = data_config['already_preprocessed']
+    # preprocess = True
     already_preprocessed = True
     calc_stats = False
 
@@ -123,11 +137,12 @@ if __name__=="__main__":
         exit()
 
 
+
     def get_batch(data_iter):
         for graphs, targets, meta in data_iter:
             graphs = convert_to_tuple(graphs)
             targets = tf.convert_to_tensor(targets, dtype=tf.float32)
-            
+
             yield graphs, targets
 
 
@@ -193,6 +208,7 @@ if __name__=="__main__":
 
         return graph
 
+    #Need to add number of z-segments here. Follow train_models.py Ex.
     data_gen_test = MPGraphDataGenerator(file_list=root_test_files,
                                          batch_size=batch_size,
                                          shuffle=shuffle,
@@ -205,14 +221,22 @@ if __name__=="__main__":
                                          num_features=num_features,
                                          hadronic_detector=hadronic_detector,
                                          include_ecal=include_ecal,
-                                         k=k)
+                                         k=k,
+                                         n_zsections = z_segmentations,
+                                         condition_zsections = condition_zsections)
 
 
 
     #samp_graph, samp_target = next(get_batch(data_gen_train.generator()))
     samp_graph, samp_target = next(get_batch(data_gen_test.generator()))
+    print('='*20,"GLOBALS = ", np.shape(samp_graph.globals))
+    print('='*20,"Nodes Shape = ", np.shape(samp_graph.nodes))
+    print(samp_graph.globals)
+    print(samp_graph.nodes)
+    # print('='*20,"keys = ",samp_graph)
     data_gen_test.kill_procs()
     graph_spec = utils_tf.specs_from_graphs_tuple(samp_graph, True, True, True)
+    input_signature=[graph_spec]
 
     mae_loss = tf.keras.losses.MeanAbsoluteError()
 
@@ -275,6 +299,30 @@ if __name__=="__main__":
     all_outputs = np.concatenate(all_outputs)
     all_targets_scaled = np.concatenate(all_targets_scaled)
     all_outputs_scaled = np.concatenate(all_outputs_scaled)
+    # /pscratch/sd/f/fernando/deepsets_models/ECCE_20240110-1855_deepsets_2D
+    # tf.save_model(model, result_dir + '/last_saved_model')
+    # model.save(result_dir+'/last_saved_model')
+    @tf.function(input_signature=input_signature)
+    def inference(x):
+        return model(x)
+
+
+    # tf2onnx
+    model_proto, _ = tf2onnx.convert.from_function(
+        inference,
+        input_signature=input_signature, opset=None, custom_ops=None,
+        custom_op_handlers=None, custom_rewriter=None,
+        inputs_as_nchw=None, extra_opset=None, shape_override=None,
+        target=None, large_model=False, output_path="./gnn.onnx")
+
+
+
+    tf.saved_model.save(model, result_dir+'/last_saved_model')
+    # to_onnx_model = tf.saved_model.load(result_dir+'/last_saved_model')
+    # onnx_model, _ = tf2onnx.convert.from_keras(to_onnx_model)
+    # onnx_model, _ = tf2onnx.convert.from_keras(to_onnx_model, input_signature)
+    # onnx.save(onnx_model, "first_ONNX_model.onnx")
+
     print(f"\n Done. Completed {np.shape(all_targets)}\n")
     # print("IGNORE ERROR BELOW")
     # print("       |  |")
@@ -282,7 +330,7 @@ if __name__=="__main__":
     # print("      \    /")
     # print("       \  /")
     # print("        \/\n")
-           
+
     np.savez(save_dir+'/predictions_appended_'+'_'.join(save_dir.split('/')[-2].split('_')[-2:])+'.npz', 
              targets=all_targets, targets_scaled=all_targets_scaled,
              outputs=all_outputs, outputs_scaled=all_outputs_scaled)

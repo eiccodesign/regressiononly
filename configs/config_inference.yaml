@@ -1,0 +1,48 @@
+data:
+  already_preprocessed: false
+  batch_size: 2048
+  calc_stats: false
+  condition_zsections: false
+  data_dir: /pscratch/sd/f/fernando/ECCE_data/
+  hadronic_detector: hcal
+  include_ecal: false
+  k: 10
+  n_zsections: 8
+  num_features: 2
+  num_procs: 4
+  num_test_files: 50
+  num_train_files: 10
+  num_val_files: 3
+  output_dir: /pscratch/sd/f/fernando/regressiononly/preprocessed
+  particle_type: pion
+  preprocess: true
+  shuffle: false
+model:
+  block_type: deepsets
+  concat_input: true
+  edge_block_opt:
+    use_edges: true
+    use_globals: true
+    use_receiver_nodes: true
+    use_sender_nodes: true
+  global_block_opt:
+    use_edges: false
+    use_globals: true
+    use_nodes: true
+  latent_size: 64
+  node_block_opt:
+    use_globals: true
+    use_nodes: true
+    use_received_edges: true
+    use_sent_edges: false
+  num_blocks: 1
+  num_layers: 4
+  reducer: mean
+training:
+  epochs: 100
+  hadronic_detector: hcal
+  include_ecal: false
+  learning_rate: 0.001
+  num_features: 4
+  output_dim: 2
+  save_dir: /pscratch/sd/f/fernando/deepsets_models/
