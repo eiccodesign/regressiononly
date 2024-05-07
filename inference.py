@@ -18,6 +18,9 @@ import compress_pickle as pickle
 from generator_common import MPGraphDataGenerator
 import block as models
 
+import tf2onnx
+import onnx
+
 if __name__=="__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--results_dir')
@@ -213,6 +216,7 @@ if __name__=="__main__":
     samp_graph, samp_target, samp_meta = next(get_batch(data_gen_test.generator()))
     data_gen_test.kill_procs()
     graph_spec = utils_tf.specs_from_graphs_tuple(samp_graph, True, True, True)
+    input_signature=[graph_spec]
 
     mae_loss = tf.keras.losses.MeanAbsoluteError()
     classification_loss =  tf.keras.losses.BinaryCrossentropy()
@@ -374,6 +378,17 @@ if __name__=="__main__":
     all_targets = np.concatenate(all_targets)
     all_outputs = np.concatenate(all_outputs)
     all_meta = np.concatenate(all_meta)
+
+    @tf.function(input_signature=input_signature)
+    def inference(x):
+        return model(x)
+
+    model_proto, _ = tf2onnx.convert.from_function(
+        inference,
+        input_signature=input_signature, opset=None, custom_ops=None,
+        custom_op_handlers=None, custom_rewriter=None,
+        inputs_as_nchw=None, extra_opset=None, shape_override=None,
+        target=None, large_model=False, output_path="./zdc_gnn.onnx")
 
 
     print(f"\n Done. Completed {np.shape(all_targets)}\n")
