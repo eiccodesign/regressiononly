@@ -753,7 +753,6 @@ def get_res_scale_fit_log10_log2(truth,pred, binning, nbins, data_type, particle
                 ax.set_title("{0:.1f} - {1:.1f} {2} ".format(binning[ii],  binning[ii+1], unit ) , fontsize=15)
             else: 
                 ax.set_title("{0} {1}".format(binning[ii], unit), fontsize=15)
-                # ax.set_title("{0} 100 GeV neutrons".format(ii+1), fontsize=15)
         
             
             if ((irow==row-1) & (icol==int(col/2))):
@@ -804,7 +803,6 @@ def get_res_scale_fit_log10_log2(truth,pred, binning, nbins, data_type, particle
             continue
     fig.add_subplot(111, frameon=False)
     plt.tick_params(labelcolor='none', which='both', top=False, bottom=False, left=False, right=False)
-    plt.xlabel("$E_{pred} (GeV)$", fontsize=24, labelpad=20)
 
     if label=='energy' or label=='theta-energy' or label=='phi-energy':      
         return resolution_arr, scale_arr, avg_truth_arr, slices_arr, slices_pred_truth_arr
