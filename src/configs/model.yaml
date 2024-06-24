@@ -1,0 +1,22 @@
+# Must be lowercase to be compatible with block.py
+
+block_type: graphnet
+concat_input: true
+edge_block_opt:
+    use_edges: true
+    use_globals: true
+    use_receiver_nodes: true
+    use_sender_nodes: true
+global_block_opt:
+    use_edges: false
+    use_globals: true
+    use_nodes: true
+node_block_opt:
+    use_globals: true
+    use_nodes: true
+    use_received_edges: true
+    use_sent_edges: false 
+num_blocks: 1
+num_layers: 4
+latent_size: 64
+reducer: mean

@@ -1,0 +1,40 @@
+
+
+# Data directories, specify training and test datasets.
+TRAINING_DATA_PATH: /media/miguel/Elements/zdc_data/zdc_neutron_log10continuous_10GeV-300GeV_0.0deg-0.3deg_staggered_h4_01_26_2024
+TEST_DATA_PATH: /media/miguel/Elements/zdc_data/zdc_neutron_log10discrete_10GeV-300GeV_0.0deg-0.3deg_staggered_h4_01_26_2024
+
+
+# Change this directory. Where the preprocessed data will be stored
+OUTPUT_DIR_PATH: ./src/data/preprocessed_data
+
+
+# Divide the datasets into about 75% training data, 25% validation. 
+# e.g. for 100 total continuous files, use 75 for num_train_files and 25 for num_val_files
+NUM_TRAIN_FILES: 0.75           # num_train_files & num_val_files are unused when use_classification is True. 
+NUM_VAL_FILES:  0.25
+BATCH_SIZE: 256  
+SHUFFLE_FILES: True 
+NUM_PROCESSES: 38             # Number of multiple processes used while preprocessing. 
+PREPROCESS_DATA: True         # If False, will use the already preprocessed data in output_dir. If True, will generate new preprocessed data
+CALC_NORMALIZER_STATS: True   # If True, will calculate the means and stedvs of the data. If False, will use means.p from output_dir
+NORMALIZER_SAMPLE_SIZE: 10    # Number of files used to calculate means and stdevs
+OUTPUT_DIMENSIONS: 3          # For now, 1 = energy only, 2 = energy + theta, 3 = energy + theta + phi
+ENERGY_WEIGHT: 0.33           # Weights are only used if output_dim == 2. Apply prefactors to energy & theta terms in loss function
+THETA_WEIGHT: 0.33
+PHI_WEIGHT: 0.33
+NUM_NEAREST_NEIGHBORS: 10     # number of nearest neighbors used in graph
+HADRONIC_DETECTOR: zdc_Fe     # hcal #zdc_Fe
+INCLUDE_ECAL: False           # Should be false for ZDC
+USE_CLASSIFICATION: False     # If True, will use classification for pi0/gamma events. Will use the num file variables below instead of num_train_files, num_val_files above
+REGRESSION_WEIGHT: 0.75       # Weight given to regression in loss function when classification is True
+CLASSIFICATION_WEIGHT: 0.25   # Weight given to classification in loss function when classification is True
+
+
+# Should use about the same amount of data for pi0 & gamma for training and validation
+# With 110 pi0 training files + 88 photon training files, get ~880k events for each particle
+# With 38 pi0 validation files + 30 photon validation files, get ~300k events for each particle
+NUM_PI0_TRAIN_FILES: 110 
+NUM_PI0_VAL_FILES: 38
+NUM_PHOTON_TRAIN_FILES: 88
+NUM_PHOTON_VAL_FILES: 30
