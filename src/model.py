@@ -345,7 +345,7 @@ class Model:
             self.regression_loss_fn = (
                 tf.keras.losses.MeanAbsoluteError()
             )
-        elif config.LOSS_FUNCTION.lower() == 'mae':
+        elif config.LOSS_FUNCTION.lower() == 'mse':
             self.regression_loss_fn = (
                 tf.keras.losses.MeanSquaredError()
             )
@@ -421,10 +421,12 @@ class Model:
 
         all_targets_scaled_theta=np.concatenate(all_targets_scaled_theta)
         all_targets_scaled_ene=np.concatenate(all_targets_scaled_ene)
+        all_targets_scaled_phi=np.concatenate(all_targets_scaled_phi)
         all_outputs_scaled_theta=np.concatenate(all_outputs_scaled_theta)
         all_outputs_scaled_ene=np.concatenate(all_outputs_scaled_ene)
-        all_targets_scaled=np.vstack((all_targets_scaled_ene, all_targets_scaled_theta)).T
-        all_outputs_scaled=np.vstack((all_outputs_scaled_ene, all_outputs_scaled_theta)).T
+        all_outputs_scaled_phi=np.concatenate(all_outputs_scaled_phi)
+        all_targets_scaled=np.vstack((all_targets_scaled_ene, all_targets_scaled_theta, all_targets_scaled_phi)).T
+        all_outputs_scaled=np.vstack((all_outputs_scaled_ene, all_outputs_scaled_theta, all_outputs_scaled_phi)).T
         all_meta = np.concatenate(all_meta)
 
         return all_targets_scaled, all_outputs_scaled, all_targets, all_outputs, all_meta
