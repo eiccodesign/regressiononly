@@ -133,15 +133,15 @@ class ConfigLoader:
 
         self.NODE_FEATURE_NAMES = [
             ".energy", 
-            ".position.x", 
-            ".position.y",
             ".position.z", 
+            ".position.x",
+            ".position.y", 
         ]
 
         self.EDGE_FEATURE_NAMES = [
-            ".position.x", 
-            ".position.y",
             ".position.z", 
+            ".position.x",
+            ".position.y", 
         ]
 
         self.NUM_NODE_FEATURES = len(self.NODE_FEATURE_NAMES)
