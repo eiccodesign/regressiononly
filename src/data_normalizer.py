@@ -114,23 +114,25 @@ class DataNormalizer:
         config = self.config
 
         file_num = worker_id
-
         file_name = self.file_list[file_num]
-        event_tree = ur.open(file_name)['events']
-        num_events = event_tree.num_entries
-        event_data = event_tree.arrays() 
+
+        with ur.open(f"{file_name}:events") as events:
+            event_data = events.arrays(["MCParticles.generatorStatus", "MCParticles.PDG",
+                        'MCParticles.momentum.x', 'MCParticles.momentum.y', 'MCParticles.momentum.z',
+                        config.DETECTOR_NAME+".energy", config.DETECTOR_NAME+".time",
+                        config.DETECTOR_NAME+".position.x", config.DETECTOR_NAME+".position.y", config.DETECTOR_NAME+".position.z"])
         
         file_means = {key:[] for key in config.SCALAR_KEYS}
         file_stdvs = {key:[] for key in config.SCALAR_KEYS}
         
-        cell_energy = event_data[config.DETECTOR_NAME + ".energy"]
-        time = event_data[config.DETECTOR_NAME + ".time"]
+        cell_energy = ak.values_astype(event_data[config.DETECTOR_NAME + ".energy"], np.float64)
+        time = ak.values_astype(event_data[config.DETECTOR_NAME + ".time"], np.float64)
         mask = ((cell_energy > config.ENERGY_TH) & 
                 (time < config.TIME_TH) & 
                 (cell_energy < 1e10))
 
         if config.INCLUDE_ECAL:
-            cell_energy_ecal = event_data[config.DETECTOR_ECAL + ".energy"]
+            cell_energy_ecal = ak.values_astype(event_data[config.DETECTOR_ECAL + ".energy"], np.float64)
             time_ecal = event_data[config.DETECTOR_ECAL + ".time"]
             mask_ecal = (
                 (cell_energy_ecal > config.ENERGY_TH_ECAL) & 
@@ -140,17 +142,17 @@ class DataNormalizer:
 
         for key in config.SCALAR_KEYS:
             if 'position' in key:
-                feature_data = event_data[config.DETECTOR_NAME + key][mask]
+                feature_data = ak.values_astype(event_data[config.DETECTOR_NAME + key][mask], np.float64)
                 if config.INCLUDE_ECAL:
-                    feature_data_ecal = event_data[config.DETECTOR_ECAL + key][mask_ecal]
+                    feature_data_ecal = ak.values_astype(event_data[config.DETECTOR_ECAL + key][mask_ecal], np.float64)
                     feature_data = ak.concatenate([feature_data, feature_data_ecal])
                 file_means[key].append(np.mean(feature_data))
                 file_stdvs[key].append(np.std(feature_data))
             elif '.energy' in key:
                 if 'Ecal' in key:  
-                    feature_data = np.log10(event_data[key][mask_ecal])
+                    feature_data = np.log10(cell_energy_ecal[mask_ecal])
                 else:
-                    feature_data = np.log10(event_data[key][mask])
+                    feature_data = np.log10(cell_energy[mask])
 
                 file_means[key].append(np.mean(feature_data))
                 file_stdvs[key].append(np.std(feature_data))
@@ -170,16 +172,16 @@ class DataNormalizer:
         num_particles = len(event_data["MCParticles.PDG"][incident_mask][0]) 
 
         if num_particles > 1:
-            momentum_x = ak.sum(event_data['MCParticles.momentum.x'][incident_mask], 1) 
-            momentum_y = ak.sum(event_data['MCParticles.momentum.y'][incident_mask], 1)
-            momentum_z = ak.sum(event_data['MCParticles.momentum.z'][incident_mask], 1)
+            momentum_x = ak.sum(ak.values_astype(event_data['MCParticles.momentum.x'][incident_mask], np.float64), 1)
+            momentum_y = ak.sum(ak.values_astype(event_data['MCParticles.momentum.y'][incident_mask], np.float64), 1)
+            momentum_z = ak.sum(ak.values_astype(event_data['MCParticles.momentum.z'][incident_mask], np.float64), 1)
         elif num_particles == 1:
-            momentum_x = ak.flatten(event_data['MCParticles.momentum.x'][incident_mask])
-            momentum_y = ak.flatten(event_data['MCParticles.momentum.y'][incident_mask])
-            momentum_z = ak.flatten(event_data['MCParticles.momentum.z'][incident_mask])
+            momentum_x = ak.flatten(ak.values_astype(event_data['MCParticles.momentum.x'][incident_mask], np.float64))
+            momentum_y = ak.flatten(ak.values_astype(event_data['MCParticles.momentum.y'][incident_mask], np.float64))
+            momentum_z = ak.flatten(ak.values_astype(event_data['MCParticles.momentum.z'][incident_mask], np.float64))
 
-        log_momentum = np.log10(np.sqrt(momentum_x**2 + momentum_y**2 + momentum_z**2))
         momentum = np.sqrt(momentum_x**2 + momentum_y**2 + momentum_z**2)
+        log_momentum = np.log10(momentum)
         theta = np.arccos(momentum_z/momentum)*1000  # in milli-radians
         phi = np.arctan2(momentum_y,momentum_x)
 
