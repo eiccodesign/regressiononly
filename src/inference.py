@@ -6,6 +6,7 @@ import tensorflow               as tf
 import block                    as external_models
 import logging
 import os
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
 from config_loader              import ConfigLoader
 from data_preprocessor          import DataPreprocessor
@@ -48,6 +49,12 @@ checkpoint = tf.train.Checkpoint(module=graph_net_model)
 best_ckpt_prefix = os.path.join(config.RESULT_DIR_PATH, '/best_model')
 best_ckpt = tf.train.latest_checkpoint(config.RESULT_DIR_PATH)
 last_ckpt_path = config.RESULT_DIR_PATH + '/last_saved_model'
+if os.path.exists(best_ckpt+'.index'):
+    print(f'Restoring {best_ckpt}')
+    checkpoint.restore(best_ckpt)
+else:
+    print("\nCould not load best checkpoint. EXITING\n")
+    exit()
 
 
 means_dict, stdvs_dict = normalizer.get_normalizer_dicts()
