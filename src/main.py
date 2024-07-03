@@ -6,7 +6,7 @@ import tensorflow               as tf
 import block                    as external_models
 import logging
 import os
-
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 from config_loader              import ConfigLoader
 from data_preprocessor          import DataPreprocessor
 from data_generator             import DataGenerator
