@@ -120,11 +120,12 @@ class DataPreprocessor:
                     target = self._get_momentum(event_data, event_index)
                 elif config.OUTPUT_DIMENSIONS == 2:
                     target = self._get_momentum_theta(event_data, event_index)
-                    if (target[1] * self.stdvs_dict["theta"] + self.means_dict["theta"]) > self.theta_max:
+                    if (target[1] * self.stdvs_dict["theta"] + self.means_dict["theta"]) > config.THETA_MAX:
                         continue
                 elif config.OUTPUT_DIMENSIONS == 3:
                     target = self._get_momentum_theta_phi(event_data, event_index)
-                
+                    if (target[1] * self.stdvs_dict["theta"] + self.means_dict["theta"]) > config.THETA_MAX:
+                        continue
                 if config.USE_CLASSIFICATION:
                     particle_type = self._get_particle_type(event_data, event_index, file_name)
                     target += (particle_type,)
@@ -141,8 +142,8 @@ class DataPreprocessor:
                     continue
 
                 graph = {
-                    'nodes': nodes.astype(np.float64), 
-                    'globals': global_node.astype(np.float64),
+                    'nodes': nodes.astype(np.float32), 
+                    'globals': global_node.astype(np.float32),
                     'senders': senders, 
                     'receivers': receivers, 
                     'edges': edges
@@ -180,8 +181,8 @@ class DataPreprocessor:
     def _get_graph_edges(self, event_data, event_index, num_nodes):
         config = self.config
         
-        cell_energy = ak.values_astype(event_data[event_index][config.DETECTOR_NAME + ".energy"], np.float64)
-        time = ak.values_astype(event_data[event_index][config.DETECTOR_NAME + ".time"], np.float64)
+        cell_energy = event_data[event_index][config.DETECTOR_NAME + ".energy"]
+        time = event_data[event_index][config.DETECTOR_NAME + ".time"]
         mask = (
             (config.ENERGY_TH < cell_energy) & 
             (time < config.TIME_TH) & 
@@ -189,8 +190,8 @@ class DataPreprocessor:
         )
 
         if config.INCLUDE_ECAL is True:
-            cell_energy_ecal = ak.values_astype(event_data[event_index][config.DETECTOR_ECAL + ".energy"], np.float64)
-            time_ecal = ak.values_astype(event_data[event_index][config.DETECTOR_ECAL + ".time"], np.float64)
+            cell_energy_ecal = event_data[event_index][config.DETECTOR_ECAL + ".energy"]
+            time_ecal = event_data[event_index][config.DETECTOR_ECAL + ".time"]
             mask_ecal = (
                 (cell_energy_ecal > config.ENERGY_TH_ECAL) & 
                 (time_ecal < config.TIME_TH) &
@@ -200,11 +201,11 @@ class DataPreprocessor:
         node_features = []
 
         for feature in config.EDGE_FEATURE_NAMES:
-            feature_data = ak.values_astype(event_data[event_index][config.DETECTOR_NAME + feature][mask], np.float64)
+            feature_data = event_data[event_index][config.DETECTOR_NAME + feature][mask]
             feature_data = (feature_data - self.means_dict[feature])/self.stdvs_dict[feature]
 
             if config.INCLUDE_ECAL is True:
-                feature_data_ecal = ak.values_astype(event_data[event_index][config.DETECTOR_ECAL + feature][mask_ecal], np.float64)
+                feature_data_ecal = event_data[event_index][config.DETECTOR_ECAL + feature][mask_ecal]
                 feature_data_ecal = (feature_data - self.means_dict[feature])/self.stdvs_dict[feature]
                 feature_data = np.concatenate((feature_data, feature_data_ecal))
 
@@ -224,9 +225,9 @@ class DataPreprocessor:
         neighbors.fit(node_features)
         distances, indices = neighbors.kneighbors(node_features)
         
-        senders = indices[:, 1:].flatten().astype(np.int64)
-        receivers = np.repeat(indices[:, 0], curr_k - 1).astype(np.int64)
-        edges = distances[:, 1:].reshape(-1, 1).astype(np.float64)
+        senders = indices[:, 1:].flatten().astype(np.int32)
+        receivers = np.repeat(indices[:, 0], curr_k - 1).astype(np.int32)
+        edges = distances[:, 1:].reshape(-1, 1).astype(np.float32)
 
         return senders, receivers, edges
 
@@ -235,8 +236,8 @@ class DataPreprocessor:
         config = self.config
 
         cell_data = []
-        cell_energy = ak.values_astype(event_data[config.DETECTOR_NAME + ".energy"], np.float64)
-        time = ak.values_astype(event_data[config.DETECTOR_NAME + ".time"], np.float64)
+        cell_energy = event_data[config.DETECTOR_NAME + ".energy"]
+        time = event_data[config.DETECTOR_NAME + ".time"]
         mask = (
             (cell_energy > config.ENERGY_TH) & 
             (time < config.TIME_TH) & 
@@ -245,8 +246,8 @@ class DataPreprocessor:
 
         if config.INCLUDE_ECAL is True:
             cell_data_ecal = []
-            cell_energy_ecal = ak.values_astype(event_data[config.DETECTOR_ECAL + ".energy"], np.float64)
-            time_ecal = ak.values_astype(event_data[config.DETECTOR_ECAL + ".time"], np.float64)
+            cell_energy_ecal = event_data[config.DETECTOR_ECAL + ".energy"]
+            time_ecal = event_data[config.DETECTOR_ECAL + ".time"]
             mask_ecal = (
                 (cell_energy_ecal > config.ENERGY_TH_ECAL) & 
                 (time_ecal < config.TIME_TH) & 
@@ -254,7 +255,7 @@ class DataPreprocessor:
             )
             
         for feature in config.NODE_FEATURE_NAMES:
-            feature_data = ak.values_astype(event_data[config.DETECTOR_NAME + feature][mask], np.float64)
+            feature_data = event_data[config.DETECTOR_NAME + feature][mask]
             if "energy" in feature:  
                 feature_data = np.log10(feature_data)
                 feature_data = (feature_data - self.means_dict[config.DETECTOR_NAME + feature])/self.stdvs_dict[config.DETECTOR_NAME+feature]
@@ -264,7 +265,7 @@ class DataPreprocessor:
             cell_data.append(feature_data)
 
             if config.INCLUDE_ECAL is True:
-                feature_data_ecal = ak.values_astype(event_data[config.DETECTOR_ECAL + feature][mask_ecal], np.float64)
+                feature_data_ecal = event_data[config.DETECTOR_ECAL + feature][mask_ecal]
 
                 if "energy" in feature:
                     feature_data_ecal = np.log10(feature_data_ecal)
@@ -293,12 +294,12 @@ class DataPreprocessor:
 
         config = self.config
 
-        cell_energy = ak.values_astype(event_data[config.DETECTOR_NAME+".energy"], np.float64)
+        cell_energy = event_data[config.DETECTOR_NAME+".energy"]
         cluster_calibration_energy = np.sum(cell_energy, axis = -1)
         cluster_calibration_energy /= config.SAMPLING_FRACTION
         
         if config.INCLUDE_ECAL is True:
-            cell_energy_ecal = ak.values_astype(event_data[config.DETECTOR_ECAL+".energy"], np.float64)
+            cell_energy_ecal = event_data[config.DETECTOR_ECAL+".energy"]
             cluster_calibration_E_ecal = np.sum(cell_energy_ecal, axis = -1)
             cluster_calibration_energy += cluster_calibration_E_ecal
 
@@ -321,9 +322,9 @@ class DataPreprocessor:
     def _get_momentum(self, event_data, event_index) -> np.ndarray:
         mask = self.mask_function(event_data)
 
-        momentum_x = np.float64(event_data['MCParticles.momentum.x'][mask][event_index, 0])
-        momentum_y = np.float64(event_data['MCParticles.momentum.y'][mask][event_index, 0])
-        momentum_z = np.float64(event_data['MCParticles.momentum.z'][mask][event_index, 0])
+        momentum_x = event_data['MCParticles.momentum.x'][mask][event_index, 0]
+        momentum_y = event_data['MCParticles.momentum.y'][mask][event_index, 0]
+        momentum_z = event_data['MCParticles.momentum.z'][mask][event_index, 0]
 
         momentum = np.log10(np.sqrt(momentum_x**2 + momentum_y**2 + momentum_z**2))
         momentum = (momentum - self.means_dict["momentum"]) / self.stdvs_dict["momentum"]
@@ -334,9 +335,9 @@ class DataPreprocessor:
     def _get_momentum_theta(self, event_data, event_index) -> Tuple[any, any]:
         mask = self.mask_function(event_data)
 
-        momentum_x = np.float64(event_data['MCParticles.momentum.x'][mask][event_index, 0])
-        momentum_y = np.float64(event_data['MCParticles.momentum.y'][mask][event_index, 0])
-        momentum_z = np.float64(event_data['MCParticles.momentum.z'][mask][event_index, 0])
+        momentum_x = event_data['MCParticles.momentum.x'][mask][event_index, 0]
+        momentum_y = event_data['MCParticles.momentum.y'][mask][event_index, 0]
+        momentum_z = event_data['MCParticles.momentum.z'][mask][event_index, 0]
 
         momentum = np.sqrt(momentum_x**2 + momentum_y**2 + momentum_z**2)
         theta = np.arccos(momentum_z/momentum)*1000
@@ -350,9 +351,9 @@ class DataPreprocessor:
 
     def _get_momentum_theta_phi(self, event_data, event_index) -> Tuple[any, any, any]:
         mask = self.mask_function(event_data)
-        momentum_x = np.float64(event_data['MCParticles.momentum.x'][mask][event_index, 0])
-        momentum_y = np.float64(event_data['MCParticles.momentum.y'][mask][event_index, 0])
-        momentum_z = np.float64(event_data['MCParticles.momentum.z'][mask][event_index, 0])
+        momentum_x = event_data['MCParticles.momentum.x'][mask][event_index, 0]
+        momentum_y = event_data['MCParticles.momentum.y'][mask][event_index, 0]
+        momentum_z = event_data['MCParticles.momentum.z'][mask][event_index, 0]
 
         momentum = np.sqrt(momentum_x**2 + momentum_y**2 + momentum_z**2)
         theta = np.arccos(momentum_z/momentum)*1000

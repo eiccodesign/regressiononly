@@ -126,7 +126,7 @@ class DataNormalizer:
         file_stdvs = {key:[] for key in config.SCALAR_KEYS}
         
         cell_energy = ak.values_astype(event_data[config.DETECTOR_NAME + ".energy"], np.float64)
-        time = ak.values_astype(event_data[config.DETECTOR_NAME + ".time"], np.float64)
+        time = event_data[config.DETECTOR_NAME + ".time"]
         mask = ((cell_energy > config.ENERGY_TH) & 
                 (time < config.TIME_TH) & 
                 (cell_energy < 1e10))
