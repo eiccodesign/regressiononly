@@ -60,7 +60,12 @@ else:
 means_dict, stdvs_dict = normalizer.get_normalizer_dicts()
 test_data = DataGenerator(config, root_files, "test")
 
-all_targets_scaled, all_outputs_scaled, all_targets, all_outputs, all_meta = model.get_pred_3D(test_data, means_dict, stdvs_dict)
+if config.OUTPUT_DIMENSIONS == 3:
+    all_targets_scaled, all_outputs_scaled, all_targets, all_outputs, all_meta = model.get_pred_3D(test_data, means_dict, stdvs_dict)
+elif config.OUTPUT_DIMENSIONS == 2:
+    all_targets_scaled, all_outputs_scaled, all_targets, all_outputs, all_meta = model.get_pred_2D(test_data, means_dict, stdvs_dict)
+elif config.OUTPUT_DIMENSIONS == 1:
+    all_targets_scaled, all_outputs_scaled, all_targets, all_outputs, all_meta = model.get_pred_1D(test_data, means_dict, stdvs_dict)
 
 all_targets = np.concatenate(all_targets)
 all_outputs = np.concatenate(all_outputs)
