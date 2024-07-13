@@ -117,10 +117,15 @@ class DataNormalizer:
         file_name = self.file_list[file_num]
 
         with ur.open(f"{file_name}:events") as events:
-            event_data = events.arrays(["MCParticles.generatorStatus", "MCParticles.PDG",
+            branch_names = ["MCParticles.generatorStatus", "MCParticles.PDG",
                         'MCParticles.momentum.x', 'MCParticles.momentum.y', 'MCParticles.momentum.z',
                         config.DETECTOR_NAME+".energy", config.DETECTOR_NAME+".time",
-                        config.DETECTOR_NAME+".position.x", config.DETECTOR_NAME+".position.y", config.DETECTOR_NAME+".position.z"])
+                        config.DETECTOR_NAME+".position.x", config.DETECTOR_NAME+".position.y", config.DETECTOR_NAME+".position.z"]
+            if config.INCLUDE_ECAL:
+                ecal_branches = [config.DETECTOR_ECAL + ".energy", config.DETECTOR_ECAL+".time",
+                config.DETECTOR_ECAL+".position.x", config.DETECTOR_ECAL+".position.y", config.DETECTOR_ECAL+".position.z"]
+                branch_names += ecal_branches
+            event_data = events.arrays(branch_names)
         
         file_means = {key:[] for key in config.SCALAR_KEYS}
         file_stdvs = {key:[] for key in config.SCALAR_KEYS}
@@ -161,6 +166,9 @@ class DataNormalizer:
 
         cluster_sum_E_hcal = ak.sum(cell_energy[mask], axis=-1)
         total_calibration_energy = cluster_sum_E_hcal / config.SAMPLING_FRACTION
+        if config.INCLUDE_ECAL:
+            cluster_sum_E_ecal = ak.sum(cell_energy_ecal[mask_ecal], axis=-1)
+            total_calibration_energy = total_calibration_energy + cluster_sum_E_ecal
 
         mask = total_calibration_energy > 0.0
         cluster_calib_E = np.log10(total_calibration_energy[mask])

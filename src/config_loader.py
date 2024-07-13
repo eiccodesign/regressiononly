@@ -127,9 +127,14 @@ class ConfigLoader:
                 "Invalid hadronic_detector argument in data.yaml"
             )
         
-        self.DETECTOR_ECAL = 'EcalEndcapPHitsReco'
-        self.MIP_ECAL = 0.13
-        self.ENERGY_TH_ECAL = 0.5 * self.MIP_ECAL
+        if self.HADRONIC_DETECTOR == 'zdc_Fe' or self.HADRONIC_DETECTOR == 'zdc_Pb':
+            self.DETECTOR_ECAL = 'ZDCEcalHitsReco'
+            self.MIP_ECAL = 0.088
+            self.ENERGY_TH_ECAL = 0.5 * self.MIP_ECAL
+        else:
+            self.DETECTOR_ECAL = 'EcalEndcapPHitsReco'
+            self.MIP_ECAL = 0.13
+            self.ENERGY_TH_ECAL = 0.5 * self.MIP_ECAL
 
         self.NODE_FEATURE_NAMES = [
             ".energy", 
@@ -176,7 +181,7 @@ class ConfigLoader:
             )
 
         if self.INCLUDE_ECAL is True:
-            self.SCALAR_KEYS += [self.DETECTOR_ECAL + self.NODE_FEATURE_NAMES]  
+            self.SCALAR_KEYS += [self.DETECTOR_ECAL + ".energy"]
 
         self.TRAINING_DATA_PATH = Path(self.TRAINING_DATA_PATH)
         self.NUM_TRAINING_FILES = sum(

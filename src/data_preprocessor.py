@@ -108,10 +108,15 @@ class DataPreprocessor:
         while file_num < self.num_files:
             file_name = self.file_list[file_num]
             with ur.open(f"{file_name}:events") as events:
-                event_data = events.arrays(["MCParticles.generatorStatus", "MCParticles.PDG",
-                            'MCParticles.momentum.x', 'MCParticles.momentum.y', 'MCParticles.momentum.z',
-                            config.DETECTOR_NAME+".energy", config.DETECTOR_NAME+".time",
-                            config.DETECTOR_NAME+".position.x", config.DETECTOR_NAME+".position.y", config.DETECTOR_NAME+".position.z"])
+                branch_names = ["MCParticles.generatorStatus", "MCParticles.PDG",
+                        'MCParticles.momentum.x', 'MCParticles.momentum.y', 'MCParticles.momentum.z',
+                        config.DETECTOR_NAME+".energy", config.DETECTOR_NAME+".time",
+                        config.DETECTOR_NAME+".position.x", config.DETECTOR_NAME+".position.y", config.DETECTOR_NAME+".position.z"]
+                if config.INCLUDE_ECAL:
+                    ecal_branches = [config.DETECTOR_ECAL + ".energy", config.DETECTOR_ECAL+".time",
+                    config.DETECTOR_ECAL+".position.x", config.DETECTOR_ECAL+".position.y", config.DETECTOR_ECAL+".position.z"]
+                    branch_names += ecal_branches
+                event_data = events.arrays(branch_names)
                 num_events = events.num_entries
             preprocessed_data = []
             
@@ -206,7 +211,7 @@ class DataPreprocessor:
 
             if config.INCLUDE_ECAL is True:
                 feature_data_ecal = event_data[event_index][config.DETECTOR_ECAL + feature][mask_ecal]
-                feature_data_ecal = (feature_data - self.means_dict[feature])/self.stdvs_dict[feature]
+                feature_data_ecal = (feature_data_ecal - self.means_dict[feature])/self.stdvs_dict[feature]
                 feature_data = np.concatenate((feature_data, feature_data_ecal))
 
             node_features.append(feature_data)
