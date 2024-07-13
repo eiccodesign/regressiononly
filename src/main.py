@@ -30,7 +30,10 @@ train_files, val_files = train_test_split(
 )
 
 def mask_function(event_data):
-    return event_data["MCParticles.generatorStatus"] == 1
+    if config.PARTICLE == "lambda":
+        return (event_data["MCParticles.generatorStatus"] == 2) & (event_data["MCParticles.PDG"]==3122)
+    else:
+        return event_data["MCParticles.generatorStatus"] == 1
 
 normalizer = DataNormalizer(config, val_files, "val")
 val_data = DataPreprocessor(

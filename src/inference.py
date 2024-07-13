@@ -26,7 +26,10 @@ root_files = glob(str(config.TEST_DATA_PATH / '*.root'))
 root_files = np.sort(root_files)
 
 def mask_function(event_data):
-    return event_data["MCParticles.generatorStatus"] == 1
+    if config.PARTICLE == "lambda":
+        return (event_data["MCParticles.generatorStatus"] == 2) & (event_data["MCParticles.PDG"]==3122)
+    else:
+        return event_data["MCParticles.generatorStatus"] == 1
 
 normalizer = DataNormalizer(config, root_files, "val")
 test_data = DataPreprocessor(config, root_files, "test", mask_function)

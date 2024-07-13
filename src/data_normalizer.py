@@ -176,7 +176,10 @@ class DataNormalizer:
         file_means['cluster_energy'].append(np.mean(cluster_calib_E))
         file_stdvs['cluster_energy'].append(np.std(cluster_calib_E))
 
-        incident_mask = event_data["MCParticles.generatorStatus"] == 1 
+        if config.PARTICLE == "lambda":
+            incident_mask = (event_data["MCParticles.generatorStatus"] == 2) & (event_data["MCParticles.PDG"]==3122) 
+        else:
+            incident_mask = event_data["MCParticles.generatorStatus"] == 1 
         num_particles = len(event_data["MCParticles.PDG"][incident_mask][0]) 
 
         if num_particles > 1:
