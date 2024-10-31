@@ -43,7 +43,7 @@ if config.USE_CLASSIFICATION:
 else:
     root_files = glob(str(config.TEST_DATA_PATH / '*.root'))
     particle_labels = np.full(len(root_files), config.PARTICLE)
-    root_files = list(zip(root_files, particle_labels))[:2]
+    root_files = list(zip(root_files, particle_labels))
 
 root_files = np.sort(root_files)
 config.CALC_NORMALIZER_STATS = False

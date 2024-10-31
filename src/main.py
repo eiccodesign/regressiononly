@@ -72,7 +72,7 @@ else:
     particle_labels = np.full(len(root_files), config.PARTICLE)
     root_files = list(zip(root_files, particle_labels))
     train_files, val_files = train_test_split(
-        root_files[:2],
+        root_files,
         train_size=config.TRAINING_FRACTION, 
         test_size=config.VALIDATION_FRACTION, 
         shuffle=config.SHUFFLE_FILES
