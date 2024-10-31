@@ -39,6 +39,8 @@ class Model:
         "Automatically determine model parameters"
         self.set_regression_loss_fn()
         self.set_optimizer()
+        if self.config.USE_CLASSIFICATION:
+            self.setup_classification()
 
         "Initialize logger for error warnings, and info"
         logging.basicConfig(
@@ -168,9 +170,9 @@ class Model:
         data_generator.kill_processes()
         graph_spec = utils_tf.specs_from_graphs_tuple(samp_graph, True, True, True)
 
-        if self.config.OUTPUT_DIMENSIONS == 1:
+        if self.config.REGRESSION_OUTPUT_DIMENSIONS == 1:
             self.provided_shape = [None,]
-        elif self.config.OUTPUT_DIMENSIONS == 2 or self.config.OUTPUT_DIMENSIONS == 3:
+        elif self.config.REGRESSION_OUTPUT_DIMENSIONS == 2 or self.config.REGRESSION_OUTPUT_DIMENSIONS == 3:
             self.provided_shape = [None, None]
         else:
             raise ModelException(
@@ -191,7 +193,17 @@ class Model:
             model = self.model
             with tf.GradientTape() as tape:
                 predictions = model(graphs).globals
-                loss = self.regression_loss_fn(targets, predictions)
+                if self.config.USE_CLASSIFICATION:
+                    predictions = tf.concat([predictions[:, :-1], tf.math.sigmoid(predictions[:, -1:])], axis=1)
+                    predictions_regression = predictions[:, :-1]
+                    predictions_classification = predictions[:, -1:]
+                    targets_regression = targets[:, :-1]
+                    targets_classification = targets[:, -1:]
+                    regression_loss = self.regression_weight*self.regression_loss_fn(targets_regression, predictions_regression)
+                    classification_loss = self.classification_weight*self.classification_loss_fn(targets_classification, predictions_classification)
+                    loss = regression_loss + classification_loss
+                else:
+                    loss = self.regression_loss_fn(targets, predictions)
             gradients = tape.gradient(loss, model.trainable_variables)
             self.optimizer.apply_gradients(zip(gradients, model.trainable_variables))
             return loss
@@ -207,7 +219,17 @@ class Model:
         def _wrapped_val_step(graphs, targets):
             model = self.model
             predictions = model(graphs).globals
-            loss = self.regression_loss_fn(targets, predictions)
+            if self.config.USE_CLASSIFICATION:
+                predictions = tf.concat([predictions[:, :-1], tf.math.sigmoid(predictions[:, -1:])], axis=1)
+                predictions_regression = predictions[:, :-1]
+                predictions_classification = predictions[:, -1:]
+                targets_regression = targets[:, :-1]
+                targets_classification = targets[:, -1:]
+                regression_loss = self.regression_weight*self.regression_loss_fn(targets_regression, predictions_regression)
+                classification_loss = self.classification_weight*self.classification_loss_fn(targets_classification, predictions_classification)
+                loss = regression_loss + classification_loss
+            else:
+                loss = self.regression_loss_fn(targets, predictions)
             return loss, predictions
         return _wrapped_val_step
 
@@ -370,7 +392,12 @@ class Model:
                 f"Unknown loss function: {config.LOSS_FUNCTION}"
             )
 
-
+    def setup_classification(self):
+        config = self.config
+        self.regression_weight = config.REGRESSION_WEIGHT
+        self.classification_weight = config.CLASSIFICATION_WEIGHT
+        self.classification_loss_fn = (tf.keras.losses.BinaryCrossentropy())
+    
     def get_pred_3D(self, data_generator: DataGenerator, means_dict: dict, stdvs_dict: dict):
         self._wrapped_val_step = self._create_wrapped_val_step(data_generator)
 
@@ -386,6 +413,9 @@ class Model:
         all_outputs_scaled_theta = []
         all_targets_scaled_phi = []
         all_outputs_scaled_phi = []
+        if self.config.USE_CLASSIFICATION:
+            all_outputs_classification = []
+            all_targets_classification = []
         all_meta = []
         start = time.time()
 
@@ -406,6 +436,12 @@ class Model:
             output_test_scaled_phi = (output_test[:,2]*stdvs_dict['phi'] + means_dict['phi'])
             targets_test_scaled_phi = (targets_test[:,2]*stdvs_dict['phi'] + means_dict['phi'])
 
+            if self.config.USE_CLASSIFICATION:
+                output_test_classification = (output_test[:, -1])
+                targets_test_classification = (targets_test[:, -1])
+                all_outputs_classification.append(output_test_classification)
+                all_targets_classification.append(targets_test_classification)
+
             all_targets.append(targets_test)
             all_outputs.append(output_test)
             all_meta.append(meta_test)
@@ -419,14 +455,34 @@ class Model:
             all_targets_scaled_phi.append(targets_test_scaled_phi)
             all_outputs_scaled_phi.append(output_test_scaled_phi)
 
+            if not (i)%100:
+                end = time.time()
+                print('Iter: {:03d}, Test_loss_curr: {:.4f}, Test_loss_mean: {:.4f}'. \
+                  format(i, test_loss[-1], np.mean(test_loss)), end='  ')
+                print('Took {:.3f} secs'.format(end-start))
+                start = time.time()
+
+            i += 1
+        
+        end = time.time()
+        print('Iter: {:03d}, Test_loss_curr: {:.4f}, Test_loss_mean: {:.4f}'. \
+          format(i, test_loss[-1], np.mean(test_loss)), end='  ')
+        print('Took {:.3f} secs'.format(end-start))
+
         all_targets_scaled_theta=np.concatenate(all_targets_scaled_theta)
         all_targets_scaled_ene=np.concatenate(all_targets_scaled_ene)
         all_targets_scaled_phi=np.concatenate(all_targets_scaled_phi)
         all_outputs_scaled_theta=np.concatenate(all_outputs_scaled_theta)
         all_outputs_scaled_ene=np.concatenate(all_outputs_scaled_ene)
         all_outputs_scaled_phi=np.concatenate(all_outputs_scaled_phi)
-        all_targets_scaled=np.vstack((all_targets_scaled_ene, all_targets_scaled_theta, all_targets_scaled_phi)).T
-        all_outputs_scaled=np.vstack((all_outputs_scaled_ene, all_outputs_scaled_theta, all_outputs_scaled_phi)).T
+        if self.config.USE_CLASSIFICATION:
+            all_targets_classification = np.concatenate(all_targets_classification)
+            all_outputs_classification = np.concatenate(all_outputs_classification)
+            all_targets_scaled=np.vstack((all_targets_scaled_ene, all_targets_scaled_theta, all_targets_scaled_phi, all_targets_classification)).T
+            all_outputs_scaled=np.vstack((all_outputs_scaled_ene, all_outputs_scaled_theta, all_outputs_scaled_phi, all_outputs_classification)).T
+        else:
+            all_targets_scaled=np.vstack((all_targets_scaled_ene, all_targets_scaled_theta, all_targets_scaled_phi)).T
+            all_outputs_scaled=np.vstack((all_outputs_scaled_ene, all_outputs_scaled_theta, all_outputs_scaled_phi)).T
         all_meta = np.concatenate(all_meta)
 
         return all_targets_scaled, all_outputs_scaled, all_targets, all_outputs, all_meta
@@ -445,6 +501,9 @@ class Model:
         all_outputs_scaled_ene = []
         all_targets_scaled_theta = []
         all_outputs_scaled_theta = []
+        if self.config.USE_CLASSIFICATION:
+            all_outputs_classification = []
+            all_targets_classification = []
         all_meta = []
         start = time.time()
 
@@ -462,6 +521,12 @@ class Model:
             output_test_scaled_theta = (output_test[:,1]*stdvs_dict['theta'] + means_dict['theta'])
             targets_test_scaled_theta = (targets_test[:,1]*stdvs_dict['theta'] + means_dict['theta'])
 
+            if self.config.USE_CLASSIFICATION:
+                output_test_classification = (output_test[:, -1])
+                targets_test_classification = (targets_test[:, -1])
+                all_outputs_classification.append(output_test_classification)
+                all_targets_classification.append(targets_test_classification)
+
             all_targets.append(targets_test)
             all_outputs.append(output_test)
             all_meta.append(meta_test)
@@ -472,12 +537,31 @@ class Model:
             all_targets_scaled_theta.append(targets_test_scaled_theta)
             all_outputs_scaled_theta.append(output_test_scaled_theta)
 
+            if not (i)%100:
+                end = time.time()
+                print('Iter: {:03d}, Test_loss_curr: {:.4f}, Test_loss_mean: {:.4f}'. \
+                  format(i, test_loss[-1], np.mean(test_loss)), end='  ')
+                print('Took {:.3f} secs'.format(end-start))
+                start = time.time()
+
+            i += 1
+        end = time.time()
+        print('Iter: {:03d}, Test_loss_curr: {:.4f}, Test_loss_mean: {:.4f}'. \
+          format(i, test_loss[-1], np.mean(test_loss)), end='  ')
+        print('Took {:.3f} secs'.format(end-start))
+
         all_targets_scaled_theta=np.concatenate(all_targets_scaled_theta)
         all_targets_scaled_ene=np.concatenate(all_targets_scaled_ene)
         all_outputs_scaled_theta=np.concatenate(all_outputs_scaled_theta)
         all_outputs_scaled_ene=np.concatenate(all_outputs_scaled_ene)
-        all_targets_scaled=np.vstack((all_targets_scaled_ene, all_targets_scaled_theta)).T
-        all_outputs_scaled=np.vstack((all_outputs_scaled_ene, all_outputs_scaled_theta)).T
+        if self.config.USE_CLASSIFICATION:
+            all_targets_classification = np.concatenate(all_targets_classification)
+            all_outputs_classification = np.concatenate(all_outputs_classification)
+            all_targets_scaled=np.vstack((all_targets_scaled_ene, all_targets_scaled_theta, all_targets_classification)).T
+            all_outputs_scaled=np.vstack((all_outputs_scaled_ene, all_outputs_scaled_theta, all_outputs_classification)).T
+        else:
+            all_targets_scaled=np.vstack((all_targets_scaled_ene, all_targets_scaled_theta)).T
+            all_outputs_scaled=np.vstack((all_outputs_scaled_ene, all_outputs_scaled_theta)).T
         all_meta = np.concatenate(all_meta)
 
         return all_targets_scaled, all_outputs_scaled, all_targets, all_outputs, all_meta
@@ -492,6 +576,9 @@ class Model:
         all_outputs = []
         all_targets_scaled = []
         all_outputs_scaled = []
+        if self.config.USE_CLASSIFICATION:
+            all_outputs_classification = []
+            all_targets_classification = []
         all_meta = []
         start = time.time()
 
@@ -499,11 +586,14 @@ class Model:
             losses_test, output_test = self._val_step(graph_data_test, targets_test)
             test_loss.append(losses_test.numpy())
             targets_test = targets_test.numpy()
-            output_test = output_test.numpy().reshape(-1)
-
-            output_test_scaled = 10**(output_test*stdvs_dict['momentum'] + means_dict['momentum'])
-            targets_test_scaled = 10**(targets_test*stdvs_dict['momentum'] + means_dict['momentum'])
-
+            if self.config.USE_CLASSIFICATION:
+                output_test = output_test.numpy()
+                output_test_scaled = 10**(output_test[:, 0] * stdvs_dict['momentum'] + means_dict['momentum'])
+                targets_test_scaled = 10**(targets_test[:, 0] * stdvs_dict['momentum'] + means_dict['momentum'])
+            else:
+                output_test = output_test.numpy().reshape(-1)
+                output_test_scaled = 10**(output_test * stdvs_dict['momentum'] + means_dict['momentum'])
+                targets_test_scaled = 10**(targets_test * stdvs_dict['momentum'] + means_dict['momentum'])
 
             all_targets.append(targets_test)
             all_outputs.append(output_test)
@@ -511,6 +601,12 @@ class Model:
 
             all_targets_scaled.append(targets_test_scaled)
             all_outputs_scaled.append(output_test_scaled)
+
+            if self.config.USE_CLASSIFICATION:
+                output_test_classification = (output_test[:, -1])
+                targets_test_classification = (targets_test[:, -1])
+                all_outputs_classification.append(output_test_classification)
+                all_targets_classification.append(targets_test_classification)
 
             if not (i)%100:
                 end = time.time()
@@ -526,9 +622,13 @@ class Model:
           format(i, test_loss[-1], np.mean(test_loss)), end='  ')
         print('Took {:.3f} secs'.format(end-start))
 
-        epoch_end = time.time()
         all_targets_scaled = np.concatenate(all_targets_scaled)
         all_outputs_scaled = np.concatenate(all_outputs_scaled)
+        if self.config.USE_CLASSIFICATION:
+            all_targets_classification = np.concatenate(all_targets_classification)
+            all_outputs_classification = np.concatenate(all_outputs_classification)
+            all_targets_scaled = np.vstack((all_targets_scaled, np.concatenate(all_targets_classification))).T
+            all_outputs_scaled = np.vstack((all_outputs_scaled, np.concatenate(all_outputs_classification))).T
         all_meta = np.concatenate(all_meta)
 
         return all_targets_scaled, all_outputs_scaled, all_targets, all_outputs, all_meta

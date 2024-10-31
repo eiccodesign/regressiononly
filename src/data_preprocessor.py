@@ -106,7 +106,9 @@ class DataPreprocessor:
         file_num = worker_id
 
         while file_num < self.num_files:
-            file_name = self.file_list[file_num]
+            file_name, particle_name = self.file_list[file_num]
+            if config.USE_CLASSIFICATION:
+                particle_type = self._get_particle_type(particle_name)
             with ur.open(f"{file_name}:events") as events:
                 branch_names = ["MCParticles.generatorStatus", "MCParticles.PDG",
                         'MCParticles.momentum.x', 'MCParticles.momentum.y', 'MCParticles.momentum.z',
@@ -121,18 +123,17 @@ class DataPreprocessor:
             preprocessed_data = []
             
             for event_index in range(num_events):
-                if config.OUTPUT_DIMENSIONS == 1:
-                    target = self._get_momentum(event_data, event_index)
-                elif config.OUTPUT_DIMENSIONS == 2:
-                    target = self._get_momentum_theta(event_data, event_index)
+                if config.REGRESSION_OUTPUT_DIMENSIONS == 1:
+                    target = self._get_momentum(event_data, event_index, particle_name)
+                elif config.REGRESSION_OUTPUT_DIMENSIONS == 2:
+                    target = self._get_momentum_theta(event_data, event_index, particle_name)
                     if (target[1] * self.stdvs_dict["theta"] + self.means_dict["theta"]) > config.THETA_MAX:
                         continue
-                elif config.OUTPUT_DIMENSIONS == 3:
-                    target = self._get_momentum_theta_phi(event_data, event_index)
+                elif config.REGRESSION_OUTPUT_DIMENSIONS == 3:
+                    target = self._get_momentum_theta_phi(event_data, event_index, particle_name)
                     if (target[1] * self.stdvs_dict["theta"] + self.means_dict["theta"]) > config.THETA_MAX:
                         continue
                 if config.USE_CLASSIFICATION:
-                    particle_type = self._get_particle_type(event_data, event_index, file_name)
                     target += (particle_type,)
 
                 nodes, global_node, cluster_num_nodes = self._get_graph_nodes(event_data, event_index)
@@ -156,6 +157,7 @@ class DataPreprocessor:
 
                 meta_data = [file_name]
                 meta_data.extend(self._get_meta(event_data, event_index))
+                meta_data.extend([particle_name])
                 preprocessed_data.append((graph, target, meta_data))
 
             data_dir_path = config.OUTPUT_DIR_PATH.resolve() / self.folder_name
@@ -324,8 +326,8 @@ class DataPreprocessor:
     meta data for momentum, theta, or phi.
     """
 
-    def _get_momentum(self, event_data, event_index) -> np.ndarray:
-        mask = self.mask_function(event_data)
+    def _get_momentum(self, event_data, event_index, particle_name) -> np.ndarray:
+        mask = self.mask_function(event_data, particle_name)
 
         momentum_x = event_data['MCParticles.momentum.x'][mask][event_index, 0]
         momentum_y = event_data['MCParticles.momentum.y'][mask][event_index, 0]
@@ -337,8 +339,8 @@ class DataPreprocessor:
         return momentum
 
 
-    def _get_momentum_theta(self, event_data, event_index) -> Tuple[any, any]:
-        mask = self.mask_function(event_data)
+    def _get_momentum_theta(self, event_data, event_index, particle_name) -> Tuple[any, any]:
+        mask = self.mask_function(event_data, particle_name)
 
         momentum_x = event_data['MCParticles.momentum.x'][mask][event_index, 0]
         momentum_y = event_data['MCParticles.momentum.y'][mask][event_index, 0]
@@ -354,8 +356,8 @@ class DataPreprocessor:
         return momentum, theta
 
 
-    def _get_momentum_theta_phi(self, event_data, event_index) -> Tuple[any, any, any]:
-        mask = self.mask_function(event_data)
+    def _get_momentum_theta_phi(self, event_data, event_index, particle_name) -> Tuple[any, any, any]:
+        mask = self.mask_function(event_data, particle_name)
         momentum_x = event_data['MCParticles.momentum.x'][mask][event_index, 0]
         momentum_y = event_data['MCParticles.momentum.y'][mask][event_index, 0]
         momentum_z = event_data['MCParticles.momentum.z'][mask][event_index, 0]
@@ -372,31 +374,15 @@ class DataPreprocessor:
         return momentum, theta, phi
 
 
-    def _get_particle_type(self, event_data, event_index) -> int:
-        incident_mask = event_data["MCParticles.generatorStatus"] == 1
-        pdg_data = event_data["MCParticles.PDG"][incident_mask][event_index]
-
-        particle_id = pdg_data[0]
-        num_particles = len(pdg_data)
-        is_single_particle = (num_particles == 1)
-        is_double_photon = (
-            num_particles == 2 and 
-            pdg_data[0] == 22 and 
-            pdg_data[1] == 22
-        )
-
-        if particle_id == 22 and is_single_particle:
+    def _get_particle_type(self, particle_name) -> int:
+        if particle_name == self.config.PARTICLE0:
             return 0
-        elif particle_id == 111 and is_single_particle:
-            return 1
-        elif is_double_photon:
+        elif particle_name == self.config.PARTICLE1:
             return 1
         else:
             raise DataPreprocessorException(
-                "Incident particle is not a photon or pi0. Classification " 
-                "not supported"
+                "Particle name doesn't match config particle names"
             )
-
 
     def _get_meta(self, event_data, event_index) -> list:
         """ 

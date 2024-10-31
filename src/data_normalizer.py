@@ -1,5 +1,5 @@
 from multiprocessing        import Process, Queue, Manager, Value, set_start_method
-from typing                 import List, Dict, Tuple, Any
+from typing                 import List, Dict, Tuple, Any, Callable
 from sklearn.neighbors      import NearestNeighbors
 from tabulate               import tabulate
 
@@ -21,13 +21,14 @@ class DataNormalizer:
         self, 
         config_loader: ConfigLoader, 
         file_list: list, 
-        folder_name: str
+        folder_name: str,
+        mask_function: Callable[[Any], Any]
     ):
         config = self.config = config_loader
         self.file_list = file_list
         self.folder_name = folder_name
         self.num_files = len(file_list)
-
+        self.mask_function = mask_function
         
         if config.CALC_NORMALIZER_STATS is True:
             print(f"Computing normalizer stats for {folder_name} folder")
@@ -114,7 +115,7 @@ class DataNormalizer:
         config = self.config
 
         file_num = worker_id
-        file_name = self.file_list[file_num]
+        file_name, particle_name = self.file_list[file_num]
 
         with ur.open(f"{file_name}:events") as events:
             branch_names = ["MCParticles.generatorStatus", "MCParticles.PDG",
@@ -175,31 +176,28 @@ class DataNormalizer:
 
         file_means['cluster_energy'].append(np.mean(cluster_calib_E))
         file_stdvs['cluster_energy'].append(np.std(cluster_calib_E))
-
-        if config.PARTICLE == "lambda":
-            incident_mask = (event_data["MCParticles.generatorStatus"] == 2) & (event_data["MCParticles.PDG"]==3122) 
-        else:
-            incident_mask = event_data["MCParticles.generatorStatus"] == 1 
-        num_particles = len(event_data["MCParticles.PDG"][incident_mask][0]) 
+        
+        truth_mask = self.mask_function(event_data, particle_name)
+        num_particles = len(event_data["MCParticles.PDG"][truth_mask][0]) 
 
         if num_particles > 1:
-            momentum_x = ak.sum(ak.values_astype(event_data['MCParticles.momentum.x'][incident_mask], np.float64), 1)
-            momentum_y = ak.sum(ak.values_astype(event_data['MCParticles.momentum.y'][incident_mask], np.float64), 1)
-            momentum_z = ak.sum(ak.values_astype(event_data['MCParticles.momentum.z'][incident_mask], np.float64), 1)
+            momentum_x = ak.sum(ak.values_astype(event_data['MCParticles.momentum.x'][truth_mask], np.float64), 1)
+            momentum_y = ak.sum(ak.values_astype(event_data['MCParticles.momentum.y'][truth_mask], np.float64), 1)
+            momentum_z = ak.sum(ak.values_astype(event_data['MCParticles.momentum.z'][truth_mask], np.float64), 1)
         elif num_particles == 1:
-            momentum_x = ak.flatten(ak.values_astype(event_data['MCParticles.momentum.x'][incident_mask], np.float64))
-            momentum_y = ak.flatten(ak.values_astype(event_data['MCParticles.momentum.y'][incident_mask], np.float64))
-            momentum_z = ak.flatten(ak.values_astype(event_data['MCParticles.momentum.z'][incident_mask], np.float64))
+            momentum_x = ak.flatten(ak.values_astype(event_data['MCParticles.momentum.x'][truth_mask], np.float64))
+            momentum_y = ak.flatten(ak.values_astype(event_data['MCParticles.momentum.y'][truth_mask], np.float64))
+            momentum_z = ak.flatten(ak.values_astype(event_data['MCParticles.momentum.z'][truth_mask], np.float64))
 
         momentum = np.sqrt(momentum_x**2 + momentum_y**2 + momentum_z**2)
         log_momentum = np.log10(momentum)
         theta = np.arccos(momentum_z/momentum)*1000  # in milli-radians
         phi = np.arctan2(momentum_y,momentum_x)
 
-        if config.OUTPUT_DIMENSIONS == 1:
+        if config.REGRESSION_OUTPUT_DIMENSIONS == 1:
             file_means['momentum'].append(ak.mean(log_momentum))
             file_stdvs['momentum'].append(ak.std(log_momentum))    
-        elif config.OUTPUT_DIMENSIONS == 2:
+        elif config.REGRESSION_OUTPUT_DIMENSIONS == 2:
             mask_theta = theta < config.THETA_MAX
             theta = theta[mask_theta]
             momentum = momentum[mask_theta]
@@ -207,7 +205,7 @@ class DataNormalizer:
             file_stdvs['momentum'].append(ak.std(log_momentum))
             file_means['theta'].append(ak.mean(theta))
             file_stdvs['theta'].append(ak.std(theta))
-        elif config.OUTPUT_DIMENSIONS == 3:
+        elif config.REGRESSION_OUTPUT_DIMENSIONS == 3:
             mask_theta = theta < config.THETA_MAX
             theta = theta[mask_theta]
             momentum = momentum[mask_theta]

@@ -97,7 +97,7 @@ class ConfigLoader:
             data_configs = yaml.safe_load(file)
             for key, value in data_configs.items():
               setattr(self, key, value)
-
+        
         if self.HADRONIC_DETECTOR == 'hcal':
             self.DETECTOR_NAME     = "HcalEndcapPHitsReco"
             self.SAMPLING_FRACTION = 0.0224
@@ -151,14 +151,14 @@ class ConfigLoader:
 
         self.NUM_NODE_FEATURES = len(self.NODE_FEATURE_NAMES)
 
-        if self.OUTPUT_DIMENSIONS == 1: # Energy regression only
+        if self.REGRESSION_OUTPUT_DIMENSIONS == 1: # Energy regression only
             self.SCALAR_KEYS = [
                 self.DETECTOR_NAME + ".energy",
                 *self.NODE_FEATURE_NAMES[1:],
                 "cluster_energy",
                 "momentum",
             ]
-        elif self.OUTPUT_DIMENSIONS == 2:  # Energy + theta regression
+        elif self.REGRESSION_OUTPUT_DIMENSIONS == 2:  # Energy + theta regression
             self.SCALAR_KEYS = [
                 self.DETECTOR_NAME + ".energy",
                 *self.NODE_FEATURE_NAMES[1:],
@@ -166,7 +166,7 @@ class ConfigLoader:
                 "momentum",
                 "theta",
             ]
-        elif self.OUTPUT_DIMENSIONS == 3: # Energy + theta + phi regression
+        elif self.REGRESSION_OUTPUT_DIMENSIONS == 3: # Energy + theta + phi regression
             self.SCALAR_KEYS = [
                 self.DETECTOR_NAME + ".energy",
                 *self.NODE_FEATURE_NAMES[1:],
@@ -183,16 +183,19 @@ class ConfigLoader:
         if self.INCLUDE_ECAL is True:
             self.SCALAR_KEYS += [self.DETECTOR_ECAL + ".energy"]
 
-        self.TRAINING_DATA_PATH = Path(self.TRAINING_DATA_PATH)
-        self.NUM_TRAINING_FILES = sum(
-            1 for file in self.TRAINING_DATA_PATH.iterdir() if file.is_file()
-        )
-
-        self.TEST_DATA_PATH = Path(self.TEST_DATA_PATH)
-        self.NUM_TEST_FILES = sum(
-            1 for file in self.TEST_DATA_PATH.iterdir() if file.is_file()
-        )
-        
+        if self.USE_CLASSIFICATION is True:
+            self.REGRESSION_WEIGHT = self.CLASSIFICATION_SETTINGS["REGRESSION_WEIGHT"]
+            self.CLASSIFICATION_WEIGHT = self.CLASSIFICATION_SETTINGS["CLASSIFICATION_WEIGHT"]
+            self.PARTICLE0 = self.CLASSIFICATION_SETTINGS["PARTICLE0"]
+            self.PARTICLE1 = self.CLASSIFICATION_SETTINGS["PARTICLE1"]
+            self.PARTICLE0_TRAINING_DATA_PATH = Path(self.CLASSIFICATION_SETTINGS["PARTICLE0_TRAINING_DATA_PATH"])
+            self.PARTICLE0_TEST_DATA_PATH = Path(self.CLASSIFICATION_SETTINGS["PARTICLE0_TEST_DATA_PATH"])
+            self.PARTICLE1_TRAINING_DATA_PATH = Path(self.CLASSIFICATION_SETTINGS["PARTICLE1_TRAINING_DATA_PATH"])
+            self.PARTICLE1_TEST_DATA_PATH = Path(self.CLASSIFICATION_SETTINGS["PARTICLE1_TEST_DATA_PATH"])
+        else:
+            self.TRAINING_DATA_PATH = Path(self.NO_CLASSIFICATION_SETTINGS["TRAINING_DATA_PATH"])
+            self.TEST_DATA_PATH = Path(self.NO_CLASSIFICATION_SETTINGS["TEST_DATA_PATH"])
+            self.PARTICLE = self.NO_CLASSIFICATION_SETTINGS["PARTICLE"]
         self.OUTPUT_DIR_PATH = Path(self.OUTPUT_DIR_PATH)    
 
         if self.PREPROCESS_DATA is True:
