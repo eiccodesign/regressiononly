@@ -6,7 +6,7 @@ import tensorflow               as tf
 import block                    as external_models
 import logging
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
 from config_loader              import ConfigLoader
 from data_preprocessor          import DataPreprocessor
@@ -14,7 +14,8 @@ from data_generator             import DataGenerator
 from data_normalizer            import DataNormalizer
 from model                      import Model
 
-
+import tf2onnx
+import onnx
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # Disable all logs except for fatal errors
 logging.getLogger('tensorflow').setLevel(logging.FATAL)
@@ -99,3 +100,15 @@ np.savez(config.RESULT_DIR_PATH+'/predictions_appended_test.npz',
             targets=all_targets, targets_scaled=all_targets_scaled,
             outputs=all_outputs, outputs_scaled=all_outputs_scaled,
             meta=all_meta)
+        
+input_signature = model._get_input_signature(test_data)
+@tf.function(input_signature=[input_signature[0]])
+def get_model(x):
+    return graph_net_model(x)
+# tf2onnx
+model_proto, _ = tf2onnx.convert.from_function(
+    get_model,
+    input_signature=[input_signature[0]], opset=None, custom_ops=None,
+    custom_op_handlers=None, custom_rewriter=None,
+    inputs_as_nchw=None, extra_opset=None, shape_override=None,
+    target=None, large_model=False, output_path=config.RESULT_DIR_PATH+"/gnn.onnx")
