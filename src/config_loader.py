@@ -105,11 +105,11 @@ class ConfigLoader:
             self.TIME_TH           = 150
             self.THETA_MAX         = 1000.0
         elif self.HADRONIC_DETECTOR == 'insert':
-            self.DETECTOR_NAME     = "HcalEndcapPInsertHitsReco"
-            self.SAMPLING_FRACTION = 0.0089
+            self.DETECTOR_NAME     = "HcalEndcapPInsertRecHits"
+            self.SAMPLING_FRACTION = 0.02
             self.ENERGY_TH         = 0.5 * 0.0006
             self.TIME_TH           = 150
-            self.THETA_MAX         = 76.0
+            self.THETA_MAX         = 10000000.0
         elif self.HADRONIC_DETECTOR == 'zdc_Fe':
             self.DETECTOR_NAME     = "ZDCHcalHitsReco"
             self.SAMPLING_FRACTION = 0.0203
@@ -132,7 +132,7 @@ class ConfigLoader:
             self.MIP_ECAL = 0.088
             self.ENERGY_TH_ECAL = 0.5 * self.MIP_ECAL
         else:
-            self.DETECTOR_ECAL = 'EcalEndcapPHitsReco'
+            self.DETECTOR_ECAL = 'EcalEndcapPInsertRecHits'
             self.MIP_ECAL = 0.13
             self.ENERGY_TH_ECAL = 0.5 * self.MIP_ECAL
 
