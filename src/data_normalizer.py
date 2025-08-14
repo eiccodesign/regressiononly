@@ -210,6 +210,7 @@ class DataNormalizer:
             mask_theta = theta < config.THETA_MAX
             theta = theta[mask_theta]
             momentum = momentum[mask_theta]
+            log_momentum = log_momentum[mask_theta]
             file_means['momentum'].append(ak.mean(log_momentum))
             file_stdvs['momentum'].append(ak.std(log_momentum))
             file_means['theta'].append(ak.mean(theta))
@@ -218,6 +219,8 @@ class DataNormalizer:
             mask_theta = theta < config.THETA_MAX
             theta = theta[mask_theta]
             momentum = momentum[mask_theta]
+            log_momentum = log_momentum[mask_theta]
+            phi = phi[mask_theta]
             file_means['momentum'].append(ak.mean(log_momentum))
             file_stdvs['momentum'].append(ak.std(log_momentum))
             file_means['theta'].append(ak.mean(theta))
