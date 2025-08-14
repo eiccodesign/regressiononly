@@ -103,29 +103,31 @@ class ConfigLoader:
             self.SAMPLING_FRACTION = 0.0224
             self.ENERGY_TH         = 0.5 * 0.0006
             self.TIME_TH           = 150
-            self.THETA_MAX         = 1000.0
+            self.THETA_MAX         = 1000.0 # in radians. Set to arbitrarily high number to avoid mask
         elif self.HADRONIC_DETECTOR == 'insert':
             self.DETECTOR_NAME     = "HcalEndcapPInsertRecHits"
             self.SAMPLING_FRACTION = 0.02
             self.ENERGY_TH         = 0.5 * 0.0006
             self.TIME_TH           = 150
-            self.THETA_MAX         = 10000000.0
+            self.THETA_MAX         = 10000000.0 # in radians. Set to arbitrarily high number to avoid mask
         elif self.HADRONIC_DETECTOR == 'zdc_Fe':
             self.DETECTOR_NAME     = "ZDCHcalHitsReco"
             self.SAMPLING_FRACTION = 0.0203
             self.ENERGY_TH         = 0.5 * 0.000472
             self.TIME_TH           = 275
-            self.THETA_MAX         = 10.0 
+            self.THETA_MAX         = 10.0 # in radians. Set to arbitrarily high number to avoid mask
         elif self.HADRONIC_DETECTOR == 'zdc_Pb':
             self.DETECTOR_NAME     = "ZDCHcalHitsReco"
             self.SAMPLING_FRACTION = 0.0216
             self.ENERGY_TH         = 0.5 * 0.000393
             self.TIME_TH           = 275
-            self.THETA_MAX         = 4.0
+            self.THETA_MAX         = 4.0 # in radians. Set to arbitrarily high number to avoid mask
         else:
             raise ConfigLoaderException(
                 "Invalid hadronic_detector argument in data.yaml"
             )
+        if self.THETA_UNITS == "mrad":
+            self.THETA_MAX = self.THETA_MAX*1000
         
         if self.HADRONIC_DETECTOR == 'zdc_Fe' or self.HADRONIC_DETECTOR == 'zdc_Pb':
             self.DETECTOR_ECAL = 'ZDCEcalHitsReco'

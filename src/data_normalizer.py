@@ -200,7 +200,9 @@ class DataNormalizer:
 
         momentum = np.sqrt(momentum_x**2 + momentum_y**2 + momentum_z**2)
         log_momentum = np.log10(momentum)
-        theta = np.arccos(momentum_z/momentum)*1000  # in milli-radians
+        theta = np.arccos(momentum_z/momentum)
+        if config.THETA_UNITS == "mrad":
+            theta = theta*1000  # in milli-radians
         phi = np.arctan2(momentum_y,momentum_x)
 
         if config.REGRESSION_OUTPUT_DIMENSIONS == 1:

@@ -1,6 +1,6 @@
 
 # Change this directory. Where the preprocessed data will be stored
-OUTPUT_DIR_PATH: /media/miguel/Elements_2024/AI_data/preprocessed_data/ePIC_preprocessed/august2025_lowgranularity_extended_eta_correctedSF_etamask_nomaxtheta/
+OUTPUT_DIR_PATH: /media/miguel/Elements_2024/AI_data/preprocessed_data/ePIC_preprocessed/august2025_lowgranularity_extended_eta_correctedSF_etamask_nomaxtheta_test/
 
 TRAINING_FRACTION: 0.75
 VALIDATION_FRACTION:  0.25
@@ -19,6 +19,7 @@ HADRONIC_DETECTOR: insert     # hcal #zdc_Fe
 INCLUDE_ECAL: True            # Should be false for ZDC
 ROTATE_DATA: False             # Rotate data to the proton axis
 USE_CLASSIFICATION: False     # If True, will use classification for pi0/gamma events. Will use the num file variables below instead of num_train_files, num_val_files above
+THETA_UNITS: mrad # rad or mrad
 
 NO_CLASSIFICATION_SETTINGS:
     PARTICLE: neutron
