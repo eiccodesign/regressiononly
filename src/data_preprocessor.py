@@ -325,6 +325,12 @@ class DataPreprocessor:
     The below functions are accessors for the returning the target values and
     meta data for momentum, theta, or phi.
     """
+    def _rotateY(self, xdata, zdata, angle):
+        s = np.sin(angle)
+        c = np.cos(angle)
+        rotatedz = c*zdata - s*xdata
+        rotatedx = s*zdata + c*xdata
+        return rotatedx, rotatedz
 
     def _get_momentum(self, event_data, event_index, particle_name) -> np.ndarray:
         mask = self.mask_function(event_data, particle_name)
@@ -332,6 +338,9 @@ class DataPreprocessor:
         momentum_x = event_data['MCParticles.momentum.x'][mask][event_index, 0]
         momentum_y = event_data['MCParticles.momentum.y'][mask][event_index, 0]
         momentum_z = event_data['MCParticles.momentum.z'][mask][event_index, 0]
+
+        if self.config.ROTATE_DATA:
+            momentum_x, momentum_z = self._rotateY(momentum_x, momentum_z, .025)
 
         momentum = np.log10(np.sqrt(momentum_x**2 + momentum_y**2 + momentum_z**2))
         momentum = (momentum - self.means_dict["momentum"]) / self.stdvs_dict["momentum"]
@@ -345,6 +354,9 @@ class DataPreprocessor:
         momentum_x = event_data['MCParticles.momentum.x'][mask][event_index, 0]
         momentum_y = event_data['MCParticles.momentum.y'][mask][event_index, 0]
         momentum_z = event_data['MCParticles.momentum.z'][mask][event_index, 0]
+        
+        if self.config.ROTATE_DATA:
+            momentum_x, momentum_z = self._rotateY(momentum_x, momentum_z, .025)
 
         momentum = np.sqrt(momentum_x**2 + momentum_y**2 + momentum_z**2)
         theta = np.arccos(momentum_z/momentum)*1000
@@ -361,6 +373,9 @@ class DataPreprocessor:
         momentum_x = event_data['MCParticles.momentum.x'][mask][event_index, 0]
         momentum_y = event_data['MCParticles.momentum.y'][mask][event_index, 0]
         momentum_z = event_data['MCParticles.momentum.z'][mask][event_index, 0]
+
+        if self.config.ROTATE_DATA:
+            momentum_x, momentum_z = self._rotateY(momentum_x, momentum_z, .025)
 
         momentum = np.sqrt(momentum_x**2 + momentum_y**2 + momentum_z**2)
         theta = np.arccos(momentum_z/momentum)*1000

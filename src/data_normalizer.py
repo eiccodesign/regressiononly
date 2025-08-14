@@ -189,6 +189,15 @@ class DataNormalizer:
             momentum_y = ak.flatten(ak.values_astype(event_data['MCParticles.momentum.y'][truth_mask], np.float64))
             momentum_z = ak.flatten(ak.values_astype(event_data['MCParticles.momentum.z'][truth_mask], np.float64))
 
+        def rotateY(xdata, zdata, angle):
+            s = np.sin(angle)
+            c = np.cos(angle)
+            rotatedz = c*zdata - s*xdata
+            rotatedx = s*zdata + c*xdata
+            return rotatedx, rotatedz
+        if config.ROTATE_DATA:
+            momentum_x, momentum_z = rotateY(momentum_x, momentum_z, .025)
+
         momentum = np.sqrt(momentum_x**2 + momentum_y**2 + momentum_z**2)
         log_momentum = np.log10(momentum)
         theta = np.arccos(momentum_z/momentum)*1000  # in milli-radians
