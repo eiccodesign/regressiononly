@@ -105,7 +105,7 @@ class Model:
                     start = time.time()
                     losses_val, output_vals = self._val_step(graph_data_val, targets_val)
                     targets_val = targets_val.numpy()
-                    output_vals = output_vals.numpy().squeeze()
+                    output_vals = output_vals.numpy().squeeze(axis=1) if config.REGRESSION_OUTPUT_DIMENSIONS==1 else output_vals.numpy()
                     val_loss.append(losses_val.numpy())
                     all_targets.append(targets_val)
                     all_outputs.append(output_vals)
