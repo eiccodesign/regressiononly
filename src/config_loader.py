@@ -151,36 +151,29 @@ class ConfigLoader:
             ".position.y", 
         ]
 
-        self.NUM_NODE_FEATURES = len(self.NODE_FEATURE_NAMES)
-
-        if self.REGRESSION_OUTPUT_DIMENSIONS == 1: # Energy regression only
-            self.SCALAR_KEYS = [
-                self.DETECTOR_NAME + ".energy",
-                *self.NODE_FEATURE_NAMES[1:],
-                "cluster_energy",
-                "momentum",
-            ]
-        elif self.REGRESSION_OUTPUT_DIMENSIONS == 2:  # Energy + theta regression
-            self.SCALAR_KEYS = [
-                self.DETECTOR_NAME + ".energy",
-                *self.NODE_FEATURE_NAMES[1:],
-                "cluster_energy",
-                "momentum",
-                "theta",
-            ]
-        elif self.REGRESSION_OUTPUT_DIMENSIONS == 3: # Energy + theta + phi regression
-            self.SCALAR_KEYS = [
-                self.DETECTOR_NAME + ".energy",
-                *self.NODE_FEATURE_NAMES[1:],
-                "cluster_energy",
-                "momentum",
-                "theta",
-                "phi"
-            ]
-        else:
-            raise ConfigLoaderException(
-                "Invalid output_dimension argument in data.yaml"
+        valid_regression_variables = [
+            "momentum",
+            "theta",
+            "phi",
+            "transverse_momentum",
+            "E_minus_pz"
+        ]
+        bad_regression_variables = [variable for variable in self.REGRESSION_VARIABLES if variable not in valid_regression_variables]
+        if len(bad_regression_variables) > 0:
+            raise ValueError(
+                f"Unsupported variables in REGRESSION_VARIABLES: {bad_regression_variables}. "
+                f"The supported regression variables are {valid_regression_variables}. "
+                "Please only use the supported regression variables in configs/data.yaml"
             )
+
+        self.NUM_NODE_FEATURES = len(self.NODE_FEATURE_NAMES)
+        
+        self.SCALAR_KEYS = [
+            self.DETECTOR_NAME + ".energy",
+            *self.NODE_FEATURE_NAMES[1:],
+            "cluster_energy"
+        ] + self.REGRESSION_VARIABLES
+
 
         if self.INCLUDE_ECAL is True:
             self.SCALAR_KEYS += [self.DETECTOR_ECAL + ".energy"]

@@ -64,6 +64,11 @@ class DataNormalizer:
 
             for process in self.processes:
                 process.join()
+                if process.exitcode != 0:
+                    for p in self.processes:
+                        if p.is_alive():
+                            p.terminate()
+                    raise RuntimeError(f"Normalizer process {process.pid} failed")
 
             means_dict = dict({key:[] for key in config.SCALAR_KEYS})
             stdvs_dict = dict({key:[] for key in config.SCALAR_KEYS})
@@ -119,7 +124,7 @@ class DataNormalizer:
 
         with ur.open(f"{file_name}:events") as events:
             branch_names = ["MCParticles.generatorStatus", "MCParticles.PDG",
-                        'MCParticles.momentum.x', 'MCParticles.momentum.y', 'MCParticles.momentum.z',
+                        'MCParticles.momentum.x', 'MCParticles.momentum.y', 'MCParticles.momentum.z', 'MCParticles.mass',
                         config.DETECTOR_NAME+".energy", config.DETECTOR_NAME+".time",
                         config.DETECTOR_NAME+".position.x", config.DETECTOR_NAME+".position.y", config.DETECTOR_NAME+".position.z"]
             if config.INCLUDE_ECAL:
@@ -178,16 +183,13 @@ class DataNormalizer:
         file_stdvs['cluster_energy'].append(np.std(cluster_calib_E))
         
         truth_mask = self.mask_function(event_data, particle_name)
-        num_particles = len(event_data["MCParticles.PDG"][truth_mask][0]) 
+        max_num_particles = max(
+            len(event)
+            for event in event_data["MCParticles.PDG"][truth_mask]
+        )
 
-        if num_particles > 1:
-            momentum_x = ak.sum(ak.values_astype(event_data['MCParticles.momentum.x'][truth_mask], np.float64), 1)
-            momentum_y = ak.sum(ak.values_astype(event_data['MCParticles.momentum.y'][truth_mask], np.float64), 1)
-            momentum_z = ak.sum(ak.values_astype(event_data['MCParticles.momentum.z'][truth_mask], np.float64), 1)
-        elif num_particles == 1:
-            momentum_x = ak.flatten(ak.values_astype(event_data['MCParticles.momentum.x'][truth_mask], np.float64))
-            momentum_y = ak.flatten(ak.values_astype(event_data['MCParticles.momentum.y'][truth_mask], np.float64))
-            momentum_z = ak.flatten(ak.values_astype(event_data['MCParticles.momentum.z'][truth_mask], np.float64))
+        if max_num_particles > 1 and ("theta" in config.REGRESSION_VARIABLES or "phi" in config.REGRESSION_VARIABLES):
+            raise ValueError("Cannot regress on theta/phi when there are multiple particles per event!")
 
         def rotateY(xdata, zdata, angle):
             s = np.sin(angle)
@@ -195,41 +197,66 @@ class DataNormalizer:
             rotatedz = c*zdata - s*xdata
             rotatedx = s*zdata + c*xdata
             return rotatedx, rotatedz
+        
+        momentum_x = ak.values_astype(event_data['MCParticles.momentum.x'][truth_mask], np.float64)
+        momentum_y = ak.values_astype(event_data['MCParticles.momentum.y'][truth_mask], np.float64)
+        momentum_z = ak.values_astype(event_data['MCParticles.momentum.z'][truth_mask], np.float64)
         if config.ROTATE_DATA:
             momentum_x, momentum_z = rotateY(momentum_x, momentum_z, .025)
 
+        momentum_transverse = np.sqrt(momentum_x**2 + momentum_y**2)
         momentum = np.sqrt(momentum_x**2 + momentum_y**2 + momentum_z**2)
-        log_momentum = np.log10(momentum)
+        mass = event_data['MCParticles.mass'][truth_mask]
+        energy = np.sqrt(momentum**2 + mass**2)
+        E_minus_pz = energy - momentum_z
+        phi = np.arctan2(momentum_y,momentum_x)
         theta = np.arccos(momentum_z/momentum)
+        print(theta)
+        eta = -np.log(np.tan(theta/2))
         if config.THETA_UNITS == "mrad":
             theta = theta*1000  # in milli-radians
-        phi = np.arctan2(momentum_y,momentum_x)
+        
+        # Applying theta and phi masks if there are any
+        overall_mask = np.ones_like(theta, dtype=bool)
+        if config.USE_THETA_MAX:
+                overall_mask = (overall_mask) & (theta < config.THETA_MAX)
+        if config.USE_ETA_MIN:
+            overall_mask = (overall_mask) & (eta > config.ETA_MIN)
+        momentum            = momentum[overall_mask]
+        momentum_transverse = momentum_transverse[overall_mask]
+        E_minus_pz          = E_minus_pz[overall_mask]
+        phi                 = phi[overall_mask]
+        theta               = theta[overall_mask]
 
-        if config.REGRESSION_OUTPUT_DIMENSIONS == 1:
-            file_means['momentum'].append(ak.mean(log_momentum))
-            file_stdvs['momentum'].append(ak.std(log_momentum))    
-        elif config.REGRESSION_OUTPUT_DIMENSIONS == 2:
-            mask_theta = theta < config.THETA_MAX
-            theta = theta[mask_theta]
-            momentum = momentum[mask_theta]
-            log_momentum = log_momentum[mask_theta]
-            file_means['momentum'].append(ak.mean(log_momentum))
-            file_stdvs['momentum'].append(ak.std(log_momentum))
-            file_means['theta'].append(ak.mean(theta))
-            file_stdvs['theta'].append(ak.std(theta))
-        elif config.REGRESSION_OUTPUT_DIMENSIONS == 3:
-            mask_theta = theta < config.THETA_MAX
-            theta = theta[mask_theta]
-            momentum = momentum[mask_theta]
-            log_momentum = log_momentum[mask_theta]
-            phi = phi[mask_theta]
-            file_means['momentum'].append(ak.mean(log_momentum))
-            file_stdvs['momentum'].append(ak.std(log_momentum))
-            file_means['theta'].append(ak.mean(theta))
-            file_stdvs['theta'].append(ak.std(theta))
-            file_means['phi'].append(ak.mean(phi))
-            file_stdvs['phi'].append(ak.std(phi))
+        regression_variables_to_values = {}
 
+        # Summing momenta if there are multiple particles, taking individual if not
+        if max_num_particles > 1:
+            total_momentum_transverse = ak.sum(momentum_transverse, axis = 1)
+            total_momentum = ak.sum(momentum, axis = 1)
+            total_E_minus_pz = ak.sum(E_minus_pz, axis = 1)
+            total_log_momentum = np.log10(total_momentum)
+            
+            regression_variables_to_values["momentum"] = total_log_momentum
+            regression_variables_to_values["transverse_momentum"] = total_momentum_transverse
+            regression_variables_to_values["E_minus_pz"] = total_E_minus_pz
+        elif max_num_particles == 1:
+            momentum = ak.flatten(momentum)
+            momentum_transverse = ak.flatten(momentum_transverse)
+            E_minus_pz = ak.flatten(E_minus_pz)
+            log_momentum = np.log10(momentum)
+            theta = ak.flatten(theta)
+            phi = ak.flatten(phi)
+
+            regression_variables_to_values["momentum"] = log_momentum
+            regression_variables_to_values["transverse_momentum"] = momentum_transverse
+            regression_variables_to_values["E_minus_pz"] = E_minus_pz
+            regression_variables_to_values["theta"] = theta
+            regression_variables_to_values["phi"] = phi
+        
+        for variable in config.REGRESSION_VARIABLES:
+            file_means[variable].append(ak.mean(regression_variables_to_values[variable]))
+            file_stdvs[variable].append(ak.std(regression_variables_to_values[variable]))
         means.append(file_means)
         stdevs.append(file_stdvs)
 
