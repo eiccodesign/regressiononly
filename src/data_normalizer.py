@@ -211,8 +211,8 @@ class DataNormalizer:
         E_minus_pz = energy - momentum_z
         phi = np.arctan2(momentum_y,momentum_x)
         theta = np.arccos(momentum_z/momentum)
-        print(theta)
-        eta = -np.log(np.tan(theta/2))
+        if config.USE_ETA_MIN or config.USE_ETA_MAX:
+            eta = -1*np.log(np.tan(theta/2))
         if config.THETA_UNITS == "mrad":
             theta = theta*1000  # in milli-radians
         
@@ -222,6 +222,8 @@ class DataNormalizer:
                 overall_mask = (overall_mask) & (theta < config.THETA_MAX)
         if config.USE_ETA_MIN:
             overall_mask = (overall_mask) & (eta > config.ETA_MIN)
+        if config.USE_ETA_MAX:
+            overall_mask = (overall_mask) & (eta < config.ETA_MAX)
         momentum            = momentum[overall_mask]
         momentum_transverse = momentum_transverse[overall_mask]
         E_minus_pz          = E_minus_pz[overall_mask]
@@ -232,6 +234,9 @@ class DataNormalizer:
 
         # Summing momenta if there are multiple particles, taking individual if not
         if max_num_particles > 1:
+            momentum_transverse = momentum_transverse[ak.num(momentum_transverse) > 0]
+            momentum = momentum[ak.num(momentum) > 0]
+            E_minus_pz = E_minus_pz[ak.num(E_minus_pz) > 0]
             total_momentum_transverse = ak.sum(momentum_transverse, axis = 1)
             total_momentum = ak.sum(momentum, axis = 1)
             total_E_minus_pz = ak.sum(E_minus_pz, axis = 1)
