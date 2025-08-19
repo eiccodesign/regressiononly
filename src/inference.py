@@ -83,22 +83,12 @@ else:
 
 means_dict, stdvs_dict = normalizer.get_normalizer_dicts()
 test_data = DataGenerator(config, root_files, "test")
+all_targets_scaled_dict, all_outputs_scaled_dict, all_targets_dict, all_outputs_dict, all_meta = model.get_predictions(test_data, means_dict, stdvs_dict)
 
-if config.REGRESSION_OUTPUT_DIMENSIONS == 3:
-    all_targets_scaled, all_outputs_scaled, all_targets, all_outputs, all_meta = model.get_pred_3D(test_data, means_dict, stdvs_dict)
-elif config.REGRESSION_OUTPUT_DIMENSIONS == 2:
-    all_targets_scaled, all_outputs_scaled, all_targets, all_outputs, all_meta = model.get_pred_2D(test_data, means_dict, stdvs_dict)
-elif config.REGRESSION_OUTPUT_DIMENSIONS == 1:
-    all_targets_scaled, all_outputs_scaled, all_targets, all_outputs, all_meta = model.get_pred_1D(test_data, means_dict, stdvs_dict)
-
-all_targets = np.concatenate(all_targets)
-all_outputs = np.concatenate(all_outputs)
-all_meta = np.concatenate(all_meta)
-
-print(f"\n Done. Completed {np.shape(all_targets)}\n")
+print(f"\n Done.")
 np.savez(config.RESULT_DIR_PATH+'/predictions_appended_test.npz',
-            targets=all_targets, targets_scaled=all_targets_scaled,
-            outputs=all_outputs, outputs_scaled=all_outputs_scaled,
+            targets=all_targets_dict, targets_scaled=all_targets_scaled_dict,
+            outputs=all_outputs_dict, outputs_scaled=all_outputs_scaled_dict,
             meta=all_meta)
         
 input_signature = model._get_input_signature(test_data)
