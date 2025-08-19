@@ -166,6 +166,9 @@ class ConfigLoader:
                 "Please only use the supported regression variables in configs/data.yaml"
             )
 
+        self.regression_variable_to_output_index = {}
+        for i, variable in enumerate(self.REGRESSION_VARIABLES):
+            self.regression_variable_to_output_index[variable] = i
         self.NUM_NODE_FEATURES = len(self.NODE_FEATURE_NAMES)
         
         self.SCALAR_KEYS = [
@@ -173,7 +176,7 @@ class ConfigLoader:
             *self.NODE_FEATURE_NAMES[1:],
             "cluster_energy"
         ] + self.REGRESSION_VARIABLES
-
+        self.REGRESSION_OUTPUT_DIMENSIONS = len(self.REGRESSION_VARIABLES)
 
         if self.INCLUDE_ECAL is True:
             self.SCALAR_KEYS += [self.DETECTOR_ECAL + ".energy"]
