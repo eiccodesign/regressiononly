@@ -1,6 +1,6 @@
 
 # Change this directory. Where the preprocessed data will be stored
-OUTPUT_DIR_PATH: /media/miguel/Elements_2024/AI_data/preprocessed_data/ePIC_DIS_preprocessed/testing/
+OUTPUT_DIR_PATH: /media/miguel/Elements_2024/AI_data/preprocessed_data/ePIC_DIS_preprocessed/testing_dis/
 
 TRAINING_FRACTION: 0.75
 VALIDATION_FRACTION:  0.25
@@ -10,28 +10,29 @@ NUM_PROCESSES: 2             # Number of multiple processes used while preproces
 PREPROCESS_DATA: True         # If False, will use the already preprocessed data in output_dir. If True, will generate new preprocessed data
 CALC_NORMALIZER_STATS: True   # If True, will calculate the means and stedvs of the data. If False, will use means.p from output_dir
 NORMALIZER_SAMPLE_SIZE: 10    # Number of files used to calculate means and stdevs
-REGRESSION_OUTPUT_DIMENSIONS: 3          # For now, 1 = energy only, 2 = energy + theta, 3 = energy + theta + phi
-REGRESSION_VARIABLES: ["momentum", "transverse_momentum", "E_minus_pz"]
+REGRESSION_VARIABLES: ["transverse_momentum", "E_minus_pz"] # Possible variables: momentum, theta, phi, transverse_momentum, E_minus_pz
 ENERGY_WEIGHT: 0.33           # Weights are only used if output_dim == 2. Apply prefactors to energy & theta terms in loss function
 THETA_WEIGHT: 0.33
 PHI_WEIGHT: 0.33
 NUM_NEAREST_NEIGHBORS: 10     # number of nearest neighbors used in graph
 HADRONIC_DETECTOR: insert     # hcal #zdc_Fe
 INCLUDE_ECAL: True            # Should be false for ZDC
-ROTATE_DATA: False             # Rotate data to the proton axis
+ROTATE_DATA: True             # Rotate data to the proton axis
 
-USE_THETA_MAX: True
-USE_ETA_MIN: False
-ETA_MIN: 1
-THETA_UNITS: mrad # rad or mrad
+USE_THETA_MAX: False
+USE_ETA_MIN: True
+ETA_MIN: 3
+USE_ETA_MAX: True
+ETA_MAX: 4
+THETA_UNITS: rad # rad or mrad
 
 USE_CLASSIFICATION: False     # If True, will use classification for pi0/gamma events. Will use the num file variables below instead of num_train_files, num_val_files above
 NO_CLASSIFICATION_SETTINGS:
     PARTICLE: neutron
     # TRAINING_DATA_PATH: /media/miguel/Elements_2024/AI_data/datasets/ePIC_data/epicforward_inserthighgranularity_neutron_log10continuous_1GeV-150GeV_1.273deg-5.7deg_08_05_2025
     # TEST_DATA_PATH: /media/miguel/Elements_2024/AI_data/datasets/ePIC_data/epicforward_inserthighgranularity_neutron_log10discrete_1GeV-150GeV_1.273deg-5.7deg_08_05_2025
-    TRAINING_DATA_PATH: /media/miguel/Elements_2024/ePIC_feb2025_campaign/NC_DIS_18x275/minQ2_1_clusters_and_rechits/
-    TEST_DATA_PATH: /media/miguel/Elements_2024/ePIC_feb2025_campaign/NC_DIS_18x275/minQ2_1_clusters_and_rechits/
+    TRAINING_DATA_PATH: /media/miguel/Elements_2024/ePIC_feb2025_campaign/NC_DIS_18x275/minQ2_1_clusters_and_rechits/train/
+    TEST_DATA_PATH: /media/miguel/Elements_2024/ePIC_feb2025_campaign/NC_DIS_18x275/minQ2_1_clusters_and_rechits/test/
 CLASSIFICATION_SETTINGS:
     REGRESSION_WEIGHT: 0.75       # Weight given to regression in loss function when classification is True
     CLASSIFICATION_WEIGHT: 0.25   # Weight given to classification in loss function when classification is True

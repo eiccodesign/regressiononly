@@ -111,7 +111,7 @@ class DataPreprocessor:
                 particle_type = self._get_particle_type(particle_name)
             with ur.open(f"{file_name}:events") as events:
                 branch_names = ["MCParticles.generatorStatus", "MCParticles.PDG",
-                        'MCParticles.momentum.x', 'MCParticles.momentum.y', 'MCParticles.momentum.z',
+                        'MCParticles.momentum.x', 'MCParticles.momentum.y', 'MCParticles.momentum.z', "MCParticles.mass",
                         config.DETECTOR_NAME+".energy", config.DETECTOR_NAME+".time",
                         config.DETECTOR_NAME+".position.x", config.DETECTOR_NAME+".position.y", config.DETECTOR_NAME+".position.z"]
                 if config.INCLUDE_ECAL:
@@ -122,20 +122,17 @@ class DataPreprocessor:
                 num_events = events.num_entries
             preprocessed_data = []
             
+
             for event_index in range(num_events):
-                if config.REGRESSION_OUTPUT_DIMENSIONS == 1:
-                    target = self._get_momentum(event_data, event_index, particle_name)
-                elif config.REGRESSION_OUTPUT_DIMENSIONS == 2:
-                    target = self._get_momentum_theta(event_data, event_index, particle_name)
-                    if (target[1] * self.stdvs_dict["theta"] + self.means_dict["theta"]) > config.THETA_MAX:
-                        continue
-                elif config.REGRESSION_OUTPUT_DIMENSIONS == 3:
-                    target = self._get_momentum_theta_phi(event_data, event_index, particle_name)
-                    if (target[1] * self.stdvs_dict["theta"] + self.means_dict["theta"]) > config.THETA_MAX:
-                        continue
+                target = self._get_targets(event_data, event_index, particle_name)
+                # Removing events that didn't pass the cuts or otherwise are empty
+                if len(target) == 0:
+                    continue
                 if config.USE_CLASSIFICATION:
                     target += (particle_type,)
-
+                # For 1D output, should just have a number for the target
+                if len(target) == 1:
+                    target = target[0]
                 nodes, global_node, cluster_num_nodes = self._get_graph_nodes(event_data, event_index)
 
                 if cluster_num_nodes < 2:
@@ -331,6 +328,82 @@ class DataPreprocessor:
         rotatedz = c*zdata - s*xdata
         rotatedx = s*zdata + c*xdata
         return rotatedx, rotatedz
+    
+    def _get_targets(self, event_data, event_index, particle_name) -> Tuple[Any, ...]:
+        mask = self.mask_function(event_data, particle_name)
+
+        momentum_x = event_data['MCParticles.momentum.x'][mask][event_index]
+        momentum_y = event_data['MCParticles.momentum.y'][mask][event_index]
+        momentum_z = event_data['MCParticles.momentum.z'][mask][event_index]
+        mass = event_data['MCParticles.mass'][mask][event_index]
+
+        if self.config.ROTATE_DATA:
+            momentum_x, momentum_z = self._rotateY(momentum_x, momentum_z, .025)
+        momentum = np.sqrt(momentum_x**2 + momentum_y**2 + momentum_z**2)
+        theta = np.arccos(momentum_z/momentum)
+        if self.config.USE_ETA_MIN or self.config.USE_ETA_MAX:
+            # Doing this to avoid a warning from log(0).
+            theta_np = ak.to_numpy(theta)
+            tan_half = np.tan(theta_np / 2)
+            eta = np.full_like(theta_np, np.inf, dtype=float)
+            mask = tan_half > 0
+            eta[mask] = -np.log(tan_half[mask])
+
+        if self.config.THETA_UNITS == "mrad":
+            theta = theta*1000
+        overall_mask = np.ones_like(theta, dtype=bool)
+        if self.config.USE_THETA_MAX:
+            overall_mask = (overall_mask) & (theta < self.config.THETA_MAX)
+        if self.config.USE_ETA_MIN:
+            overall_mask = (overall_mask) & (eta > self.config.ETA_MIN)
+        if self.config.USE_ETA_MAX:
+            overall_mask = (overall_mask) & (eta < self.config.ETA_MAX)
+        
+        # If all particles removed, return an empty tuple
+        if ~ak.any(overall_mask):
+            return ()
+        
+        momentum_x = momentum_x[overall_mask]
+        momentum_y = momentum_y[overall_mask]
+        momentum_z = momentum_z[overall_mask]
+        momentum = momentum[overall_mask]
+        theta = theta[overall_mask]
+        mass = mass[overall_mask]
+        
+        phi = np.arctan2(momentum_y, momentum_x)
+        momentum_transverse = np.sqrt(momentum_x**2 + momentum_y**2)
+        energy = np.sqrt(momentum**2 + mass**2)
+        E_minus_pz = energy - momentum_z
+
+        num_particles = len(momentum)
+        regression_variables_to_values = {}
+        if num_particles > 1:
+            total_momentum = ak.sum(momentum)
+            log_momentum = np.log(total_momentum)
+            total_momentum_transverse = ak.sum(momentum_transverse)
+            total_E_minus_pz = ak.sum(E_minus_pz)
+            regression_variables_to_values["momentum"] = log_momentum
+            regression_variables_to_values["transverse_momentum"] = total_momentum_transverse
+            regression_variables_to_values["E_minus_pz"] = total_E_minus_pz
+        elif num_particles == 1:
+            momentum = momentum[0]
+            log_momentum = np.log10(momentum)
+            E_minus_pz = E_minus_pz[0]
+            momentum_transverse = momentum_transverse[0]
+            theta = theta[0]
+            phi = phi[0]
+            regression_variables_to_values["momentum"] = log_momentum
+            regression_variables_to_values["transverse_momentum"] = momentum_transverse
+            regression_variables_to_values["E_minus_pz"] = E_minus_pz
+            regression_variables_to_values["theta"] = theta
+            regression_variables_to_values["phi"] = phi
+        output_tuple = ()
+        for variable in self.config.REGRESSION_VARIABLES:
+            variable_value = regression_variables_to_values[variable]
+            normalized_value = (variable_value - self.means_dict[variable]) / self.stdvs_dict[variable]
+            
+            output_tuple += (normalized_value, )
+        return output_tuple
 
     def _get_momentum(self, event_data, event_index, particle_name) -> np.ndarray:
         mask = self.mask_function(event_data, particle_name)
