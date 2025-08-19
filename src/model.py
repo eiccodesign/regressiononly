@@ -172,11 +172,11 @@ class Model:
 
         if self.config.REGRESSION_OUTPUT_DIMENSIONS == 1:
             self.provided_shape = [None,]
-        elif self.config.REGRESSION_OUTPUT_DIMENSIONS == 2 or self.config.REGRESSION_OUTPUT_DIMENSIONS == 3:
+        elif self.config.REGRESSION_OUTPUT_DIMENSIONS > 1:
             self.provided_shape = [None, None]
         else:
             raise ModelException(
-                f"Unsupported OUTPUT_DIMENSION: {self.config.OUTPUT_DIMENSION}"
+                f"Unsupported REGRESSION_OUTPUT_DIMENSIONS: {self.config.REGRESSION_OUTPUT_DIMENSIONS}"
             )
         return [
             graph_spec,
@@ -398,6 +398,85 @@ class Model:
         self.classification_weight = config.CLASSIFICATION_WEIGHT
         self.classification_loss_fn = (tf.keras.losses.BinaryCrossentropy())
     
+    def get_predictions(self, data_generator: DataGenerator, means_dict: dict, stdvs_dict: dict):
+        self._wrapped_val_step = self._create_wrapped_val_step(data_generator)
+
+        i = 1
+        test_loss = []
+        all_targets_dict, all_outputs_dict = {}, {}
+        all_targets_scaled_dict, all_outputs_scaled_dict = {}, {}
+        for variable in self.config.REGRESSION_VARIABLES:
+            all_targets_dict[variable] = []
+            all_outputs_dict[variable] = []
+            all_targets_scaled_dict[variable] = []
+            all_outputs_scaled_dict[variable] = []
+        test_loss = []
+        if self.config.USE_CLASSIFICATION:
+            all_outputs_dict["classification"] = []
+            all_targets_dict["classification"] = []
+        all_meta = []
+        start = time.time()
+
+
+        for graph_data_test, targets_test, meta_test in self._get_batch(data_generator.generator()):
+            losses_test, output_test = self._val_step(graph_data_test, targets_test)
+
+            test_loss.append(losses_test.numpy())
+            targets_test = targets_test.numpy()
+            output_test = output_test.numpy()
+
+            for variable in self.config.REGRESSION_VARIABLES:
+                index = self.config.regression_variable_to_output_index[variable]
+                output_test_variable = output_test[:, index]
+                target_test_variable = targets_test[:, index]
+
+                output_test_scaled_variable = output_test_variable*stdvs_dict[variable] + means_dict[variable]
+                target_test_scaled_variable = target_test_variable*stdvs_dict[variable] + means_dict[variable]
+                if variable == "momentum":
+                    output_test_scaled_variable = 10**output_test_scaled_variable
+                    target_test_scaled_variable = 10**target_test_scaled_variable
+
+                all_outputs_dict[variable].append(output_test_variable)
+                all_targets_dict[variable].append(target_test_variable)
+                all_outputs_scaled_dict[variable].append(output_test_scaled_variable)
+                all_targets_scaled_dict[variable].append(target_test_scaled_variable)
+
+            if self.config.USE_CLASSIFICATION:
+                output_test_classification = (output_test[:, -1])
+                targets_test_classification = (targets_test[:, -1])
+                all_outputs_dict["classification"].append(output_test_classification)
+                all_targets_dict["classification"].append(targets_test_classification)
+            
+            all_meta.append(meta_test)
+
+            if not (i)%100:
+                end = time.time()
+                print('Iter: {:03d}, Test_loss_curr: {:.4f}, Test_loss_mean: {:.4f}'. \
+                  format(i, test_loss[-1], np.mean(test_loss)), end='  ')
+                print('Took {:.3f} secs'.format(end-start))
+                start = time.time()
+
+            i += 1
+        
+        end = time.time()
+        print('Iter: {:03d}, Test_loss_curr: {:.4f}, Test_loss_mean: {:.4f}'. \
+          format(i, test_loss[-1], np.mean(test_loss)), end='  ')
+        print('Took {:.3f} secs'.format(end-start))
+
+        
+        for variable in self.config.REGRESSION_VARIABLES:
+            all_outputs_dict[variable] = np.concatenate(all_outputs_dict[variable])
+            all_targets_dict[variable] = np.concatenate(all_targets_dict[variable])
+            all_outputs_scaled_dict[variable] = np.concatenate(all_outputs_scaled_dict[variable])
+            all_targets_scaled_dict[variable] = np.concatenate(all_targets_scaled_dict[variable])
+        if self.config.USE_CLASSIFICATION:
+            all_outputs_dict["classification"] = np.concatenate(all_outputs_dict["classification"])
+            all_targets_dict["classification"] = np.concatenate(all_targets_dict["classification"])
+
+        all_meta = np.concatenate(all_meta)
+        
+        return all_targets_scaled_dict, all_outputs_scaled_dict, all_targets_dict, all_outputs_dict, all_meta
+
     def get_pred_3D(self, data_generator: DataGenerator, means_dict: dict, stdvs_dict: dict):
         self._wrapped_val_step = self._create_wrapped_val_step(data_generator)
 
