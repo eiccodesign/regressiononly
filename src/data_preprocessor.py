@@ -371,21 +371,25 @@ class DataPreprocessor:
         mass = mass[overall_mask]
         
         phi = np.arctan2(momentum_y, momentum_x)
-        momentum_transverse = np.sqrt(momentum_x**2 + momentum_y**2)
         energy = np.sqrt(momentum**2 + mass**2)
         E_minus_pz = energy - momentum_z
 
         num_particles = len(momentum)
         regression_variables_to_values = {}
         if num_particles > 1:
-            total_momentum = ak.sum(momentum)
-            log_momentum = np.log(total_momentum)
-            total_momentum_transverse = ak.sum(momentum_transverse)
+            summed_momentum_x = ak.sum(momentum_x)
+            summed_momentum_y = ak.sum(momentum_y)
+            summed_momentum_z = ak.sum(momentum_z)
+
+            total_momentum = np.sqrt(summed_momentum_x**2 + summed_momentum_y**2 + summed_momentum_z**2)
+            log_momentum = np.log10(total_momentum)
+            total_momentum_transverse = np.sqrt(summed_momentum_x**2 + summed_momentum_y**2)
             total_E_minus_pz = ak.sum(E_minus_pz)
             regression_variables_to_values["momentum"] = log_momentum
             regression_variables_to_values["transverse_momentum"] = total_momentum_transverse
             regression_variables_to_values["E_minus_pz"] = total_E_minus_pz
         elif num_particles == 1:
+            momentum_transverse = np.sqrt(momentum_x**2 + momentum_y**2)
             momentum = momentum[0]
             log_momentum = np.log10(momentum)
             E_minus_pz = E_minus_pz[0]
