@@ -15,13 +15,13 @@ ENERGY_WEIGHT: 0.33           # Weights are only used if output_dim == 2. Apply 
 THETA_WEIGHT: 0.33
 PHI_WEIGHT: 0.33
 NUM_NEAREST_NEIGHBORS: 10     # number of nearest neighbors used in graph
-HADRONIC_DETECTOR: insert     # hcal #zdc_Fe
-INCLUDE_ECAL: True            # Should be false for ZDC
+HCAL_NAMES: ["LFHCAL", "insert"] # LFHCAL, insert, zdc_Fe, zdc_Pb
+ECAL_NAMES: ["ecal", "ecal_insert"] # ecal, ecal_insert, zdc_ecal
 ROTATE_DATA: True             # Rotate data to the proton axis
 
 USE_THETA_MAX: False
 USE_ETA_MIN: True
-ETA_MIN: 3
+ETA_MIN: 1
 USE_ETA_MAX: True
 ETA_MAX: 4
 THETA_UNITS: rad # rad or mrad

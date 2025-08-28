@@ -5,4 +5,4 @@ LOSS_FUNCTION: mae
 NUM_EPOCHS: 70
 LEARNING_RATE: 1.e-3
 # Change this directory. Where the ML models + predictions data will be stored
-RESULT_DIR_PATH: ./src/data/results_classification
+RESULT_DIR_PATH: /media/miguel/Elements_2024/AI_data/results_and_models/ePIC_results/testing_dis/

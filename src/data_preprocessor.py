@@ -105,19 +105,25 @@ class DataPreprocessor:
         config = self.config
         file_num = worker_id
 
+        detector_names = config.detector_names
+        detector_dictionary = config.detector_dictionary
+
         while file_num < self.num_files:
             file_name, particle_name = self.file_list[file_num]
             if config.USE_CLASSIFICATION:
                 particle_type = self._get_particle_type(particle_name)
             with ur.open(f"{file_name}:events") as events:
                 branch_names = ["MCParticles.generatorStatus", "MCParticles.PDG",
-                        'MCParticles.momentum.x', 'MCParticles.momentum.y', 'MCParticles.momentum.z', "MCParticles.mass",
-                        config.DETECTOR_NAME+".energy", config.DETECTOR_NAME+".time",
-                        config.DETECTOR_NAME+".position.x", config.DETECTOR_NAME+".position.y", config.DETECTOR_NAME+".position.z"]
-                if config.INCLUDE_ECAL:
-                    ecal_branches = [config.DETECTOR_ECAL + ".energy", config.DETECTOR_ECAL+".time",
-                    config.DETECTOR_ECAL+".position.x", config.DETECTOR_ECAL+".position.y", config.DETECTOR_ECAL+".position.z"]
-                    branch_names += ecal_branches
+                        'MCParticles.momentum.x', 'MCParticles.momentum.y', 'MCParticles.momentum.z', "MCParticles.mass"]
+                for detector_name in detector_names:
+                    detector_branch = detector_dictionary[detector_name]["BRANCH_NAME"]
+                    branch_names += [
+                        detector_branch+".energy",
+                        detector_branch+".time",
+                        detector_branch+".position.x",
+                        detector_branch+".position.y",
+                        detector_branch+".position.z"
+                    ]
                 event_data = events.arrays(branch_names)
                 num_events = events.num_entries
             preprocessed_data = []
@@ -185,34 +191,34 @@ class DataPreprocessor:
     def _get_graph_edges(self, event_data, event_index, num_nodes):
         config = self.config
         
-        cell_energy = event_data[event_index][config.DETECTOR_NAME + ".energy"]
-        time = event_data[event_index][config.DETECTOR_NAME + ".time"]
-        mask = (
-            (config.ENERGY_TH < cell_energy) & 
-            (time < config.TIME_TH) & 
-            (cell_energy < 1e10)
-        )
-
-        if config.INCLUDE_ECAL is True:
-            cell_energy_ecal = event_data[event_index][config.DETECTOR_ECAL + ".energy"]
-            time_ecal = event_data[event_index][config.DETECTOR_ECAL + ".time"]
-            mask_ecal = (
-                (cell_energy_ecal > config.ENERGY_TH_ECAL) & 
-                (time_ecal < config.TIME_TH) &
-                (cell_energy_ecal < 1e10) 
-            )
+        detector_masks = {}
 
         node_features = []
+        for detector_name in config.detector_names:
+            branch_name = config.detector_dictionary[detector_name]["BRANCH_NAME"]
+            cell_energy = ak.values_astype(event_data[branch_name+ ".energy"], np.float64)[event_index]
+            time = event_data[branch_name + ".time"][event_index]
+            mask = cell_energy < 1e10
+            if config.detector_dictionary[detector_name]["ENERGY_TH"] is not None:
+                energy_mask = cell_energy > config.detector_dictionary[detector_name]["ENERGY_TH"]
+                mask = (mask) & (energy_mask)
+            if config.detector_dictionary[detector_name]["TIME_TH"] is not None:
+                time_mask = time < config.detector_dictionary[detector_name]["TIME_TH"]
+                mask = (mask) & (time_mask)
+            
+            detector_masks[detector_name] = mask
+
+        
 
         for feature in config.EDGE_FEATURE_NAMES:
-            feature_data = event_data[event_index][config.DETECTOR_NAME + feature][mask]
-            feature_data = (feature_data - self.means_dict[feature])/self.stdvs_dict[feature]
+            feature_data = np.array([])
+            for detector_name in config.detector_names:
+                branch_name = config.detector_dictionary[detector_name]["BRANCH_NAME"] + feature
+                mask = detector_masks[detector_name]
 
-            if config.INCLUDE_ECAL is True:
-                feature_data_ecal = event_data[event_index][config.DETECTOR_ECAL + feature][mask_ecal]
-                feature_data_ecal = (feature_data_ecal - self.means_dict[feature])/self.stdvs_dict[feature]
-                feature_data = np.concatenate((feature_data, feature_data_ecal))
-
+                detector_feature_data = event_data[event_index][branch_name][mask]
+                detector_feature_data = (detector_feature_data - self.means_dict[feature])/self.stdvs_dict[feature]
+                feature_data = np.concatenate((feature_data, detector_feature_data))
             node_features.append(feature_data)
         
         node_features = np.swapaxes(node_features, 0, 1)
@@ -240,57 +246,58 @@ class DataPreprocessor:
         config = self.config
 
         cell_data = []
-        cell_energy = event_data[config.DETECTOR_NAME + ".energy"]
-        time = event_data[config.DETECTOR_NAME + ".time"]
-        mask = (
-            (cell_energy > config.ENERGY_TH) & 
-            (time < config.TIME_TH) & 
-            (cell_energy < 1e10)
-        )
-
-        if config.INCLUDE_ECAL is True:
-            cell_data_ecal = []
-            cell_energy_ecal = event_data[config.DETECTOR_ECAL + ".energy"]
-            time_ecal = event_data[config.DETECTOR_ECAL + ".time"]
-            mask_ecal = (
-                (cell_energy_ecal > config.ENERGY_TH_ECAL) & 
-                (time_ecal < config.TIME_TH) & 
-                (cell_energy_ecal < 1e10) 
-            )
+        detector_masks = {}
+        for detector_name in config.detector_names:
+            branch_name = config.detector_dictionary[detector_name]["BRANCH_NAME"]
+            cell_energy = ak.values_astype(event_data[branch_name+ ".energy"], np.float64)
+            time = event_data[branch_name + ".time"]
+            mask = cell_energy < 1e10
+            if config.detector_dictionary[detector_name]["ENERGY_TH"] is not None:
+                energy_mask = cell_energy > config.detector_dictionary[detector_name]["ENERGY_TH"]
+                mask = (mask) & (energy_mask)
+            if config.detector_dictionary[detector_name]["TIME_TH"] is not None:
+                time_mask = time < config.detector_dictionary[detector_name]["TIME_TH"]
+                mask = (mask) & (time_mask)
             
-        for feature in config.NODE_FEATURE_NAMES:
-            feature_data = event_data[config.DETECTOR_NAME + feature][mask]
-            if "energy" in feature:  
-                feature_data = np.log10(feature_data)
-                feature_data = (feature_data - self.means_dict[config.DETECTOR_NAME + feature])/self.stdvs_dict[config.DETECTOR_NAME+feature]
+            detector_masks[detector_name] = mask
+        
+        ecal_simulated = False
+        hcal_simulated = False
+        for detector_name in config.detector_names:
+            detector_type = config.detector_dictionary[detector_name]["DETECTOR_TYPE"]
+            if detector_type == "HCAL":
+                hcal_simulated = True
+            elif detector_type == "ECAL":
+                ecal_simulated = True
             else:
-                feature_data = (feature_data - self.means_dict[feature])/self.stdvs_dict[feature]
-
-            cell_data.append(feature_data)
-
-            if config.INCLUDE_ECAL is True:
-                feature_data_ecal = event_data[config.DETECTOR_ECAL + feature][mask_ecal]
-
-                if "energy" in feature:
-                    feature_data_ecal = np.log10(feature_data_ecal)
-                    feature_data_ecal = (feature_data_ecal - self.means_dict[config.DETECTOR_ECAL + feature])/self.stdvs_dict[config.DETECTOR_ECAL+feature]
+                raise ValueError(f"{detector_name} has unsupported detector type in config_loader.py!")
+        
+        for detector_name in config.detector_names:
+            branch_name = config.detector_dictionary[detector_name]["BRANCH_NAME"]
+            detector_cell_data = []
+            for feature in config.NODE_FEATURE_NAMES:
+                mask = detector_masks[detector_name]
+                feature_data = event_data[branch_name + feature][mask]
+                if "energy" in feature:  
+                    feature_data = np.log10(feature_data)
+                    feature_data = (feature_data - self.means_dict[branch_name + feature])/self.stdvs_dict[branch_name+feature]
                 else:
-                    feature_data_ecal = (feature_data_ecal - self.means_dict[feature])/self.stdvs_dict[feature]
+                    feature_data = (feature_data - self.means_dict[feature])/self.stdvs_dict[feature]
+                detector_cell_data.append(feature_data)
+            
+            detector_cell_data = np.swapaxes(detector_cell_data, 0, 1)
+            if ecal_simulated and hcal_simulated:
+                detector_type = config.detector_dictionary[detector_name]["DETECTOR_TYPE"]
+                if detector_type == "ECAL":
+                    detector_index = np.zeros((detector_cell_data.shape[0], 1))
+                elif detector_type == "HCAL":
+                    detector_index = np.ones((detector_cell_data.shape[0], 1))
+                else:
+                    raise ValueError(f"{detector_name} has unsupported detector type in config_loader.py!")
 
-                cell_data_ecal.append(feature_data_ecal)
-
-        cell_data = np.swapaxes(cell_data, 0, 1)
-
-        if config.INCLUDE_ECAL is True:
-            cell_data_ecal = np.swapaxes(cell_data_ecal, 0, 1)
-            col_with_zero_ecal = np.zeros((cell_data_ecal.shape[0], 1))
-            cell_data_ecal = np.hstack((cell_data_ecal, col_with_zero_ecal))
-
-            col_with_one_hcal = np.ones((cell_data.shape[0], 1))
-
-            cell_data = np.hstack((cell_data, col_with_one_hcal))
-            cell_data = np.vstack((cell_data, cell_data_ecal))
-
+                detector_cell_data = np.hstack((detector_cell_data, detector_index))
+            cell_data.append(detector_cell_data)
+        cell_data = np.vstack(cell_data)
         return cell_data
 
 
@@ -298,14 +305,13 @@ class DataPreprocessor:
 
         config = self.config
 
-        cell_energy = event_data[config.DETECTOR_NAME+".energy"]
-        cluster_calibration_energy = np.sum(cell_energy, axis = -1)
-        cluster_calibration_energy /= config.SAMPLING_FRACTION
-        
-        if config.INCLUDE_ECAL is True:
-            cell_energy_ecal = event_data[config.DETECTOR_ECAL+".energy"]
-            cluster_calibration_E_ecal = np.sum(cell_energy_ecal, axis = -1)
-            cluster_calibration_energy += cluster_calibration_E_ecal
+        cluster_calibration_energy = 0
+        for detector_name in config.detector_names:
+            branch_name = config.detector_dictionary[detector_name]["BRANCH_NAME"]
+            cell_energy = event_data[branch_name+".energy"]
+            detector_energy = np.sum(cell_energy, axis = -1)
+            detector_energy /= config.detector_dictionary[detector_name]["SAMPLING_FRACTION"]
+            cluster_calibration_energy += detector_energy
 
         if cluster_calibration_energy <= 0:
             return None
@@ -315,7 +321,6 @@ class DataPreprocessor:
         cluster_calibration_energy /= self.stdvs_dict["cluster_energy"]
         
         return cluster_calibration_energy
-
 
 
     """
@@ -352,10 +357,13 @@ class DataPreprocessor:
         if self.config.THETA_UNITS == "mrad":
             theta = theta*1000
         overall_mask = np.ones_like(theta, dtype=bool)
+        E_minus_pz_mask = np.ones_like(theta, dtype=bool)
         if self.config.USE_THETA_MAX:
             overall_mask = (overall_mask) & (theta < self.config.THETA_MAX)
+            E_minus_pz_mask = (E_minus_pz_mask) & (theta < self.config.THETA_MAX)
         if self.config.USE_ETA_MIN:
             overall_mask = (overall_mask) & (eta > self.config.ETA_MIN)
+            E_minus_pz_mask = (E_minus_pz_mask) & (eta > self.config.ETA_MIN)
         if self.config.USE_ETA_MAX:
             overall_mask = (overall_mask) & (eta < self.config.ETA_MAX)
         
@@ -363,16 +371,19 @@ class DataPreprocessor:
         if ~ak.any(overall_mask):
             return ()
         
+        energy = np.sqrt(momentum**2 + mass**2)
+        E_minus_pz = energy[E_minus_pz_mask] - momentum_z[E_minus_pz_mask]
+
         momentum_x = momentum_x[overall_mask]
         momentum_y = momentum_y[overall_mask]
         momentum_z = momentum_z[overall_mask]
         momentum = momentum[overall_mask]
         theta = theta[overall_mask]
         mass = mass[overall_mask]
+        energy = energy[overall_mask]
         
         phi = np.arctan2(momentum_y, momentum_x)
-        energy = np.sqrt(momentum**2 + mass**2)
-        E_minus_pz = energy - momentum_z
+        
 
         num_particles = len(momentum)
         regression_variables_to_values = {}

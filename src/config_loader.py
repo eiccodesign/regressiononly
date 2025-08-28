@@ -98,45 +98,91 @@ class ConfigLoader:
             for key, value in data_configs.items():
               setattr(self, key, value)
         
-        if self.HADRONIC_DETECTOR == 'hcal':
-            self.DETECTOR_NAME     = "HcalEndcapPHitsReco"
-            self.SAMPLING_FRACTION = 0.0224
-            self.ENERGY_TH         = 0.5 * 0.0006
-            self.TIME_TH           = 150
-            self.THETA_MAX         = 1000.0 # in radians. Set to arbitrarily high number to avoid mask
-        elif self.HADRONIC_DETECTOR == 'insert':
-            self.DETECTOR_NAME     = "HcalEndcapPInsertRecHits"
-            self.SAMPLING_FRACTION = 0.02
-            self.ENERGY_TH         = 0.5 * 0.0006
-            self.TIME_TH           = 150
-            self.THETA_MAX         = 10000000.0 # in radians. Set to arbitrarily high number to avoid mask
-        elif self.HADRONIC_DETECTOR == 'zdc_Fe':
-            self.DETECTOR_NAME     = "ZDCHcalHitsReco"
-            self.SAMPLING_FRACTION = 0.0203
-            self.ENERGY_TH         = 0.5 * 0.000472
-            self.TIME_TH           = 275
-            self.THETA_MAX         = 10.0 # in radians. Set to arbitrarily high number to avoid mask
-        elif self.HADRONIC_DETECTOR == 'zdc_Pb':
-            self.DETECTOR_NAME     = "ZDCHcalHitsReco"
-            self.SAMPLING_FRACTION = 0.0216
-            self.ENERGY_TH         = 0.5 * 0.000393
-            self.TIME_TH           = 275
-            self.THETA_MAX         = 4.0 # in radians. Set to arbitrarily high number to avoid mask
-        else:
-            raise ConfigLoaderException(
-                "Invalid hadronic_detector argument in data.yaml"
-            )
-        if self.THETA_UNITS == "mrad":
-            self.THETA_MAX = self.THETA_MAX*1000
+        self.detector_dictionary = {
+            "insert" : {
+                "BRANCH_NAME" : "HcalEndcapPInsertRecHits",
+                "SAMPLING_FRACTION" : .02,
+                "ENERGY_TH" : 0.5 * 0.0006,
+                "TIME_TH" : 150,
+                "THETA_MAX" : 10000000, # in radians
+                "DETECTOR_TYPE" : "HCAL"
+            },
+            "LFHCAL" : {
+                "BRANCH_NAME" : "LFHCALRecHits",
+                "SAMPLING_FRACTION" : 1,
+                "ENERGY_TH" : None,
+                "TIME_TH" : 150,
+                "THETA_MAX" : 10000000, # in radians
+                "DETECTOR_TYPE" : "HCAL"
+            },
+            "hcal" : {
+                "BRANCH_NAME" : "HcalEndcapPHitsReco",
+                "SAMPLING_FRACTION" : .0224,
+                "ENERGY_TH" : 0.5 * 0.0006,
+                "TIME_TH" : 150,
+                "THETA_MAX" : 1000, # in radians
+                "DETECTOR_TYPE" : "HCAL"
+            },
+            "zdc_Fe" : {
+                "BRANCH_NAME" : "ZDCHcalHitsReco",
+                "SAMPLING_FRACTION" : .0203,
+                "ENERGY_TH" : 0.5 * 0.000472,
+                "TIME_TH" : 275,
+                "THETA_MAX" : 10, # in radians
+                "DETECTOR_TYPE" : "HCAL"
+            },
+            "zdc_Pb" : {
+                "BRANCH_NAME" : "ZDCHcalHitsReco",
+                "SAMPLING_FRACTION" : .0216,
+                "ENERGY_TH" : 0.5 * 0.000393,
+                "TIME_TH" : 275,
+                "THETA_MAX" : 4, # in radians
+                "DETECTOR_TYPE" : "HCAL"
+            },
+            "zdc_ecal" : {
+                "BRANCH_NAME" : 'ZDCEcalHitsReco',
+                "SAMPLING_FRACTION" : 1,
+                "ENERGY_TH" : 0.5 * .088,
+                "TIME_TH" : None,
+                "THETA_MAX" : 4, # in radians
+                "DETECTOR_TYPE" : "ECAL"
+            },
+            "ecal_insert" : {
+                "BRANCH_NAME" : 'EcalEndcapPInsertRecHits',
+                "SAMPLING_FRACTION" : 1,
+                "ENERGY_TH" : .05 * 0.13,
+                "TIME_TH" : None,
+                "THETA_MAX" : 100000000, # in radians
+                "DETECTOR_TYPE" : "ECAL"
+            },
+            "ecal" : {
+                "BRANCH_NAME" : 'EcalEndcapPRecHits',
+                "SAMPLING_FRACTION" : 1,
+                "ENERGY_TH" : .05 * 0.13,
+                "TIME_TH" : None,
+                "THETA_MAX" : 100000000, # in radians
+                "DETECTOR_TYPE" : "ECAL"
+            },
+        }
+
+        hcal_names = self.HCAL_NAMES
+        ecal_names = self.ECAL_NAMES
+
+        for ecal_name in ecal_names:
+            if ecal_name not in self.detector_dictionary:
+                raise ConfigLoaderException(
+                    f"Invalid name in ECAL_NAMES in data.yaml: {ecal_name}"
+                )
+        for hcal_name in hcal_names:
+            if hcal_name not in self.detector_dictionary:
+                raise ConfigLoaderException(
+                    f"Invalid name in HCAL_NAMES in data.yaml: {hcal_name}"
+                )
         
-        if self.HADRONIC_DETECTOR == 'zdc_Fe' or self.HADRONIC_DETECTOR == 'zdc_Pb':
-            self.DETECTOR_ECAL = 'ZDCEcalHitsReco'
-            self.MIP_ECAL = 0.088
-            self.ENERGY_TH_ECAL = 0.5 * self.MIP_ECAL
-        else:
-            self.DETECTOR_ECAL = 'EcalEndcapPInsertRecHits'
-            self.MIP_ECAL = 0.13
-            self.ENERGY_TH_ECAL = 0.5 * self.MIP_ECAL
+        self.detector_names = hcal_names + ecal_names
+        if self.THETA_UNITS == "mrad":
+            for detector in self.detector_names:
+                self.detector_dictionary[detector]["THETA_MAX"] *= 1000
 
         self.NODE_FEATURE_NAMES = [
             ".energy", 
@@ -171,15 +217,14 @@ class ConfigLoader:
             self.regression_variable_to_output_index[variable] = i
         self.NUM_NODE_FEATURES = len(self.NODE_FEATURE_NAMES)
         
-        self.SCALAR_KEYS = [
-            self.DETECTOR_NAME + ".energy",
-            *self.NODE_FEATURE_NAMES[1:],
-            "cluster_energy"
-        ] + self.REGRESSION_VARIABLES
+        self.SCALAR_KEYS = []
+        for detector_name in self.detector_names:
+            self.SCALAR_KEYS += [self.detector_dictionary[detector_name]["BRANCH_NAME"] + ".energy"]
+        self.SCALAR_KEYS += self.NODE_FEATURE_NAMES[1:]
+        self.SCALAR_KEYS += ["cluster_energy"]
+        self.SCALAR_KEYS += self.REGRESSION_VARIABLES
         self.REGRESSION_OUTPUT_DIMENSIONS = len(self.REGRESSION_VARIABLES)
 
-        if self.INCLUDE_ECAL is True:
-            self.SCALAR_KEYS += [self.DETECTOR_ECAL + ".energy"]
 
         if self.USE_CLASSIFICATION is True:
             self.REGRESSION_WEIGHT = self.CLASSIFICATION_SETTINGS["REGRESSION_WEIGHT"]

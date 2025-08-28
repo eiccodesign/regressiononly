@@ -121,63 +121,72 @@ class DataNormalizer:
 
         file_num = worker_id
         file_name, particle_name = self.file_list[file_num]
+        detector_names = config.detector_names
+        detector_dictionary = config.detector_dictionary
 
         with ur.open(f"{file_name}:events") as events:
             branch_names = ["MCParticles.generatorStatus", "MCParticles.PDG",
-                        'MCParticles.momentum.x', 'MCParticles.momentum.y', 'MCParticles.momentum.z', 'MCParticles.mass',
-                        config.DETECTOR_NAME+".energy", config.DETECTOR_NAME+".time",
-                        config.DETECTOR_NAME+".position.x", config.DETECTOR_NAME+".position.y", config.DETECTOR_NAME+".position.z"]
-            if config.INCLUDE_ECAL:
-                ecal_branches = [config.DETECTOR_ECAL + ".energy", config.DETECTOR_ECAL+".time",
-                config.DETECTOR_ECAL+".position.x", config.DETECTOR_ECAL+".position.y", config.DETECTOR_ECAL+".position.z"]
-                branch_names += ecal_branches
+                        'MCParticles.momentum.x', 'MCParticles.momentum.y', 'MCParticles.momentum.z', 'MCParticles.mass']
+            for detector_name in detector_names:
+                detector_branch = detector_dictionary[detector_name]["BRANCH_NAME"]
+                branch_names += [
+                    detector_branch+".energy",
+                    detector_branch+".time",
+                    detector_branch+".position.x",
+                    detector_branch+".position.y",
+                    detector_branch+".position.z"
+                ]
             event_data = events.arrays(branch_names)
         
         file_means = {key:[] for key in config.SCALAR_KEYS}
         file_stdvs = {key:[] for key in config.SCALAR_KEYS}
         
-        cell_energy = ak.values_astype(event_data[config.DETECTOR_NAME + ".energy"], np.float64)
-        time = event_data[config.DETECTOR_NAME + ".time"]
-        mask = ((cell_energy > config.ENERGY_TH) & 
-                (time < config.TIME_TH) & 
-                (cell_energy < 1e10))
+        # Loop over each detector name. Get the mask for those. Then calculate the mean positions, times, and energies. If these are in scalar keys, then add them to the file
+        total_calibration_energy = ak.Array([])
+        all_x_positions = ak.Array([])
+        all_y_positions = ak.Array([])
+        all_z_positions = ak.Array([])
+        for detector_name in detector_names:
+            branch_name = detector_dictionary[detector_name]["BRANCH_NAME"]
+            cell_energy = ak.values_astype(event_data[branch_name+ ".energy"], np.float64)
+            x_positions = ak.values_astype(event_data[branch_name+ ".position.x"], np.float64)
+            y_positions = ak.values_astype(event_data[branch_name+ ".position.y"], np.float64)
+            z_positions = ak.values_astype(event_data[branch_name+ ".position.z"], np.float64)
+            time = event_data[branch_name + ".time"]
+            mask = cell_energy < 1e10
+            if detector_dictionary[detector_name]["ENERGY_TH"] is not None:
+                energy_mask = cell_energy > detector_dictionary[detector_name]["ENERGY_TH"]
+                mask = (mask) & (energy_mask)
+            if detector_dictionary[detector_name]["TIME_TH"] is not None:
+                time_mask = time < detector_dictionary[detector_name]["TIME_TH"]
+                mask = (mask) & (time_mask)
 
-        if config.INCLUDE_ECAL:
-            cell_energy_ecal = ak.values_astype(event_data[config.DETECTOR_ECAL + ".energy"], np.float64)
-            time_ecal = event_data[config.DETECTOR_ECAL + ".time"]
-            mask_ecal = (
-                (cell_energy_ecal > config.ENERGY_TH_ECAL) & 
-                (time_ecal < config.TIME_TH) & 
-                (cell_energy_ecal < 1e10)
-            )
+            x_positions = x_positions[mask]
+            y_positions = y_positions[mask]
+            z_positions = z_positions[mask]
+            cell_energy = cell_energy[mask]
+            all_x_positions = ak.concatenate((all_x_positions, x_positions))
+            all_y_positions = ak.concatenate((all_y_positions, y_positions))
+            all_z_positions = ak.concatenate((all_z_positions, z_positions))
+            
+            if branch_name + ".energy" in config.SCALAR_KEYS:
+                file_means[branch_name + ".energy"].append(np.mean(np.log10(cell_energy)))
+                file_stdvs[branch_name + ".energy"].append(np.std(np.log10(cell_energy)))
+            detector_energy = ak.sum(cell_energy, axis=-1) / detector_dictionary[detector_name]["SAMPLING_FRACTION"]
+            total_calibration_energy = ak.concatenate((total_calibration_energy, detector_energy))
 
-        for key in config.SCALAR_KEYS:
-            if 'position' in key:
-                feature_data = ak.values_astype(event_data[config.DETECTOR_NAME + key][mask], np.float64)
-                if config.INCLUDE_ECAL:
-                    feature_data_ecal = ak.values_astype(event_data[config.DETECTOR_ECAL + key][mask_ecal], np.float64)
-                    feature_data = ak.concatenate([feature_data, feature_data_ecal])
-                file_means[key].append(np.mean(feature_data))
-                file_stdvs[key].append(np.std(feature_data))
-            elif '.energy' in key:
-                if 'Ecal' in key:  
-                    feature_data = np.log10(cell_energy_ecal[mask_ecal])
-                else:
-                    feature_data = np.log10(cell_energy[mask])
+        if ".position.x" in config.SCALAR_KEYS:
+            file_means[".position.x"].append(np.mean(all_x_positions))
+            file_stdvs[".position.x"].append(np.std(all_x_positions))
+        if ".position.y" in config.SCALAR_KEYS:
+            file_means[".position.y"].append(np.mean(all_y_positions))
+            file_stdvs[".position.y"].append(np.std(all_y_positions))
+        if ".position.z" in config.SCALAR_KEYS:
+            file_means[".position.z"].append(np.mean(all_z_positions))
+            file_stdvs[".position.z"].append(np.std(all_z_positions))
 
-                file_means[key].append(np.mean(feature_data))
-                file_stdvs[key].append(np.std(feature_data))
-            else:
-                continue
-
-        cluster_sum_E_hcal = ak.sum(cell_energy[mask], axis=-1)
-        total_calibration_energy = cluster_sum_E_hcal / config.SAMPLING_FRACTION
-        if config.INCLUDE_ECAL:
-            cluster_sum_E_ecal = ak.sum(cell_energy_ecal[mask_ecal], axis=-1)
-            total_calibration_energy = total_calibration_energy + cluster_sum_E_ecal
-
-        mask = total_calibration_energy > 0.0
-        cluster_calib_E = np.log10(total_calibration_energy[mask])
+        calibration_energy_mask = total_calibration_energy > 0.0
+        cluster_calib_E = np.log10(total_calibration_energy[calibration_energy_mask])
 
         file_means['cluster_energy'].append(np.mean(cluster_calib_E))
         file_stdvs['cluster_energy'].append(np.std(cluster_calib_E))
@@ -218,14 +227,17 @@ class DataNormalizer:
         
         # Applying theta and phi masks if there are any
         overall_mask = np.ones_like(theta, dtype=bool)
+        E_minus_pz_mask = np.ones_like(theta, dtype=bool)
         if config.USE_THETA_MAX:
-                overall_mask = (overall_mask) & (theta < config.THETA_MAX)
+            overall_mask = (overall_mask) & (theta < config.THETA_MAX)
+            E_minus_pz_mask = (E_minus_pz_mask) & (theta < config.THETA_MAX)
         if config.USE_ETA_MIN:
             overall_mask = (overall_mask) & (eta > config.ETA_MIN)
+            E_minus_pz_mask = (E_minus_pz_mask) & (eta > config.ETA_MIN)
         if config.USE_ETA_MAX:
             overall_mask = (overall_mask) & (eta < config.ETA_MAX)
         momentum            = momentum[overall_mask]
-        E_minus_pz          = E_minus_pz[overall_mask]
+        E_minus_pz          = E_minus_pz[E_minus_pz_mask]
         phi                 = phi[overall_mask]
         theta               = theta[overall_mask]
         momentum_x = momentum_x[overall_mask]
