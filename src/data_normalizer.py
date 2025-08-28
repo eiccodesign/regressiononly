@@ -236,6 +236,7 @@ class DataNormalizer:
             E_minus_pz_mask = (E_minus_pz_mask) & (eta > config.ETA_MIN)
         if config.USE_ETA_MAX:
             overall_mask = (overall_mask) & (eta < config.ETA_MAX)
+            E_minus_pz_mask = (E_minus_pz_mask) & (eta < config.ETA_MAX)
         momentum            = momentum[overall_mask]
         E_minus_pz          = E_minus_pz[E_minus_pz_mask]
         phi                 = phi[overall_mask]

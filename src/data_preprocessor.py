@@ -366,6 +366,7 @@ class DataPreprocessor:
             E_minus_pz_mask = (E_minus_pz_mask) & (eta > self.config.ETA_MIN)
         if self.config.USE_ETA_MAX:
             overall_mask = (overall_mask) & (eta < self.config.ETA_MAX)
+            E_minus_pz_mask = (E_minus_pz_mask) & (eta < self.config.ETA_MAX)
         
         # If all particles removed, return an empty tuple
         if ~ak.any(overall_mask):
