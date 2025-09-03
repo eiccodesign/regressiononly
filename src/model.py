@@ -105,7 +105,10 @@ class Model:
                     start = time.time()
                     losses_val, output_vals = self._val_step(graph_data_val, targets_val)
                     targets_val = targets_val.numpy()
-                    output_vals = output_vals.numpy().squeeze(axis=1) if config.REGRESSION_OUTPUT_DIMENSIONS==1 else output_vals.numpy()
+                    if config.REGRESSION_OUTPUT_DIMENSIONS==1 and not config.USE_CLASSIFICATION:
+                        output_vals = output_vals.numpy().squeeze(axis=1)
+                    else:
+                        output_vals = output_vals.numpy()
                     val_loss.append(losses_val.numpy())
                     all_targets.append(targets_val)
                     all_outputs.append(output_vals)
@@ -171,7 +174,10 @@ class Model:
         graph_spec = utils_tf.specs_from_graphs_tuple(samp_graph, True, True, True)
 
         if self.config.REGRESSION_OUTPUT_DIMENSIONS == 1:
-            self.provided_shape = [None,]
+            if self.config.USE_CLASSIFICATION:
+                self.provided_shape = [None, None]
+            else:
+                self.provided_shape = [None,]
         elif self.config.REGRESSION_OUTPUT_DIMENSIONS > 1:
             self.provided_shape = [None, None]
         else:
@@ -426,9 +432,17 @@ class Model:
             output_test = output_test.numpy()
 
             for variable in self.config.REGRESSION_VARIABLES:
-                index = self.config.regression_variable_to_output_index[variable]
-                output_test_variable = output_test[:, index]
-                target_test_variable = targets_test[:, index]
+                if len(self.config.REGRESSION_VARIABLES) > 1:
+                    index = self.config.regression_variable_to_output_index[variable]
+                    output_test_variable = output_test[:, index]
+                    target_test_variable = targets_test[:, index]
+                else:
+                    if self.config.USE_CLASSIFICATION:
+                        output_test_variable = output_test[:, 0]
+                        target_test_variable = targets_test[:, 0]
+                    else:
+                        output_test_variable = output_test
+                        target_test_variable = targets_test
 
                 output_test_scaled_variable = output_test_variable*stdvs_dict[variable] + means_dict[variable]
                 target_test_scaled_variable = target_test_variable*stdvs_dict[variable] + means_dict[variable]
