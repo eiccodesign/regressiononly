@@ -28,6 +28,8 @@ def mask_function(event_data, particle_name):
         return (event_data["MCParticles.generatorStatus"] == 2) & (event_data["MCParticles.PDG"]==3122)
     elif particle_name == "sigma":
         return (event_data["MCParticles.generatorStatus"] == 2) & (event_data["MCParticles.PDG"]==3212)
+    elif particle_name == "rho":
+        return (event_data["MCParticles.generatorStatus"] == 2) & (event_data["MCParticles.PDG"]==113)
     else:
         return event_data["MCParticles.generatorStatus"] == 1
 
