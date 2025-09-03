@@ -395,8 +395,8 @@ class DataPreprocessor:
 
             total_momentum = np.sqrt(summed_momentum_x**2 + summed_momentum_y**2 + summed_momentum_z**2)
             log_momentum = np.log10(total_momentum)
-            total_momentum_transverse = np.sqrt(summed_momentum_x**2 + summed_momentum_y**2)
-            total_E_minus_pz = ak.sum(E_minus_pz)
+            total_momentum_transverse = np.log10(np.sqrt(summed_momentum_x**2 + summed_momentum_y**2))
+            total_E_minus_pz = np.log10(ak.sum(E_minus_pz))
             regression_variables_to_values["momentum"] = log_momentum
             regression_variables_to_values["transverse_momentum"] = total_momentum_transverse
             regression_variables_to_values["E_minus_pz"] = total_E_minus_pz
@@ -404,8 +404,8 @@ class DataPreprocessor:
             momentum_transverse = np.sqrt(momentum_x**2 + momentum_y**2)
             momentum = momentum[0]
             log_momentum = np.log10(momentum)
-            E_minus_pz = E_minus_pz[0]
-            momentum_transverse = momentum_transverse[0]
+            E_minus_pz = np.log10(E_minus_pz[0])
+            momentum_transverse = np.log10(momentum_transverse[0])
             theta = theta[0]
             phi = phi[0]
             regression_variables_to_values["momentum"] = log_momentum

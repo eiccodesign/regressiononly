@@ -258,10 +258,10 @@ class DataNormalizer:
             summed_momentum_y = ak.sum(momentum_y, axis=1)
             summed_momentum_z = ak.sum(momentum_z, axis=1)
 
-            total_momentum_transverse = np.sqrt(summed_momentum_x**2 + summed_momentum_y**2)
-            total_momentum =np.sqrt(summed_momentum_x**2 + summed_momentum_y**2 + summed_momentum_z**2)
+            total_momentum_transverse = np.log10(np.sqrt(summed_momentum_x**2 + summed_momentum_y**2))
+            total_momentum = np.sqrt(summed_momentum_x**2 + summed_momentum_y**2 + summed_momentum_z**2)
             E_minus_pz = E_minus_pz[ak.num(E_minus_pz) > 0]
-            total_E_minus_pz = ak.sum(E_minus_pz, axis = 1)
+            total_E_minus_pz = np.log10(ak.sum(E_minus_pz, axis = 1))
             total_log_momentum = np.log10(total_momentum)
             
             regression_variables_to_values["momentum"] = total_log_momentum
@@ -269,9 +269,9 @@ class DataNormalizer:
             regression_variables_to_values["E_minus_pz"] = total_E_minus_pz
         elif max_num_particles == 1:
             momentum = ak.flatten(momentum)
-            momentum_transverse = np.sqrt(momentum_x**2 + momentum_y**2)
+            momentum_transverse = np.log10(np.sqrt(momentum_x**2 + momentum_y**2))
             momentum_transverse = ak.flatten(momentum_transverse)
-            E_minus_pz = ak.flatten(E_minus_pz)
+            E_minus_pz = np.log10(ak.flatten(E_minus_pz))
             log_momentum = np.log10(momentum)
             theta = ak.flatten(theta)
             phi = ak.flatten(phi)
