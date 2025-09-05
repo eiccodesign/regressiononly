@@ -21,7 +21,7 @@ This file contains the parameters for the data and preprocessing. Some informati
 Classification:
 If you want to do classification between two different datasets, set `USE_CLASSIFICATION` to true. You can then set the particle type and paths of the datasets in the options. To not do classification set `USE_CLASSIFICATION` to false and set the paths to your dataset.
 Particle type:
-Currently there are two special particles: `sigma` and `lambda`. If the particle is set to one of these, a mask will be chosen to pick these particles. Otherwise, the default mask is applied which is `MCParticles.generatorStatus==1`.
+Currently there are two special particles: `sigma`, `lambda`, and `rho`. If the particle is set to one of these, a mask will be chosen to pick these particles. Otherwise, the default mask is applied which is `MCParticles.generatorStatus==1`.
 
 ### training.yaml
 The main parameters you'll want to adjust are `NUM_EPOCHS` and `RESULT_DIR_PATH`. The `RESULT_DIR_PATH` is where the model will be stored. On the UCR GPU, it is recommended to put the model in `/media/miguel/Elements_2024/AI_data/results_and_models/`.
@@ -31,7 +31,9 @@ To preprocess the data and train a model, simply do `python main.py`. After the 
 The model will output a dictionary of predictions and targets.
 
 ### Notebooks
-After preprocessing, QA plots should be made for the preprocessed data using `notebooks/preprocessed_QA.ipynb`. To see an example of how to use the dictionary output, see `notebooks/testing_new_output.ipynb` or `notebooks/testing_new_output_pt_Eminuspz.ipynb`.
+After preprocessing, QA plots can be made for the preprocessed data using `notebooks/preprocessed_QA.ipynb`. To see an example of how to use the dictionary output, see `notebooks/testing_new_output.ipynb` or `notebooks/testing_new_output_pt_Eminuspz.ipynb`.
+
+You can check the regression results with the appropriate notebook. For instance, ePIC neutron regression results can be plotted with `notebooks/ePIC_neutron_regression.ipynb` and muography results can be plotted with `notebooks/muography_regression.ipynb`
 
 ### Known issues
 If you do preprocessing with many processes, you'll likely get an error about too many open files when it transitions to training. To fix this, exit the training (Ctrl+C), change the number of processes to 2, set `CALC_NORMALIZER_STATS` and `PREPROCESS_DATA` to False and run again.
