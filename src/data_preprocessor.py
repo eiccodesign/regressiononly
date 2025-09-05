@@ -345,7 +345,10 @@ class DataPreprocessor:
         if self.config.ROTATE_DATA:
             momentum_x, momentum_z = self._rotateY(momentum_x, momentum_z, .025)
         momentum = np.sqrt(momentum_x**2 + momentum_y**2 + momentum_z**2)
-        theta = np.arccos(momentum_z/momentum)
+        if self.config.USE_ABSOLUTE_VALUE_Z:
+            theta = np.arccos(abs(momentum_z)/momentum)
+        else:
+            theta = np.arccos(momentum_z/momentum)
         if self.config.USE_ETA_MIN or self.config.USE_ETA_MAX:
             # Doing this to avoid a warning from log(0).
             theta_np = ak.to_numpy(theta)
@@ -356,6 +359,8 @@ class DataPreprocessor:
 
         if self.config.THETA_UNITS == "mrad":
             theta = theta*1000
+        elif self.config.THETA_UNITS == "deg":
+            theta = theta*180/np.pi
         overall_mask = np.ones_like(theta, dtype=bool)
         E_minus_pz_mask = np.ones_like(theta, dtype=bool)
         if self.config.USE_THETA_MAX:
@@ -448,10 +453,14 @@ class DataPreprocessor:
             momentum_x, momentum_z = self._rotateY(momentum_x, momentum_z, .025)
 
         momentum = np.sqrt(momentum_x**2 + momentum_y**2 + momentum_z**2)
-        theta = np.arccos(momentum_z/momentum)
+        if self.config.USE_ABSOLUTE_VALUE_Z:
+            theta = np.arccos(abs(momentum_z)/momentum)
+        else:
+            theta = np.arccos(momentum_z/momentum)
         if self.config.THETA_UNITS == "mrad":
             theta = theta*1000
-
+        elif self.config.THETA_UNITS == "deg":
+            theta = theta*180/np.pi
         momentum = np.log10(np.sqrt(momentum_x**2 + momentum_y**2 + momentum_z**2))
         momentum = (momentum - self.means_dict["momentum"]) / self.stdvs_dict["momentum"]
         theta = (theta - self.means_dict["theta"]) / self.stdvs_dict["theta"]
@@ -469,9 +478,14 @@ class DataPreprocessor:
             momentum_x, momentum_z = self._rotateY(momentum_x, momentum_z, .025)
 
         momentum = np.sqrt(momentum_x**2 + momentum_y**2 + momentum_z**2)
-        theta = np.arccos(momentum_z/momentum)
+        if self.config.USE_ABSOLUTE_VALUE_Z:
+            theta = np.arccos(abs(momentum_z)/momentum)
+        else:
+            theta = np.arccos(momentum_z/momentum)
         if self.config.THETA_UNITS == "mrad":
             theta = theta*1000
+        elif self.config.THETA_UNITS == "deg":
+            theta = theta*180/np.pi
         phi = np.arctan2(momentum_y, momentum_x)
 
         momentum = np.log10(np.sqrt(momentum_x**2 + momentum_y**2 + momentum_z**2))

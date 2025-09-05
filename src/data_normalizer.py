@@ -219,11 +219,16 @@ class DataNormalizer:
         energy = np.sqrt(momentum**2 + mass**2)
         E_minus_pz = energy - momentum_z
         phi = np.arctan2(momentum_y,momentum_x)
-        theta = np.arccos(momentum_z/momentum)
+        if config.USE_ABSOLUTE_VALUE_Z:
+            theta = np.arccos(abs(momentum_z)/momentum)
+        else:
+            theta = np.arccos(momentum_z/momentum)
         if config.USE_ETA_MIN or config.USE_ETA_MAX:
             eta = -1*np.log(np.tan(theta/2))
         if config.THETA_UNITS == "mrad":
             theta = theta*1000  # in milli-radians
+        elif config.THETA_UNITS == "deg":
+            theta = theta*180/np.pi
         
         # Applying theta and phi masks if there are any
         overall_mask = np.ones_like(theta, dtype=bool)

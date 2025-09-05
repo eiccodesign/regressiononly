@@ -1,6 +1,6 @@
 from pathlib      import Path
 import yaml
-
+import numpy as np
 from exceptions   import ConfigLoaderException
 
 
@@ -163,6 +163,14 @@ class ConfigLoader:
                 "THETA_MAX" : 100000000, # in radians
                 "DETECTOR_TYPE" : "ECAL"
             },
+            "muon_detector" : {
+                "BRANCH_NAME" : 'HcalFarForwardZDCHits',
+                "SAMPLING_FRACTION" : 1,
+                "ENERGY_TH" : None,
+                "TIME_TH" : None,
+                "THETA_MAX" : None,
+                "DETECTOR_TYPE" : "HCAL"
+            }
         }
 
         hcal_names = self.HCAL_NAMES
@@ -182,7 +190,12 @@ class ConfigLoader:
         self.detector_names = hcal_names + ecal_names
         if self.THETA_UNITS == "mrad":
             for detector in self.detector_names:
-                self.detector_dictionary[detector]["THETA_MAX"] *= 1000
+                if self.detector_dictionary[detector]["THETA_MAX"] is not None:
+                    self.detector_dictionary[detector]["THETA_MAX"] *= 1000
+        elif self.THETA_UNITS == "deg":
+            for detector in self.detector_names:
+                if self.detector_dictionary[detector]["THETA_MAX"] is not None:
+                    self.detector_dictionary[detector]["THETA_MAX"] *= (180/np.pi)
 
         self.NODE_FEATURE_NAMES = [
             ".energy", 
