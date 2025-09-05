@@ -10,12 +10,14 @@ This file contains the parameters for the data and preprocessing. Some informati
 - `NUM_PROCESSES` is the number of processes used during preprocessing. This can be set to a high number to preprocess quickly, but should be set back to 2 during training.
 - `REGRESSION_VARIABLES` are the variables you want to regress on. The currently supported variables are `momentum`, `theta`, `phi`, `tranverse_momentum`, and `E_minus_pz`.
 - `ENERGY_WEIGHT`, `THETA_WEIGHT`, `PHI_WEIGHT` are currently unused and can be ignored.
-- `HADRONIC_DETECTOR` will likely either be `insert` or `zdc_Fe`. Parameters about the HCAL/ECAL can be set in config_loader.py.
-- `INCLUDE_ECAL` should be true if you have an ECAL in front of the HCAL. The appropritate ECAL will be chosen based on `HADRONIC_DETECTOR`..
+- `HCAL_NAMES` will contain the names of the HCAL detectors in your data. Available options are "insert", "LFHCAL", "hcal", "zdc_Fe", "zdc_Pb", "muon_detector". Parameters about the HCAL can be set in config_loader.py.
+- `ECAL_NAMES` will contain the names of the ECAL detectors in your data. Available options are "zdc_ecal", "ecal_insert", "ecal". Parameters about the ECAL can be set in config_loader.py. If you don't have an ECAL, leave this blank.
 - `ROTATE_DATA` should be true if you want to rotate the data to align with the proton axis. This is usually done for data generated with ePIC simulations.
 - `USE_THETA_MAX` if you want to use the THETA_MAX variable in config_loader.py
 - `USE_ETA_MIN`/`USE_ETA_MAX` if you want to set a min/max value of pseudorapidity. The eta will be calculated in the frame dictated by `ROTATE_DATA`.
-- `THETA_UNITS` will be the units of theta if that's a regression variable. Either mrad or rad.
+- `THETA_UNITS` will be the units of theta if that's a regression variable. Either mrad, rad, deg.
+- `USE_ABSOLUTE_VALUE_Z` when this is true, theta will be calculated using `np.arccos(abs(momentum_z)/momentum)`. Otherwise, it'll use `np.arccos(momentum_z/momentum)`.
+
 Classification:
 If you want to do classification between two different datasets, set `USE_CLASSIFICATION` to true. You can then set the particle type and paths of the datasets in the options. To not do classification set `USE_CLASSIFICATION` to false and set the paths to your dataset.
 Particle type:
