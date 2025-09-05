@@ -3,6 +3,9 @@ import awkward as ak
 import math
 import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit
+import uproot
+import os
+
 
 # Gaussian functional form
 def gaussian(x, amp, mean, sigma_squared):
@@ -255,6 +258,146 @@ def get_resolutions(data_to_fit,
         plt.xlabel("$\phi_{pred} - \phi_{true} (rad)$", fontsize=24, labelpad=20)
     plt.suptitle(title)
     return avg_truth, (resolution_list, resolution_error_list), (energy_scale_list, energy_scale_error_list), events_below_3sigma_list
+
+def get_theta_resolutions(
+    data_to_fit,
+    gen_theta,
+    binning,
+    nbins,
+    data_name = "theta", # Either "energy", "theta", or "phi"
+    title="",
+    units="",
+):   
+    N_Bins=len(binning)-1
+    
+    n_sigma_fit= 3 # fit within +- 3 sigma   
+    plot_range = 3                                                                                                                                                                                                          
+    row=math.ceil(np.sqrt(N_Bins))
+    if (row**2-N_Bins)>row:
+        col=row-1
+    else:
+        col=row
+
+    sigma_list = []
+    sigma_error_list = []
+    mean_list = []
+    mean_error_list = []
+
+    y_ticks_size=14
+    x_ticks_size=14
+    major_x_locator=0.25
+    unit = units
+    
+    fig,axs = plt.subplots(row,col, figsize=(18, 15),sharex=False)
+    plt.subplots_adjust(wspace=0, hspace=0.3)
+
+    # Rounding generated energies to nearest integers
+    mask = (gen_theta >= binning[0]) & (gen_theta <= binning[-1])
+    data_to_fit = data_to_fit[mask]
+    gen_theta = gen_theta[mask]
+    # Putting each event in its associated bin
+    # Will get a np array with each entry being the bin number of the event
+    indecies = np.digitize(gen_theta, binning)-1 
+
+    # Making sure there are no negative indecies
+    # These would be entries that are smaller than the lowest bin edge
+    indecies = np.where(indecies < 0, 0, indecies) 
+    if any(indecies<0): print(indecies)
+
+    # Takes the number of entries from the bin with the most entries
+    max_count = np.max(np.bincount(indecies)) 
+
+    # Will store the event quantity in these arrays
+    # 2D array: N_bins number of arrays, each initalized to allow for max number of bin entries
+    binned_data = np.empty((N_Bins, max_count))
+    binned_data.fill(np.nan)
+    event_counter = np.zeros(N_Bins, int)
+    # Storing the energies in binned_quantity arrays
+    for i in range(len(gen_theta)):
+        bin = indecies[i]
+        # Skipping events that are greater than the max bin edge
+        if (bin>=N_Bins): continue
+        binned_data[bin][event_counter[bin]] = data_to_fit[i] 
+        event_counter[bin]+=1
+    
+    # Removing any nan entries and taking mean/std. deviation
+    data_stdev = np.nanstd(binned_data, axis=1)
+    data_mean = np.nanmean(binned_data, axis=1)
+    valid_bin_centers = []
+
+    for i_bin in range(N_Bins):
+        
+        # Using the means and std. dev of bin data
+        # as the initial values for the Gaussian fit
+        bin_mean = data_mean[i_bin]
+        bin_stddev = data_stdev[i_bin]
+        
+        # Min and max range for histogram                                                                                  
+        min_range = bin_mean - plot_range * bin_stddev
+        max_range = bin_mean + plot_range * bin_stddev
+        
+        irow=int(i_bin/col)
+        icol=int(i_bin%col)
+
+        if irow < row:
+            ax = axs[irow,icol]
+            i_data = binned_data[i_bin][~np.isnan(binned_data[i_bin])]
+            ax.set_title(f"{binning[i_bin]:.2f} - {binning[i_bin+1]:.2f} {unit}", fontsize=15)
+            if len(i_data)<5:
+                continue
+            theta_bin_center = (binning[i_bin] + binning[i_bin+1])/2
+            valid_bin_centers.append(theta_bin_center)
+            bin_counts, bin_edges, _ = ax.hist(i_data,
+                                     bins = nbins,
+                                     alpha=0.5,
+                                     range=(min_range, max_range),
+                                     color='b',
+                                     linewidth=8)
+
+            bin_counts = bin_counts[~np.isnan(bin_counts)]
+            bin_edges = bin_edges[~np.isnan(bin_edges)]
+
+            bin_centers = np.array([0.5 * (bin_edges[i] + bin_edges[i+1]) for i in range(len(bin_edges)-1)])
+
+            fit_result = gaussian_fit_on_distribution(n_sigma_fit,
+                                                      bin_stddev,
+                                                      bin_mean,
+                                                      bin_centers,
+                                                      bin_counts,
+                                                      ax)
+            if fit_result is None:
+                print(f"gaussian_fit_on_distribution returned None for bin {i_bin}")
+                continue
+            fit_mean = fit_result[0]
+            fit_std = fit_result[1]
+
+            
+
+            if icol==0:
+                ax.set_ylabel("Entries",fontsize=15)
+
+            ax.tick_params(axis='x', labelsize=x_ticks_size)
+            ax.tick_params(axis='y', labelsize=y_ticks_size)
+
+            sigma = (fit_std[0], fit_std[1])
+            mean = (fit_mean[0], fit_mean[1])
+
+            sigma_list.append(sigma[0])
+            sigma_error_list.append(sigma[1])
+
+            mean_list.append(mean[0])
+            mean_error_list.append(mean[1])
+        else:
+            continue
+            
+    fig.add_subplot(111, frameon=False)
+    plt.tick_params(labelcolor='none', which='both', top=False, bottom=False, left=False, right=False)
+    if data_name == "theta":
+        plt.xlabel(f"$\\theta_{{pred}} - \\theta_{{true}} ({unit})$", fontsize=24, labelpad=20)
+    elif data_name == "phi":
+        plt.xlabel(f"$\phi_{{pred}} - \phi_{{true}} ({unit})$", fontsize=24, labelpad=20)
+    plt.suptitle(title)
+    return valid_bin_centers, (sigma_list, sigma_error_list), (mean_list, mean_error_list)
 
 def rotateY(x, z, angle_rad):
     s, c = np.sin(angle_rad), np.cos(angle_rad)
