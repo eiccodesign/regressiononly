@@ -164,7 +164,7 @@ class ConfigLoader:
                 "DETECTOR_TYPE" : "ECAL"
             },
             "muon_detector" : {
-                "BRANCH_NAME" : 'HcalFarForwardZDCHits',
+                "BRANCH_NAME" : 'MuographyHits',
                 "SAMPLING_FRACTION" : 1,
                 "ENERGY_TH" : None,
                 "TIME_TH" : None,
